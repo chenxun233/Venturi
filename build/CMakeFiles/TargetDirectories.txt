@@ -1,0 +1,5 @@
+/home/chenxun/Documents/Project/Venturi/build/CMakeFiles/test_app_loopsend.dir
+/home/chenxun/Documents/Project/Venturi/build/CMakeFiles/test_app_pcap.dir
+/home/chenxun/Documents/Project/Venturi/build/CMakeFiles/test_fpga_hello_v2.dir
+/home/chenxun/Documents/Project/Venturi/build/CMakeFiles/edit_cache.dir
+/home/chenxun/Documents/Project/Venturi/build/CMakeFiles/rebuild_cache.dir
