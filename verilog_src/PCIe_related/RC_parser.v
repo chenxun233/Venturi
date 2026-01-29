@@ -1,12 +1,5 @@
 // =============================================================================
-// RC_parser.v - Requester Completion Parser for HFT NIC (Multi-Beat)
-// =============================================================================
-// Parses the Requester Completion (RC) AXI-Stream interface from Xilinx
-// UltraScale PCIe Gen3 IP core. RC delivers DMA read completions from host.
-//
-// For HFT: 
-//   - Tag matching is critical - completions may arrive out-of-order
-//   - Multi-beat support for large TX DMA reads
+//  Logic <- RC_parser <- PCIe_IP_core <- Host
 // =============================================================================
 
 module RC_parser #(

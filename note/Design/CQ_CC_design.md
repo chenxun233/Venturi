@@ -45,6 +45,7 @@ This module acts as the "Trigger." It parses memory requests from the Host (Root
 * **Data Concatenation (`cq_wr_data`):**
 * **Logic:** Concatenates `DW1` and `DW0` (`[191:160]` and `[159:128]`).
 * **Rationale:** Optimizes for 64-bit Doorbell writes (common in HFT) so the TX engine gets the full queue pointer/metadata in a single beat.
+* **Note on `tkeep`:** The parser currently ignores `m_axis_cq_tkeep`, assuming full-width, aligned accesses (32/64-bit). If you want to support partial DWs or unaligned/byte enables, you must use `tkeep` to mask/align `cq_wr_data`.
 
 * **Read Length (`cq_dword_count`):**
 * **Logic:** Directly uses `m_axis_cq_tdata[74:64]`.
@@ -80,7 +81,7 @@ Since `CQ_parser` is purely combinational, the `cq_valid` signal has a long path
 
 ### 3.2 Unsupported Requests
 
-* **Attention:** This parser only recognizes Read (`0000`) and Write (`0001`). Other TLP types will not assert `cq_is_read`/`cq_is_write` even though `cq_valid` still follows `m_axis_cq_tvalid`.
+* **Attention:** This parser only recognizes Read (`0000`) and Write (`0001`). Other TLP types will not assert `cq_type` (read/write) even though `cq_valid` still follows `m_axis_cq_tvalid`.
 
 ---
 

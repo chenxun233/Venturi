@@ -1,10 +1,6 @@
 // =============================================================================
-// CC_formatter.v - Completer Completion Formatter for HFT NIC
-// =============================================================================
-// Formats the Completer Completion (CC) AXI-Stream interface to Xilinx UltraScale
-// PCIe Gen3 IP core. CC sends read data back to host in response to CQ reads.
-//
-// For HFT: Minimal latency, direct wiring from CQ_parser fields.
+// Host <- PCIe_IP_core <- CC_formatter.v <- Logic
+// Does not support multi-beat completions (max 4 DWords)
 // =============================================================================
 
 module CC_formatter #(

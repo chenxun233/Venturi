@@ -36,8 +36,7 @@ module pcie_interface #(
     // CQ Parser Outputs (Host → FPGA MMIO Requests)
     // =========================================================================
     output wire                     cq_valid,
-    output wire                     cq_is_write,
-    output wire                     cq_is_read,
+    output wire [3:0]               cq_type,
     output wire [BAR0_SIZE-1:0]     cq_reg_addr,
     output wire [63:0]              cq_wr_data,
     output wire [2:0]               cq_bar_id,
@@ -67,18 +66,15 @@ module pcie_interface #(
     // =========================================================================
     output wire                     rq_ready,
     input  wire                     rq_valid,
-    input  wire                     rq_is_write,
-    input  wire                     rq_is_read,
+    input  wire [3:0]               rq_type,
     input  wire                     rq_sop,
-    input  wire                     rq_last,
+    input  wire                     rq_last,        // the last cycle of data sending
     input  wire [63:0]              rq_addr,
-    input  wire [10:0]              rq_dword_count,
+    input  wire [10:0]              rq_dword_count, // Total Data DWords (1-1024) in this burst. Does not include header.
     input  wire [7:0]               rq_tag,
     input  wire [15:0]              rq_requester_id,
     input  wire [2:0]               rq_tc,
-    input  wire [2:0]               rq_attr,
-    input  wire [255:0]             rq_payload,
-    input  wire [DATA_WIDTH / 32-1:0]    rq_payload_keep,
+    input  wire [255:0]             rq_wr_data,
 
     // =========================================================================
     // RC Parser Outputs (Host → FPGA DMA Read Completions)
@@ -110,7 +106,7 @@ module pcie_interface #(
     wire [DATA_WIDTH-1:0]           m_axis_cq_tdata;
     wire                            m_axis_cq_tvalid;
     wire [84:0]                     m_axis_cq_tuser;
-    wire [DATA_WIDTH / 32-1:0]           m_axis_cq_tkeep;
+    wire [DATA_WIDTH / 32-1:0]      m_axis_cq_tkeep;
     wire                            m_axis_cq_tlast;
     wire                            m_axis_cq_tready;
 
@@ -120,7 +116,7 @@ module pcie_interface #(
     wire [DATA_WIDTH-1:0]           s_axis_cc_tdata;
     wire                            s_axis_cc_tvalid;
     wire [32:0]                     s_axis_cc_tuser;
-    wire [DATA_WIDTH / 32-1:0]           s_axis_cc_tkeep;
+    wire [DATA_WIDTH / 32-1:0]      s_axis_cc_tkeep;
     wire                            s_axis_cc_tlast;
     wire [3:0]                      s_axis_cc_tready;
 
@@ -190,8 +186,6 @@ module pcie_interface #(
     // =========================================================================
     // Internal Wires - RQ Sequence
     // =========================================================================
-    wire [5:0]                      pcie_rq_seq_num;
-    wire                            pcie_rq_seq_num_vld;
     wire [1:0]                      pcie_tfc_nph_av;
     wire [1:0]                      pcie_tfc_npd_av;
 
@@ -229,8 +223,7 @@ module pcie_interface #(
         .m_axis_cq_tlast            (m_axis_cq_tlast),
         .m_axis_cq_tready           (m_axis_cq_tready),
         .cq_valid                   (cq_valid),
-        .cq_is_write                (cq_is_write),
-        .cq_is_read                 (cq_is_read),
+        .cq_type                    (cq_type),
         .cq_reg_addr                 (cq_reg_addr),
         .cq_wr_data                 (cq_wr_data),
         .cq_bar_id                  (cq_bar_id),
@@ -273,8 +266,7 @@ module pcie_interface #(
     ) rq_formatter_inst (
         .rq_valid                   (rq_valid),
         .rq_ready                   (rq_ready),
-        .rq_is_write                (rq_is_write),
-        .rq_is_read                 (rq_is_read),
+        .rq_type                    (rq_type),
         .rq_sop                     (rq_sop),
         .rq_last                    (rq_last),
         .rq_addr                    (rq_addr),
@@ -282,9 +274,7 @@ module pcie_interface #(
         .rq_tag                     (rq_tag),
         .rq_requester_id            (rq_requester_id),
         .rq_tc                      (rq_tc),
-        .rq_attr                    (rq_attr),
-        .rq_payload                 (rq_payload),
-        .rq_payload_keep            (rq_payload_keep),
+        .rq_wr_data                 (rq_wr_data),
         .s_axis_rq_tdata            (s_axis_rq_tdata),
         .s_axis_rq_tvalid           (s_axis_rq_tvalid),
         .s_axis_rq_tuser            (s_axis_rq_tuser),
@@ -376,10 +366,10 @@ module pcie_interface #(
         .m_axis_rc_tready           (m_axis_rc_tready),
 
         // RQ Sequence and Flow Control
-        .pcie_rq_seq_num            (pcie_rq_seq_num),
-        .pcie_rq_seq_num_vld        (pcie_rq_seq_num_vld),
-        .pcie_rq_tag                (),
-        .pcie_rq_tag_av             (),
+        .pcie_rq_seq_num            (), 
+        .pcie_rq_seq_num_vld        (),
+        .pcie_rq_tag                (), //o. The IP core gives you a tag if you didn't provide one
+        .pcie_rq_tag_av             (), //o
         .pcie_rq_tag_vld            (),
         .pcie_tfc_nph_av            (pcie_tfc_nph_av),
         .pcie_tfc_npd_av            (pcie_tfc_npd_av),

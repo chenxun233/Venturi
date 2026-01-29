@@ -150,7 +150,7 @@ module RQ_formatter #(parameter DATA_WIDTH = 256, KEEP_WIDTH = 8)(
     // User interface
     input  wire                  rq_valid,
     output wire                  rq_ready,
-    input  wire                  rq_is_write,         // 1=Write, 0=Read
+    input 
     input  wire                  rq_sop,              // First beat (descriptor)
     input  wire                  rq_last,             // Last beat
     

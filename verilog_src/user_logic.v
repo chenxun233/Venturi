@@ -24,17 +24,16 @@ module user_logic #(
     // =========================================================================
     // CQ Parser Interface (Host → FPGA MMIO Requests)
     // =========================================================================
-    (* MARK_DEBUG = "TRUE" *)   input  wire                     cq_valid,
-    input  wire                     cq_is_write,
-    (* MARK_DEBUG = "TRUE" *)   input  wire                     cq_is_read,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [BAR0_SIZE-1:0]     cq_reg_addr,
+    input  wire                     cq_valid,
+    output wire [3:0]               cq_type,
+    input  wire [BAR0_SIZE-1:0]     cq_reg_addr,
     input  wire [63:0]              cq_wr_data,
     input  wire [2:0]               cq_bar_id,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [15:0]              cq_requester_id,
+    input  wire [15:0]              cq_requester_id,
     input  wire [7:0]               cq_tag,
     input  wire [2:0]               cq_tc,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [6:0]               cq_lower_addr,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [10:0]              cq_dword_count,
+    input  wire [6:0]               cq_lower_addr,
+    input  wire [10:0]              cq_dword_count,
 
     // =========================================================================
     // CC Formatter Interface (FPGA → Host Read Responses)
@@ -55,8 +54,7 @@ module user_logic #(
     // =========================================================================
     input  wire                     rq_ready,
     output reg                      rq_valid,
-    output reg                      rq_is_write,
-    output reg                      rq_is_read,
+    output reg [3:0]                rq_type,
     output reg                      rq_sop,
     output reg                      rq_last,
     output reg  [63:0]              rq_addr,
@@ -64,9 +62,8 @@ module user_logic #(
     output reg  [7:0]               rq_tag,
     output reg  [15:0]              rq_requester_id,
     output reg  [2:0]               rq_tc,
-    output reg  [2:0]               rq_attr,
-    output reg  [DATA_WIDTH-1:0]    rq_payload,
-    output reg  [DATA_WIDTH / 32-1:0]    rq_payload_keep,
+    output reg  [DATA_WIDTH-1:0]    rq_wr_data,
+    output reg  [DATA_WIDTH / 32-1:0]    rq_wr_data_keep,
 
     // =========================================================================
     // RC Parser Interface (Host → FPGA DMA Read Completions)
@@ -115,7 +112,7 @@ module user_logic #(
     localparam ST_COMPLETE = 2'b01;
     localparam ST_DMA      = 2'b10;
 
-    (* MARK_DEBUG = "TRUE" *)   reg [1:0]  state;
+    reg [1:0]  state;
 
     // =========================================================================
     // User Registers
@@ -135,7 +132,7 @@ module user_logic #(
     // Captured completer ID (our Bus:Dev:Func)
 
     // Saved descriptor fields for completion
-    (* MARK_DEBUG = "TRUE" *)   reg [63:0] read_data;
+    reg [63:0] read_data;
     reg [15:0] saved_requester_id;
     reg [7:0]  saved_tag;
     reg [2:0]  saved_tc;
@@ -145,7 +142,7 @@ module user_logic #(
     // =========================================================================
     // Register Address Decode
     // =========================================================================
-    (* MARK_DEBUG = "TRUE" *)   wire [7:0] reg_addr = cq_reg_addr[7:0];
+    wire [7:0] reg_addr = cq_reg_addr[7:0];
 
     // =========================================================================
     // Main State Machine
@@ -164,8 +161,7 @@ module user_logic #(
             cc_last <= 1'b0;
 
             rq_valid <= 1'b0;
-            rq_is_write <= 1'b0;
-            rq_is_read <= 1'b0;
+            rq_type     <=4'b0000;
             rq_sop <= 1'b0;
             rq_last <= 1'b0;
             rq_addr <= 64'h0;
@@ -173,9 +169,8 @@ module user_logic #(
             rq_tag <= 8'h0;
             rq_requester_id <= 16'h0;
             rq_tc <= 3'h0;
-            rq_attr <= 3'h0;
-            rq_payload <= {DATA_WIDTH{1'b0}};
-            rq_payload_keep <= {DATA_WIDTH / 32{1'b0}};
+            rq_wr_data <= {DATA_WIDTH{1'b0}};
+            rq_wr_data_keep <= {DATA_WIDTH / 32{1'b0}};
 
             scratch_reg <= 64'h0;
             interrupt_counter <= 16'h0;
@@ -207,7 +202,7 @@ module user_logic #(
                         //  but we need a separate signal for our ID -
                         //  for now use a fixed value or add a port)
 
-                        if (cq_is_write) begin
+                        if (cq_type == 4'b0001) begin
                             // -------------------------------------------------
                             // Memory Write - Update registers
                             // -------------------------------------------------
@@ -237,7 +232,7 @@ module user_logic #(
                                 end
                             endcase
                             // Writes don't need completion (posted)
-                        end else if (cq_is_read) begin
+                        end else if (cq_type == 4'b0000) begin
                             // -------------------------------------------------
                             // Memory Read - Prepare completion
                             // -------------------------------------------------
@@ -298,18 +293,16 @@ module user_logic #(
                 ST_DMA: begin
                     if (rq_ready && dma_busy) begin
                         rq_valid <= 1'b1;
-                        rq_is_write <= 1'b1;
-                        rq_is_read <= 1'b0;
+                        rq_type <=4'b0001;
                         rq_sop <= 1'b1;
                         rq_last <= 1'b1;                // Single beat DMA
                         rq_addr <= dma_target_addr;
                         rq_dword_count <= 11'd4;        // 4 DWords = 16 bytes
                         rq_tag <= 8'h42;                // Fixed tag for DMA
                         rq_tc <= 3'b0;
-                        rq_attr <= 3'b0;
                         // Payload: Test pattern
-                        rq_payload <= {128'h0, 64'hCAFEBABE_12345678, 64'hDEADBEEF_AABBCCDD};
-                        rq_payload_keep <= 8'hFF;
+                        rq_wr_data <= {128'h0, 64'hCAFEBABE_12345678, 64'hDEADBEEF_AABBCCDD};
+                        rq_wr_data_keep <= 8'hFF;
 
                         dma_busy <= 1'b0;
                         dma_done <= 1'b1;

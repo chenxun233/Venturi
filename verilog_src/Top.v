@@ -61,8 +61,7 @@ module top #(
     // Internal Wires - CQ Parser Outputs
     // =========================================================================
     wire                    cq_valid;
-    wire                    cq_is_write;
-    wire                    cq_is_read;
+    wire [3:0]              cq_type;
     wire [BAR0_SIZE-1:0]    cq_reg_addr;
     wire [63:0]             cq_wr_data;
     wire [2:0]              cq_bar_id;
@@ -91,8 +90,6 @@ module top #(
     // =========================================================================
     wire                    rq_ready;
     wire                    rq_valid;
-    wire                    rq_is_write;
-    wire                    rq_is_read;
     wire                    rq_sop;
     wire                    rq_last;
     wire [63:0]             rq_addr;
@@ -100,9 +97,8 @@ module top #(
     wire [7:0]              rq_tag;
     wire [15:0]             rq_requester_id;
     wire [2:0]              rq_tc;
-    wire [2:0]              rq_attr;
-    wire [DATA_WIDTH-1:0]   rq_payload;
-    wire [KEEP_WIDTH-1:0]   rq_payload_keep;
+    wire [DATA_WIDTH-1:0]   rq_wr_data;
+    wire [KEEP_WIDTH-1:0]   rq_wr_data_keep;
 
     // =========================================================================
     // Internal Wires - RC Parser Outputs
@@ -156,8 +152,7 @@ module top #(
 
         // CQ Parser Outputs
         .cq_valid             (cq_valid),
-        .cq_is_write          (cq_is_write),
-        .cq_is_read           (cq_is_read),
+        .cq_type              (cq_type),
         .cq_reg_addr           (cq_reg_addr),
         .cq_wr_data           (cq_wr_data),
         .cq_bar_id            (cq_bar_id),
@@ -182,8 +177,7 @@ module top #(
         // RQ Formatter Inputs
         .rq_ready               (rq_ready),
         .rq_valid               (rq_valid),
-        .rq_is_write            (rq_is_write),
-        .rq_is_read             (rq_is_read),
+        .rq_type                (rq_type),
         .rq_sop                 (rq_sop),
         .rq_last                (rq_last),
         .rq_addr                (rq_addr),
@@ -191,9 +185,7 @@ module top #(
         .rq_tag                 (rq_tag),
         .rq_requester_id        (rq_requester_id),
         .rq_tc                  (rq_tc),
-        .rq_attr                (rq_attr),
-        .rq_payload             (rq_payload),
-        .rq_payload_keep        (rq_payload_keep),
+        .rq_wr_data             (rq_wr_data),
 
         // RC Parser Outputs
         .rc_desc_valid          (rc_desc_valid),
@@ -227,8 +219,7 @@ module top #(
 
         // CQ Parser Interface
         .cq_valid             (cq_valid),
-        .cq_is_write          (cq_is_write),
-        .cq_is_read           (cq_is_read),
+        .cq_type              (cq_type),
         .cq_reg_addr           (cq_reg_addr),
         .cq_wr_data           (cq_wr_data),
         .cq_bar_id            (cq_bar_id),
@@ -253,8 +244,7 @@ module top #(
         // RQ Formatter Interface
         .rq_ready               (rq_ready),
         .rq_valid               (rq_valid),
-        .rq_is_write            (rq_is_write),
-        .rq_is_read             (rq_is_read),
+        .rq_type                (rq_type),
         .rq_sop                 (rq_sop),
         .rq_last                (rq_last),
         .rq_addr                (rq_addr),
@@ -262,9 +252,8 @@ module top #(
         .rq_tag                 (rq_tag),
         .rq_requester_id        (rq_requester_id),
         .rq_tc                  (rq_tc),
-        .rq_attr                (rq_attr),
-        .rq_payload             (rq_payload),
-        .rq_payload_keep        (rq_payload_keep),
+        .rq_wr_data             (rq_wr_data),
+        .rq_wr_data_keep        (rq_wr_data_keep),
 
         // RC Parser Interface
         .rc_desc_valid          (rc_desc_valid),

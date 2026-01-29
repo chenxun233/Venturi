@@ -1,5 +1,6 @@
 // =============================================================================
-// CQ_parser_64b.v - 64-bit Register Parser for HFT NIC
+// Host -> PCIe_IP_core -> CQ_parser.v -> Logic
+// Does not support multi-beat completions (max 4 DWords)
 // =============================================================================
 
 module CQ_parser #(
@@ -9,7 +10,7 @@ parameter BAR0_SIZE = 16      // Byte address width (2^16 = 64KB BAR)
 // =========================================================================
 // AXI Channel
 // =========================================================================
-(* MARK_DEBUG = "TRUE" *)   input  wire [DATA_WIDTH-1:0]    m_axis_cq_tdata,
+input  wire [DATA_WIDTH-1:0]    m_axis_cq_tdata,
 input  wire                     m_axis_cq_tvalid,
 input  wire [84:0]              m_axis_cq_tuser,
 input  wire [DATA_WIDTH/32-1:0] m_axis_cq_tkeep,
@@ -20,8 +21,7 @@ output wire                     m_axis_cq_tready,
 // Descriptor Channel
 // =========================================================================
 output wire                     cq_valid,          // t1, Transaction valid this cycle, always check it first.
-output wire                     cq_is_write,       // t1, Memory Write
-output wire                     cq_is_read,        // t1, Memory Read
+output wire [3:0]               cq_type,           // t1, 4'b0000=Mem Read, 4'b0001=Mem Write
 output wire [BAR0_SIZE-1:0]     cq_reg_addr,       // t1, 
 output wire [63:0]              cq_wr_data,        // t1, Write data (64-bit)
 output wire [2:0]               cq_bar_id,         // t1, Target BAR
@@ -48,9 +48,7 @@ assign      cq_reg_addr         = {m_axis_cq_tdata[2 +: (BAR0_SIZE-2)],2'b00};
 // how many DW you try to read. In the driver, if you read uint64, cq_dword_count is 2.
 assign      cq_dword_count     = m_axis_cq_tdata[74:64];
 // request type
-wire [3:0]  req_type           = m_axis_cq_tdata[78:75];
-assign      cq_is_write        = m_axis_cq_tvalid  && (req_type == 4'b0001);
-assign      cq_is_read         = m_axis_cq_tvalid  && (req_type == 4'b0000);
+assign      cq_type           = m_axis_cq_tdata[78:75];
 // request ID
 assign      cq_requester_id    = m_axis_cq_tdata[95:80];
 // tag      

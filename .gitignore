@@ -1,2 +1,6 @@
 Vivado/
 cpp_src/build/
+.vscode/
+.claude/
+.cache/
+._.DS_Store
