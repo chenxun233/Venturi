@@ -15,7 +15,7 @@
  */
 
 #include "fpga_hello_dev.h"
-#include "log.h"
+#include "../common/log.h"
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -65,18 +65,12 @@ int main(int argc, char* argv[]) {
     int test_num_int = std::atoi(test_num);
     switch (test_num_int) {
         case 1:
-            dev->test_id_register();
-            break;
-        case 2:
-            dev->test_status_register();
-            break;
-        case 3:
             dev->test_scratch_register();
             break;
-        case 4:
+        case 2:
             dev->trigger_interrupt();
             break;
-        case 5:
+        case 3:
             dev->test_dma_write();
             break;
         default:

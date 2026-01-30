@@ -6,9 +6,7 @@
 #include "log.h"
 #include <sys/ioctl.h>
 
-constexpr uint64_t  MIN_DMA_MEMORY   = 4096; // we can not allocate less than page_size memory
 constexpr uint64_t  iova_end         = UINT64_MAX;
-constexpr size_t    min_payload_size = 2048;
 
 
 DMAMemoryAllocator::DMAMemoryAllocator()
@@ -17,12 +15,6 @@ DMAMemoryAllocator::DMAMemoryAllocator()
 
 DMAMemoryAllocator::~DMAMemoryAllocator()
 {
-    // Don't explicitly unmap here - the kernel will clean up all mappings
-    // when the process exits. Explicit cleanup causes issues because:
-    // 1. The VFIO container_fd may already be closed (static destruction order)
-    // 2. The memory regions may be accessed by other destructors
-    //
-    // If explicit cleanup is needed, call a cleanup() method before main() returns.
 }
 
 DMAMemoryPair DMAMemoryAllocator::allocDMAMemory(size_t size, int container_fd){

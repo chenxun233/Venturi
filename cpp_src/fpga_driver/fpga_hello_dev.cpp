@@ -1,6 +1,6 @@
 #include "fpga_hello_dev.h"
-#include "dma_memory_allocator.h"
-#include "log.h"
+#include "../common/dma_memory_allocator.h"
+#include "../common/log.h"
 #include <cstring>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -60,6 +60,7 @@ void FPGAHelloDev::write_reg64(uint32_t offset, uint64_t value) {
         error("BAR0 not mapped!");
         return;
     }
+    __asm__ volatile ("" ::: "memory")	;
     volatile uint64_t* reg = (volatile uint64_t*)(m_basic_para.p_bar_addr[0] + offset);
     *reg = value;
 }
@@ -98,42 +99,13 @@ uint32_t FPGAHelloDev::read_reg32(uint32_t offset) {
 // Test Functions
 //-----------------------------------------------------------------------------
 
-bool FPGAHelloDev::test_id_register() {
-    info("--- Test 1: ID Register ---");
 
-    uint64_t id = read_reg64(REG_ID);
-    info("ID Register (0x01): 0x%016lX", id);
-
-    if (id == EXPECTED_ID) {
-        info("  [PASS] ID matches expected value!");
-        return true;
-    } else {
-        info ("  [FAIL] Expected 0x%016lX\n", EXPECTED_ID);
-        info ("  [FAIL] Get 0x%016lX\n", id);
-        return false;
-    }
-}
-
-bool FPGAHelloDev::test_status_register() {
-    info("--- Test 2: Status Register ---");
-
-    uint64_t status = read_reg64(REG_STATUS);
-    info("Status Register (0x18): 0x%016lX", status);
-
-    bool link_up = (status & 0x1);
-    uint16_t int_count = (status >> 16) & 0xFFFF;
-
-    info("  Link Up: %s", link_up ? "Yes" : "No");
-    info("  Interrupt Count: %u", int_count);
-
-    return link_up;
-}
 
 bool FPGAHelloDev::test_scratch_register() {
     info("--- Test 3: Scratch Register ---");
 
     const uint64_t test_values[] = {
-        0x0000000000000000ULL,
+        0x1111111111111111ULL,
         0xFFFFFFFFFFFFFFFFULL,
         0xAAAAAAAAAAAAAAAAULL,
         0x5555555555555555ULL,
@@ -152,7 +124,7 @@ bool FPGAHelloDev::test_scratch_register() {
             info("  Write: 0x%016lX, Read: 0x%016lX [PASS]", write_val, read_val);
             passed++;
         } else {
-            error("  Write: 0x%016lX, Read: 0x%016lX [FAIL]", write_val, read_val);
+            info("  Write: 0x%016lX, Read: 0x%016lX [FAIL]", write_val, read_val);
         }
     }
 

@@ -1,6 +1,6 @@
 #pragma once
-#include "memory_pool.h"
-#include "basic_ring_buffer.h"
+#include "../common/memory_pool.h"
+#include "../common/basic_ring_buffer.h"
 #include "ixgbe_type.h"
 
 

@@ -5,7 +5,9 @@
 module RC_parser #(
 parameter DATA_WIDTH = 256
 )(
-// AXI-Stream from PCIe IP
+//=================================================
+// PCIe IP core Interface
+//==========================
 input  wire [DATA_WIDTH-1:0]        m_axis_rc_tdata,
 input  wire                         m_axis_rc_tvalid,
 input  wire [74:0]                  m_axis_rc_tuser,
@@ -14,7 +16,7 @@ input  wire                         m_axis_rc_tlast,
 output wire                         m_axis_rc_tready,
 
 // =========================================================================
-// Descriptor Channel (SOP beat only)
+// Logic Interface
 // =========================================================================
 output wire                         rc_desc_valid,          // Descriptor valid (tvalid && SOP)
 output wire [7:0]                   rc_tag,                 // Tag - matches RQ request
@@ -25,9 +27,7 @@ output wire [11:0]                  rc_lower_addr,          // Lower address (fo
 output wire                         rc_request_completed,   // Last completion for this request
 output wire [3:0]                   rc_error_code,          // Error code (0=normal)
 
-// =========================================================================
 // Data Channel (all beats)
-// =========================================================================
 output wire                         rc_data_valid,          // Payload valid this cycle
 output wire                         rc_data_sop,            // Start of packet
 output wire                         rc_data_eop,            // End of packet

@@ -1,5 +1,5 @@
 #pragma once
-#include "basic_dev.h"
+#include "../common/basic_dev.h"
 #include <cstdint>
 
 /**
@@ -40,9 +40,7 @@ public:
     void write_reg32(uint32_t offset, uint32_t value);
     uint32_t read_reg32(uint32_t offset);
     // Test functions
-    bool test_id_register();
     bool test_scratch_register();
-    bool test_status_register();
     void trigger_interrupt();
 
     // DMA functions

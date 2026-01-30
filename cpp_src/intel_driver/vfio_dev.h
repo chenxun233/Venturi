@@ -1,8 +1,8 @@
 #pragma once
-#include "basic_dev.h"
+#include "../common/basic_dev.h"
 #include <cstdint>
 #include <vector>
-#include "memory_pool.h"
+#include "../common/memory_pool.h"
 #include "ixgbe_ring_buffer.h"
 
 #define PKT_SIZE 60

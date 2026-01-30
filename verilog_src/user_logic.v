@@ -24,10 +24,10 @@ module user_logic #(
     // =========================================================================
     // CQ Parser Interface (Host → FPGA MMIO Requests)
     // =========================================================================
-    input  wire                     cq_valid,
-    output wire [3:0]               cq_type,
+    (* MARK_DEBUG = "TRUE" *)   input  wire                     cq_valid,
+    (* MARK_DEBUG = "TRUE" *)   input  wire [3:0]               cq_type,
     input  wire [BAR0_SIZE-1:0]     cq_reg_addr,
-    input  wire [63:0]              cq_wr_data,
+    (* MARK_DEBUG = "TRUE" *)   input  wire [63:0]              cq_wr_data,
     input  wire [2:0]               cq_bar_id,
     input  wire [15:0]              cq_requester_id,
     input  wire [7:0]               cq_tag,
@@ -38,16 +38,16 @@ module user_logic #(
     // =========================================================================
     // CC Formatter Interface (FPGA → Host Read Responses)
     // =========================================================================
-    input  wire                     cc_ready,
-    output reg                      cc_valid,
+    (* MARK_DEBUG = "TRUE" *)   input  wire                     cc_ready,
+    (* MARK_DEBUG = "TRUE" *)   output reg                      cc_valid,
     output reg  [15:0]              cc_requester_id,
     output reg  [7:0]               cc_tag,
     output reg  [2:0]               cc_tc,
-    output reg  [6:0]               cc_lower_addr,
-    output reg  [10:0]              cc_dword_count,
-    output reg  [2:0]               cc_status,
-    output reg  [DATA_WIDTH/2-1:0]  cc_data,
-    output reg                      cc_last,
+    (* MARK_DEBUG = "TRUE" *)   output reg  [6:0]               cc_lower_addr,
+    (* MARK_DEBUG = "TRUE" *)   output reg  [10:0]              cc_dword_count,
+    (* MARK_DEBUG = "TRUE" *)   output reg  [2:0]               cc_status,
+    (* MARK_DEBUG = "TRUE" *)   output reg  [DATA_WIDTH/2-1:0]  cc_data,
+    (* MARK_DEBUG = "TRUE" *)   output reg                      cc_last,
 
     // =========================================================================
     // RQ Formatter Interface (FPGA → Host DMA Requests)
@@ -112,7 +112,7 @@ module user_logic #(
     localparam ST_COMPLETE = 2'b01;
     localparam ST_DMA      = 2'b10;
 
-    reg [1:0]  state;
+    (* MARK_DEBUG = "TRUE" *)   reg [1:0]  state;
 
     // =========================================================================
     // User Registers
@@ -202,7 +202,7 @@ module user_logic #(
                         //  but we need a separate signal for our ID -
                         //  for now use a fixed value or add a port)
 
-                        if (cq_type == 4'b0001) begin
+                        if (cq_type == 4'b0001) begin //write
                             // -------------------------------------------------
                             // Memory Write - Update registers
                             // -------------------------------------------------
