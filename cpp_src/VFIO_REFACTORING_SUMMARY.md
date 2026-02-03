@@ -8,7 +8,7 @@ The VFIO setup functions (`_getFD()`, `_getBARAddr()`, and related helper functi
 
 ## Motivation
 
-Both `Intel82599Dev` and `FPGAHelloDev` contained nearly identical implementations of VFIO setup code (~150 lines per driver). These functions are hardware-agnostic and work for any PCIe device using VFIO.
+Both `Intel82599Dev` and `FPGADev` contained nearly identical implementations of VFIO setup code (~150 lines per driver). These functions are hardware-agnostic and work for any PCIe device using VFIO.
 
 **Before refactoring:**
 - Intel driver: 148 lines of VFIO code
@@ -145,7 +145,7 @@ bool Intel82599Dev::_enableDMA() {
 }
 ```
 
-### 4. FPGA Driver Updates ([fpga_driver/fpga_hello_dev.h](fpga_driver/fpga_hello_dev.h), [fpga_driver/fpga_hello_dev.cpp](fpga_driver/fpga_hello_dev.cpp))
+### 4. FPGA Driver Updates ([fpga_driver/fpga_dev.h](fpga_driver/fpga_dev.h), [fpga_driver/fpga_dev.cpp](fpga_driver/fpga_dev.cpp))
 
 **Removed from header:**
 ```cpp
@@ -165,19 +165,19 @@ bool _addGroup2Container();
 ```
 
 **Removed from implementation:**
-- `FPGAHelloDev::_getFD()` - 8 lines
-- `FPGAHelloDev::_getGroupID()` - 21 lines
-- `FPGAHelloDev::_getContainerFD()` - 11 lines
-- `FPGAHelloDev::_getGroupFD()` - 13 lines
-- `FPGAHelloDev::_addGroup2Container()` - 39 lines
-- `FPGAHelloDev::_getDeviceFD()` - 9 lines
-- `FPGAHelloDev::_getBARAddr()` - 41 lines
+- `FPGADev::_getFD()` - 8 lines
+- `FPGADev::_getGroupID()` - 21 lines
+- `FPGADev::_getContainerFD()` - 11 lines
+- `FPGADev::_getGroupFD()` - 13 lines
+- `FPGADev::_addGroup2Container()` - 39 lines
+- `FPGADev::_getDeviceFD()` - 9 lines
+- `FPGADev::_getBARAddr()` - 41 lines
 
 **Total removed:** 152 lines
 
 **Kept in FPGA driver:**
 ```cpp
-bool FPGAHelloDev::_enableDMA() {
+bool FPGADev::_enableDMA() {
     // FPGA hello world doesn't need DMA setup
     // VFIO Type1 IOMMU is already configured in _addGroup2Container
     return true;
@@ -239,7 +239,7 @@ These functions remain device-specific:
 | Metric | Before | After | Change |
 |--------|--------|-------|--------|
 | Lines in `intel_driver/vfio_dev.cpp` | 1,036 | 888 | -148 (-14.3%) |
-| Lines in `fpga_driver/fpga_hello_dev.cpp` | 274 | 122 | -152 (-55.5%) |
+| Lines in `fpga_driver/fpga_dev.cpp` | 274 | 122 | -152 (-55.5%) |
 | Lines in `common/basic_dev.cpp` | 50 | 216 | +166 (+332%) |
 | **Total lines** | 1,360 | 1,226 | **-134 (-9.9%)** |
 
@@ -346,7 +346,7 @@ If needed to revert this refactoring:
 # Restore old implementations from git history
 git checkout <previous-commit> -- cpp_src/common/basic_dev.{h,cpp}
 git checkout <previous-commit> -- cpp_src/intel_driver/vfio_dev.{h,cpp}
-git checkout <previous-commit> -- cpp_src/fpga_driver/fpga_hello_dev.{h,cpp}
+git checkout <previous-commit> -- cpp_src/fpga_driver/fpga_dev.{h,cpp}
 
 # Rebuild
 cd cpp_src/build
@@ -370,7 +370,7 @@ make -j$(nproc)
 - [VFIO Kernel Documentation](https://www.kernel.org/doc/html/latest/driver-api/vfio.html)
 - [PCIe Base Specification](https://pcisig.com/specifications)
 - [Original Intel Driver Implementation](intel_driver/vfio_dev.cpp)
-- [Original FPGA Driver Implementation](fpga_driver/fpga_hello_dev.cpp)
+- [Original FPGA Driver Implementation](fpga_driver/fpga_dev.cpp)
 
 ## Contributors
 

@@ -18,10 +18,10 @@
  *   0x30: DMA Control (W)           - Write 1 to trigger DMA write
  *   0x38: DMA Status (RO)           - Bit 0: Busy, Bit 1: Done
  */
-class FPGAHelloDev : public BasicDev {
+class FPGADev : public BasicDev {
 public:
-    FPGAHelloDev(std::string pci_addr);
-    ~FPGAHelloDev() override;
+    FPGADev(std::string pci_addr);
+    ~FPGADev() override;
 
     // BasicDev interface - minimal implementations
     bool initHardware() override;
@@ -42,19 +42,21 @@ public:
     // Test functions
     bool test_scratch_register();
     void trigger_interrupt();
-
-    // DMA functions
     bool test_dma_write();
+    bool test_dma_roundtrip();
 
     // Register offsets
-    static constexpr uint32_t REG_SCRATCH      = 0x00;  // 
-    static constexpr uint32_t REG_ID           = 0x04;  // 
-    static constexpr uint32_t REG_INT_CTRL     = 0x08;  // 
-    static constexpr uint32_t REG_STATUS       = 0x0C;  // 
-    static constexpr uint32_t REG_DMA_ADDR_LO  = 0x10;  // 
-    static constexpr uint32_t REG_DMA_ADDR_HI  = 0x14;  // 
-    static constexpr uint32_t REG_DMA_CTRL     = 0x18;  // 
-    static constexpr uint32_t REG_DMA_STATUS   = 0x1C;  // 
+    static constexpr uint32_t REG_SCRATCH      = 0x00;
+    static constexpr uint32_t REG_ID           = 0x04;
+    static constexpr uint32_t REG_INT_CTRL     = 0x08;
+    static constexpr uint32_t REG_STATUS       = 0x0C;
+    static constexpr uint32_t REG_DMA_ADDR     = 0x10;  // 64-bit DMA target address
+    static constexpr uint32_t REG_DMA_CTRL     = 0x18;
+    static constexpr uint32_t REG_DMA_STATUS   = 0x1C;
+    static constexpr uint32_t REG_RT_SRC_ADDR  = 0x20;  // Round-trip source address
+    static constexpr uint32_t REG_RT_DST_ADDR  = 0x28;  // Round-trip destination address
+    static constexpr uint32_t REG_RT_CTRL      = 0x30;  // Round-trip control
+    static constexpr uint32_t REG_RT_STATUS    = 0x34;  // Round-trip status 
 
     static constexpr uint64_t EXPECTED_ID = 0xDEADBEEFCAFEBABEULL;
 

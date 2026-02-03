@@ -42,8 +42,8 @@ sudo ./test_fpga_hello 0000:03:00.0
 
 **Files**:
 - `test_fpga_hello_v2.cpp` - Main test application
-- `fpga_hello_dev.h` - FPGA device class header
-- `fpga_hello_dev.cpp` - FPGA device class implementation
+- `fpga_dev.h` - FPGA device class header
+- `fpga_dev.cpp` - FPGA device class implementation
 
 ### Description
 Uses the existing VFIO infrastructure from the Intel NIC driver. Demonstrates proper object-oriented design and code reuse.
@@ -95,7 +95,7 @@ test_fpga_hello.cpp
 ```
 test_fpga_hello_v2.cpp
     |
-    +-- FPGAHelloDev (fpga_hello_dev.cpp/h)
+    +-- FPGADev (fpga_dev.cpp/h)
             |
             +-- Inherits from BasicDev (basic_dev.h)
             +-- Uses VFIO infrastructure
@@ -216,7 +216,7 @@ Before running either version:
 
 ## Future Extensions
 
-Version 2 (`FPGAHelloDev`) can be easily extended to add:
+Version 2 (`FPGADev`) can be easily extended to add:
 
 - **DMA Support**: Implement `_enableDMA()` properly
 - **Ring Buffers**: Add TX/RX queues like Intel driver

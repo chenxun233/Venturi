@@ -19,8 +19,14 @@ class DMAMemoryAllocator {
             static DMAMemoryAllocator instance; 
             return instance;
         }
-                                    ~DMAMemoryAllocator         ()                                                      ;
-        DMAMemoryPair               allocDMAMemory              (size_t size, int container_fd)                         ;
+                                    ~DMAMemoryAllocator         ();
+    
+        /// Allocates huge-page-backed DMA memory and maps it into the VFIO IOMMU.
+        /// Use \p virt for CPU access; use \p iova as the device address (e.g. RQ/CC buffers).
+        /// \param size Requested (total) size in bytes (rounded up to huge-page alignment).
+        /// \param container_fd VFIO container fd for VFIO_IOMMU_MAP_DMA.
+        /// \return DMAMemoryPair with .virt, .iova, and .size.
+        DMAMemoryPair               allocDMAMemory              (size_t size, int container_fd);
 
     private:                    
                                     DMAMemoryAllocator          ()                                                      ;

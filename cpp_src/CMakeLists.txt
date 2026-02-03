@@ -67,7 +67,7 @@ set(FPGA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/fpga_driver)
 
 # FPGA Hello World test v2 (using common infrastructure)
 set(FPGA_SOURCES
-    ${FPGA_DIR}/fpga_hello_dev.cpp
+    ${FPGA_DIR}/fpga_dev.cpp
 )
 
 add_executable(test_fpga_hello_v2

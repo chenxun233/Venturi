@@ -14,7 +14,7 @@
  *   e.g.: sudo ./test_fpga_hello_v2 0000:03:00.0
  */
 
-#include "fpga_hello_dev.h"
+#include "fpga_dev.h"
 #include "../common/log.h"
 #include <cstdio>
 #include <cstdlib>
@@ -35,11 +35,11 @@ int main(int argc, char* argv[]) {
     printf("PCI Address: %s\n\n", pci_addr);
 
     // Create device object - this handles all VFIO setup
-    std::unique_ptr<FPGAHelloDev> dev;
+    std::unique_ptr<FPGADev> dev;
 
     try {
         info("Creating FPGA device object...");
-        dev = std::make_unique<FPGAHelloDev>(std::string(pci_addr));
+        dev = std::make_unique<FPGADev>(std::string(pci_addr));
     } catch (const std::exception& e) {
         fprintf(stderr, "Failed to create device: %s\n", e.what());
         return 1;
@@ -73,8 +73,11 @@ int main(int argc, char* argv[]) {
         case 3:
             dev->test_dma_write();
             break;
+        case 4:
+            dev->test_dma_roundtrip();
+            break;
         default:
-            printf("Unknown test: %d (valid: 1-5)\n", test_num_int);
+            printf("Unknown test: %d (valid: 1-4)\n", test_num_int);
             break;
     }
 

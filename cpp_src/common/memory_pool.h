@@ -9,7 +9,7 @@ struct pkt_buf {
 	uintptr_t iova;
     // index of this pkt_buf in the mempool
 	uint32_t idx;
-    // actual size of the data in the buffer, initialized to 0
+    // actual size in byte of the data in the buffer, initialized to 0
 	uint32_t size;
 	uint8_t head_room[SIZE_PKT_BUF_HEADROOM];
 	uint8_t* data __attribute__((aligned(64)));
@@ -19,6 +19,11 @@ struct pkt_buf {
 class DMAMemoryPool{
 
     public:
+        /// Constructor
+        /// \p pkt_buf is the pkt_buf structure defined above, used inside the RAM.
+        /// \param num_buf Number of pkt_buf structures to allocate.
+        /// \param buf_size Size of each pkt_buf structure including data buffer.
+        /// \param container_fd VFIO container fd for VFIO_IOMMU_MAP_DMA.
         DMAMemoryPool(uint32_t num_buf, uint32_t buf_size, int container_fd = -1);
         ~DMAMemoryPool();
         struct pkt_buf*             popOutOnePktBufFromTop();

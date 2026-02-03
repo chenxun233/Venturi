@@ -165,7 +165,7 @@ The common layer provides patterns for VFIO integration:
 5. **BAR Mapping**: Memory-map device registers
 6. **DMA Setup**: Configure IOMMU for DMA access
 
-See derived classes (`Intel82599Dev`, `FPGAHelloDev`) for implementation examples.
+See derived classes (`Intel82599Dev`, `FPGADev`) for implementation examples.
 
 ## Thread Safety
 

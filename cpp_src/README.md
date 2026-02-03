@@ -23,7 +23,7 @@ cpp_src/
 │   └── test_app_pcap.cpp       # Packet capture application
 │
 └── fpga_driver/         # FPGA-based NIC driver
-    ├── fpga_hello_dev.*         # FPGA device class
+    ├── fpga_dev.*         # FPGA device class
     ├── test_fpga_hello.cpp      # Standalone test (no dependencies)
     ├── test_fpga_hello_v2.cpp   # Infrastructure-based test
     └── README_FPGA_HELLO.md     # FPGA driver documentation
@@ -62,7 +62,7 @@ BasicDev (common/basic_dev.h)
     │           - DMA engine
     │           - Flow control
     │
-    └── FPGAHelloDev (fpga_driver/fpga_hello_dev.h)
+    └── FPGADev (fpga_driver/fpga_dev.h)
             └── Simple PCIe register interface
                 - Basic register read/write
                 - MSI interrupts

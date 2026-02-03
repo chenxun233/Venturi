@@ -29,7 +29,7 @@ cpp_src/
 │   └── README.md            # Intel driver documentation
 │
 ├── fpga_driver/             # FPGA NIC driver (5 files)
-│   ├── fpga_hello_dev.{h,cpp}   # FPGA device class
+│   ├── fpga_dev.{h,cpp}   # FPGA device class
 │   ├── test_fpga_hello.cpp   # Standalone test (no deps)
 │   ├── test_fpga_hello_v2.cpp   # Infrastructure test
 │   └── README_FPGA_HELLO.md   # FPGA driver documentation
@@ -56,7 +56,7 @@ cpp_src/
 | `ixgbe_type.h` | `intel_driver/` | Intel register defs |
 | `factory.{h,cpp}` | `intel_driver/` | Intel device factory |
 | `test_app_*.cpp` | `intel_driver/` | Intel test apps |
-| `fpga_hello_dev.{h,cpp}` | `fpga_driver/` | FPGA-specific |
+| `fpga_dev.{h,cpp}` | `fpga_driver/` | FPGA-specific |
 | `test_fpga_hello*.cpp` | `fpga_driver/` | FPGA test apps |
 
 ### 2. CMakeLists.txt Updates
