@@ -1,324 +1,396 @@
 // =============================================================================
 // user_logic.v - User Logic for FPGA PCIe Hello World Example
 // =============================================================================
-// Implements register read/write and DMA control using the clean interface
-// provided by pcie_interface.v (CQ_parser, CC_formatter, RQ_formatter).
-//
-// Register Map (BAR0):
-//   0x00: Scratch Register (R/W)     - 64-bit scratch pad for testing
-//   0x08: ID Register (RO)           - Returns 0xDEADBEEF_CAFEBABE
-//   0x10: Interrupt Control (W)      - Write any value to trigger MSI interrupt
-//   0x18: Status Register (RO)       - Bit 0: Link Up, Bits [31:16]: Int count
-//   0x20: DMA Target Addr Low (W)    - Lower 32 bits of host memory IOVA
-//   0x28: DMA Target Addr High (W)   - Upper 32 bits of host memory IOVA
-//   0x30: DMA Control (W)            - Write 1 to trigger DMA write
-//   0x38: DMA Status (RO)            - Bit 0: Busy, Bit 1: Done
+
 // =============================================================================
 
 module user_logic #(
     parameter DATA_WIDTH = 256,
     parameter BAR0_SIZE  = 16
 )(
-    input  wire                     clk,
-    input  wire                     rst,
-    // =========================================================================
-    // CQ Parser Interface (Host → FPGA MMIO Requests)
-    // =========================================================================
-    (* MARK_DEBUG = "TRUE" *)   input  wire                     cq_valid,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [3:0]               cq_type,
-    input  wire [BAR0_SIZE-1:0]     cq_reg_addr,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [63:0]              cq_wr_data,
-    input  wire [2:0]               cq_bar_id,
-    input  wire [15:0]              cq_requester_id,
-    input  wire [7:0]               cq_tag,
-    input  wire [2:0]               cq_tc,
-    input  wire [6:0]               cq_lower_addr,
-    input  wire [10:0]              cq_dword_count,
-
-    // =========================================================================
-    // CC Formatter Interface (FPGA → Host Read Responses)
-    // =========================================================================
-    (* MARK_DEBUG = "TRUE" *)   input  wire                     cc_ready,
-    (* MARK_DEBUG = "TRUE" *)   output reg                      cc_valid,
-    output reg  [15:0]              cc_requester_id,
-    output reg  [7:0]               cc_tag,
-    output reg  [2:0]               cc_tc,
-    (* MARK_DEBUG = "TRUE" *)   output reg  [6:0]               cc_lower_addr,
-    (* MARK_DEBUG = "TRUE" *)   output reg  [10:0]              cc_dword_count,
-    (* MARK_DEBUG = "TRUE" *)   output reg  [2:0]               cc_status,
-    (* MARK_DEBUG = "TRUE" *)   output reg  [DATA_WIDTH/2-1:0]  cc_data,
-    (* MARK_DEBUG = "TRUE" *)   output reg                      cc_last,
-
-    // =========================================================================
-    // RQ Formatter Interface (FPGA → Host DMA Requests)
-    // =========================================================================
-    input  wire                     rq_ready,
-    output reg                      rq_valid,
-    output reg [3:0]                rq_type,
-    output reg                      rq_sop,
-    output reg                      rq_last,
-    output reg  [63:0]              rq_addr,
-    output reg  [10:0]              rq_dword_count,
-    output reg  [7:0]               rq_tag,
-    output reg  [15:0]              rq_requester_id,
-    output reg  [2:0]               rq_tc,
-    output reg  [DATA_WIDTH-1:0]    rq_wr_data,
-    output reg  [DATA_WIDTH / 32-1:0]    rq_wr_data_keep,
-
-    // =========================================================================
-    // RC Parser Interface (Host → FPGA DMA Read Completions)
-    // =========================================================================
-    input  wire                     rc_desc_valid,
-    input  wire [7:0]               rc_tag,
-    input  wire [2:0]               rc_status,
-    input  wire [10:0]              rc_dword_count,
-    input  wire [12:0]              rc_byte_count,
-    input  wire [11:0]              rc_lower_addr,
-    input  wire                     rc_request_completed,
-    input  wire [3:0]               rc_error_code,
-    input  wire                     rc_data_valid,
-    input  wire                     rc_data_sop,
-    input  wire                     rc_data_eop,
-    input  wire [DATA_WIDTH-1:0]    rc_payload,
-    input  wire [DATA_WIDTH / 32-1:0]    rc_payload_keep,
-
-    // =========================================================================
-    // Status Signals
-    // =========================================================================
-    input  wire                     user_lnk_up,
-    output wire                     interrupt_out,
-    output wire                     dma_busy_out
+    input wire                          user_clk,
+    input wire                          user_reset_p, //active high
+    // CQ Parser Outputs (Host → FPGA MMIO Requests)
+    input wire                          cq_valid,
+    input wire [3:0]                    cq_type,
+    input wire [BAR0_SIZE-1:0]          cq_reg_addr,
+    input wire [63:0]                   cq_payload,
+    input wire [2:0]                    cq_bar_id,
+    input wire [15:0]                   cq_requester_id,
+    input wire [7:0]                    cq_tag,
+    input wire [2:0]                    cq_tc,
+    input wire [6:0]                    cq_lower_addr,
+    input wire [10:0]                   cq_payload_dw_count,
+    input wire                          cq_last,
+    // CC Formatter Inputs (FPGA → Host Read Responses)
+    input wire                          cc_ready,
+    output reg                          cc_valid,
+    output reg[15:0]                    cc_requester_id,
+    output reg[7:0]                     cc_tag,
+    output reg[2:0]                     cc_tc,
+    output reg[6:0]                     cc_lower_addr,
+    output reg[10:0]                    cc_dword_count,
+    output reg[2:0]                     cc_status,
+    output reg[DATA_WIDTH/2-1:0]        cc_payload,
+    output reg                          cc_last,
+    // RQ Formatter Inputs (FPGA → Host DMA Requests)
+    input wire                          rq_ready,
+    output reg                          rq_valid,
+    output reg[3:0]                     rq_type,
+    output reg                          rq_payload_sop,
+    output reg                          rq_payload_last,        // the last cycle of data sending
+    output reg[63:0]                    rq_addr,
+    output reg[10:0]                    rq_payload_dw_count, // Total Data DWords (1-1024) in this burst. Does not include header.
+    output reg[7:0]                     rq_tag,
+    output reg[2:0]                     rq_tc,
+    output reg[255:0]                   rq_payload,
+    // RC Parser Outputs (Host → FPGA DMA Read Completions) - Realigned by gearbox
+    input  wire  [11:0]                 rc_lower_addr,
+    input  wire  [3:0]                  rc_err_code,
+    input  wire  [12:0]                 rc_payload_byte_count,
+    input  wire                         rc_request_completed,
+    input  wire  [15:0]                 rc_requester_id,
+    input  wire  [7:0]                  rc_tag,
+    input  wire                         rc_valid,               // valid for all
+    input  wire                         rc_payload_last,         // End of packet
+    input  wire [255:0]                 rc_payload,             // Realigned 256-bit payload
+    input  wire [DATA_WIDTH / 32-1:0]   rc_payload_dw_keep,         // DW enables
+    input  wire                         rc_posioned,
+    input  wire [12:0]                  rc_payload_dw_count,
+    // Configuration Outputs
+    input wire [2:0]                    cfg_max_payload,
+    input wire [2:0]                    cfg_max_read_req,
+    input wire [15:0]                   pcie_requester_id
 );
+    // =========================================================================
+    // Register Address Map
+    localparam [BAR0_SIZE-1:0] REG_SCRATCH      = 16'h00;
+    localparam [BAR0_SIZE-1:0] REG_ID           = 16'h04;
+    localparam [BAR0_SIZE-1:0] REG_INT_CTRL     = 16'h08;
+    localparam [BAR0_SIZE-1:0] REG_STATUS       = 16'h0C;
+    localparam [BAR0_SIZE-1:0] REG_DMA_ADDR     = 16'h10;  // 64-bit DMA target address
+    localparam [BAR0_SIZE-1:0] REG_DMA_CTRL     = 16'h18;
+    localparam [BAR0_SIZE-1:0] REG_DMA_STATUS   = 16'h1C;
+    localparam [BAR0_SIZE-1:0] REG_RT_SRC_ADDR  = 16'h20;
+    localparam [BAR0_SIZE-1:0] REG_RT_DST_ADDR  = 16'h28;
+    localparam [BAR0_SIZE-1:0] REG_RT_CTRL      = 16'h30;
+    localparam [BAR0_SIZE-1:0] REG_RT_STATUS    = 16'h34;
 
+// =========================================================================
+    localparam [3:0] TYPE_READ = 4'b0000;
+    localparam [3:0] TYPE_WRITE= 4'b0001;
 
     // =========================================================================
-    // Local Parameters - Register Addresses (DWord index)
+    // Register Storage, corresponding to BAR0 address map
     // =========================================================================
-    localparam REG_SCRATCH      = 8'h00;  
-    localparam REG_ID           = 8'h04; 
-    localparam REG_INT_CTRL     = 8'h08; 
-    localparam REG_STATUS       = 8'h0C; 
-    localparam REG_DMA_ADDR_LO  = 8'h10; 
-    localparam REG_DMA_ADDR_HI  = 8'h14; 
-    localparam REG_DMA_CTRL     = 8'h18; 
-    localparam REG_DMA_STATUS   = 8'h1C; 
+    reg [63:0] cq_val_REG_SCRATCH      ;
+    reg [63:0] cq_val_REG_ID           ;
+    reg [63:0] cq_val_REG_INT_CTRL     ;
+    reg [63:0] cq_val_REG_STATUS       ;
+    reg [63:0] cq_val_REG_DMA_ADDR     ;
+    reg [63:0] cq_val_REG_DMA_CTRL     ;
+    reg [63:0] cq_val_REG_DMA_STATUS   ;
+    reg [63:0] cq_val_REG_RT_SRC_ADDR  ;
+    reg [63:0] cq_val_REG_RT_DST_ADDR  ;
+    reg [63:0] cq_val_REG_RT_CTRL      ;
+    reg [63:0] in_val_REG_RT_STATUS    ;
 
-    localparam MAGIC_ID         = 64'hDEADBEEF_CAFEBABE;
+    reg [255:0] small_buffer            ;
+    reg [7:0]   small_buffer_dw_keep  ;
+    reg [12:0]  small_byte_count ;
+    reg [255:0] large_buffer [1:0]      ;
+    reg [7:0]   large_buffer_dw_keep [1:0] ;
+    reg [12:0]  large_byte_count [1:0] ;
+    reg [1:0]   beat_cnt                ;
 
-    // =========================================================================
-    // State Machine
-    // =========================================================================
-    localparam ST_IDLE     = 2'b00;
-    localparam ST_COMPLETE = 2'b01;
-    localparam ST_DMA      = 2'b10;
 
-    (* MARK_DEBUG = "TRUE" *)   reg [1:0]  state;
+// cq channel ======================================================
+    reg [BAR0_SIZE-1:0] temp_cq_reg_addr          ;
+    reg [15:0]          temp_cq_requester_id      ;   
+    reg [7:0]           temp_cq_tag               ;
+    reg [2:0]           temp_cq_tc                ;
+    reg [6:0]           temp_cq_lower_addr        ;
+    reg [10:0]          temp_cq_payload_dw_count  ;  
+    
 
-    // =========================================================================
-    // User Registers
-    // =========================================================================
-    reg [63:0] scratch_reg;
-    reg [15:0] interrupt_counter;
-    reg        interrupt_pending;
 
-    // DMA Registers
-    reg [31:0] dma_addr_lo;
-    reg [31:0] dma_addr_hi;
-    reg        dma_busy;
-    reg        dma_done;
+always @(posedge user_clk or posedge user_reset_p) begin
+    if (user_reset_p) begin
+        // Initialize registers
+        cq_val_REG_SCRATCH         <= {64{1'b0}};
+        cq_val_REG_ID              <= {64{1'b0}};
+        cq_val_REG_INT_CTRL        <= {64{1'b0}};
+        cq_val_REG_STATUS          <= {64{1'b0}};
+        cq_val_REG_DMA_ADDR        <= {64{1'b0}};
+        cq_val_REG_DMA_CTRL        <= {64{1'b0}};
+        cq_val_REG_DMA_STATUS      <= {64{1'b0}};
+        cq_val_REG_RT_SRC_ADDR     <= {64{1'b0}};
+        cq_val_REG_RT_DST_ADDR     <= {64{1'b0}};
+        cq_val_REG_RT_CTRL         <= {64{1'b0}};
+        temp_cq_reg_addr        <= {BAR0_SIZE{1'b0}};
+        temp_cq_requester_id    <= 16'b0;
+        temp_cq_tag             <= 8'b0;
+        temp_cq_tc              <= 3'b0;
+        temp_cq_lower_addr      <= 7'b0;
+        temp_cq_payload_dw_count<= 11'b0;
 
-    wire [63:0] dma_target_addr = {dma_addr_hi, dma_addr_lo};
-
-    // Captured completer ID (our Bus:Dev:Func)
-
-    // Saved descriptor fields for completion
-    reg [63:0] read_data;
-    reg [15:0] saved_requester_id;
-    reg [7:0]  saved_tag;
-    reg [2:0]  saved_tc;
-    reg [6:0]  saved_lower_addr;
-    reg [10:0] saved_cq_dword_count;
-
-    // =========================================================================
-    // Register Address Decode
-    // =========================================================================
-    wire [7:0] reg_addr = cq_reg_addr[7:0];
-
-    // =========================================================================
-    // Main State Machine
-    // =========================================================================
-    always @(posedge clk) begin
-        if (rst) begin
-            state <= ST_IDLE;
-            cc_valid <= 1'b0;
-            cc_requester_id <= 16'h0;
-            cc_tag <= 8'h0;
-            cc_tc <= 3'h0;
-            cc_lower_addr <= 7'h0;
-            cc_dword_count <= 11'h0;
-            cc_status <= 3'h0;
-            cc_data <= {(DATA_WIDTH/2){1'b0}};
-            cc_last <= 1'b0;
-
-            rq_valid <= 1'b0;
-            rq_type     <=4'b0000;
-            rq_sop <= 1'b0;
-            rq_last <= 1'b0;
-            rq_addr <= 64'h0;
-            rq_dword_count <= 11'h0;
-            rq_tag <= 8'h0;
-            rq_requester_id <= 16'h0;
-            rq_tc <= 3'h0;
-            rq_wr_data <= {DATA_WIDTH{1'b0}};
-            rq_wr_data_keep <= {DATA_WIDTH / 32{1'b0}};
-
-            scratch_reg <= 64'h0;
-            interrupt_counter <= 16'h0;
-            interrupt_pending <= 1'b0;
-            dma_addr_lo <= 32'h0;
-            dma_addr_hi <= 32'h0;
-            dma_busy <= 1'b0;
-            dma_done <= 1'b0;
-
-            read_data <= 64'h0;
-            saved_requester_id <= 16'h0;
-            saved_tag <= 8'h0;
-            saved_tc <= 3'h0;
-            saved_lower_addr <= 7'h0;
-            saved_cq_dword_count<=0;
-        end else begin
-            // Default: clear single-cycle signals
-            cc_valid <= 1'b0;
-            rq_valid <= 1'b0;
-
-            case (state)
-                // =============================================================
-                // IDLE: Wait for CQ request
-                // =============================================================
-                ST_IDLE: begin
-                    if (cq_valid) begin
-                        // Capture our completer ID from CQ tuser
-                        // (This comes through cq_requester_id for the host,
-                        //  but we need a separate signal for our ID -
-                        //  for now use a fixed value or add a port)
-
-                        if (cq_type == 4'b0001) begin //write
-                            // -------------------------------------------------
-                            // Memory Write - Update registers
-                            // -------------------------------------------------
-                            case (reg_addr)
-                                REG_SCRATCH: begin
-                                    scratch_reg <= cq_wr_data;
-                                end
-                                REG_INT_CTRL: begin
-                                    interrupt_pending <= 1'b1;
-                                    interrupt_counter <= interrupt_counter + 1'b1;
-                                end
-                                REG_DMA_ADDR_LO: begin
-                                    dma_addr_lo <= cq_wr_data[31:0];
-                                end
-                                REG_DMA_ADDR_HI: begin
-                                    dma_addr_hi <= cq_wr_data[31:0];
-                                end
-                                REG_DMA_CTRL: begin
-                                    if (cq_wr_data[0] && !dma_busy) begin
-                                        dma_busy <= 1'b1;
-                                        dma_done <= 1'b0;
-                                        state <= ST_DMA;
-                                    end
-                                end
-                                default: begin
-                                    // Ignore writes to other addresses
-                                end
-                            endcase
-                            // Writes don't need completion (posted)
-                        end else if (cq_type == 4'b0000) begin
-                            // -------------------------------------------------
-                            // Memory Read - Prepare completion
-                            // -------------------------------------------------
-                            saved_requester_id <= cq_requester_id;
-                            saved_tag <= cq_tag;
-                            saved_tc <= cq_tc;
-                            saved_lower_addr <= cq_lower_addr;
-                            saved_cq_dword_count<= cq_dword_count;
-                            case (reg_addr)
-                                REG_SCRATCH: begin
-                                    read_data <= scratch_reg;
-                                end
-                                REG_ID: begin
-                                    read_data <= MAGIC_ID;
-                                end
-                                REG_STATUS: begin
-                                    read_data <= {32'h0, interrupt_counter, 15'h0, user_lnk_up};
-                                end
-                                REG_DMA_STATUS: begin
-                                    read_data <= {62'h0, dma_done, dma_busy};
-                                end
-                                default: begin
-                                    read_data <= 64'hDEAD_DEAD_DEAD_DEAD;
-                                end
-                            endcase
-                            state <= ST_COMPLETE;
-                        end
-                    end
-
-                    // Clear interrupt pending after some cycles (simplified)
-                    if (interrupt_pending) begin
-                        interrupt_pending <= 1'b0;
-                    end
-                end
-
-                // =============================================================
-                // COMPLETE: Send read completion via CC
-                // =============================================================
-                ST_COMPLETE: begin
-                    if (cc_ready) begin
-                        cc_valid <= 1'b1;
-                        cc_requester_id <= saved_requester_id;
-                        cc_tag <= saved_tag;
-                        cc_tc <= saved_tc;
-                        cc_lower_addr <= saved_lower_addr;
-                        cc_dword_count <= saved_cq_dword_count;        // 2 DWords = 8 bytes
-                        cc_status <= 3'b000;            // Successful completion
-                        cc_data <= {{(DATA_WIDTH/2-64){1'b0}}, read_data};
-                        cc_last <= 1'b1;
-
-                        state <= ST_IDLE;
-                    end
-                end
-
-                // =============================================================
-                // DMA: Send DMA write request via RQ
-                // =============================================================
-                ST_DMA: begin
-                    if (rq_ready && dma_busy) begin
-                        rq_valid <= 1'b1;
-                        rq_type <=4'b0001;
-                        rq_sop <= 1'b1;
-                        rq_last <= 1'b1;                // Single beat DMA
-                        rq_addr <= dma_target_addr;
-                        rq_dword_count <= 11'd4;        // 4 DWords = 16 bytes
-                        rq_tag <= 8'h42;                // Fixed tag for DMA
-                        rq_tc <= 3'b0;
-                        // Payload: Test pattern
-                        rq_wr_data <= {128'h0, 64'hCAFEBABE_12345678, 64'hDEADBEEF_AABBCCDD};
-                        rq_wr_data_keep <= 8'hFF;
-
-                        dma_busy <= 1'b0;
-                        dma_done <= 1'b1;
-                        state <= ST_IDLE;
-                    end
-                end
-
-                default: state <= ST_IDLE;
-            endcase
+    end else begin
+        // Monitor for CQ Requests
+        if (cq_valid == 1) begin
+            if (cq_type == TYPE_WRITE) begin
+                case (cq_reg_addr)
+                    REG_SCRATCH     :   cq_val_REG_SCRATCH    <= cq_payload;
+                    REG_ID          :   cq_val_REG_ID         <= cq_payload;
+                    REG_INT_CTRL    :   cq_val_REG_INT_CTRL   <= cq_payload;
+                    REG_STATUS      :   cq_val_REG_STATUS     <= cq_payload;
+                    REG_DMA_ADDR    :   cq_val_REG_DMA_ADDR   <= cq_payload;
+                    REG_DMA_CTRL    :   cq_val_REG_DMA_CTRL   <= cq_payload;
+                    REG_DMA_STATUS  :   cq_val_REG_DMA_STATUS <= cq_payload;
+                    REG_RT_SRC_ADDR :   cq_val_REG_RT_SRC_ADDR<= cq_payload;
+                    REG_RT_DST_ADDR :   cq_val_REG_RT_DST_ADDR<= cq_payload;
+                    REG_RT_CTRL     :   cq_val_REG_RT_CTRL    <= cq_payload;
+                default: ; // Do nothing for RO or undefined registers
+                endcase
+            end else if (cq_type == TYPE_READ) begin
+                temp_cq_reg_addr        <= cq_reg_addr          ; 
+                temp_cq_requester_id    <= cq_requester_id      ;
+                temp_cq_tag             <= cq_tag               ;
+                temp_cq_tc              <= cq_tc                ;
+                temp_cq_lower_addr      <= cq_lower_addr        ;
+                temp_cq_payload_dw_count<= cq_payload_dw_count  ;
+            end
         end
     end
+end
 
-    // =========================================================================
-    // Status Outputs
-    // =========================================================================
-    assign interrupt_out = interrupt_pending;
-    assign dma_busy_out = dma_busy;
+// cc channel ======================================================
+    // State Machine States
+    reg [1:0]  cc_state;
+    localparam IDLE          = 2'd0;
+    localparam CC_RESP       = 2'd1;
+always @(posedge user_clk or posedge user_reset_p) begin
+    if (user_reset_p) begin
+        cc_state           <= IDLE;
+    end else if (cq_valid &&  cq_type == TYPE_READ) begin
+        cc_state          <= CC_RESP;
+    end else if (cc_state == CC_RESP) begin
+        cc_state          <= IDLE;
+    end
+end
+
+function [63:0] get_cc_payload (input [BAR0_SIZE-1:0] reg_addr);
+    begin
+        case (reg_addr)
+            REG_SCRATCH     :   get_cc_payload = cq_val_REG_SCRATCH;
+            REG_ID          :   get_cc_payload = cq_val_REG_ID;
+            REG_INT_CTRL    :   get_cc_payload = cq_val_REG_INT_CTRL;
+            REG_STATUS      :   get_cc_payload = cq_val_REG_STATUS;
+            REG_DMA_ADDR    :   get_cc_payload = cq_val_REG_DMA_ADDR;
+            REG_DMA_CTRL    :   get_cc_payload = cq_val_REG_DMA_CTRL;
+            REG_DMA_STATUS  :   get_cc_payload = cq_val_REG_DMA_STATUS;
+            REG_RT_SRC_ADDR :   get_cc_payload = cq_val_REG_RT_SRC_ADDR;
+            REG_RT_DST_ADDR :   get_cc_payload = cq_val_REG_RT_DST_ADDR;
+            REG_RT_CTRL     :   get_cc_payload = cq_val_REG_RT_CTRL;
+            REG_RT_STATUS   :   get_cc_payload = in_val_REG_RT_STATUS;
+
+        default: get_cc_payload = {64{1'b0}}; // Undefined registers return 0
+        endcase
+    end
+
+endfunction
+
+always @(posedge user_clk or posedge user_reset_p) begin
+    if (user_reset_p) begin
+        cc_valid            <= 1'b0;
+        cc_requester_id     <= 16'h0;
+        cc_tag              <= 8'h0;
+        cc_tc               <= 3'h0;
+        cc_lower_addr       <= 7'h0;
+        cc_dword_count      <= 11'h0;
+        cc_status           <= 3'b000; // Successful completion
+        cc_payload          <= {64{1'b0}};
+        cc_last             <= 1'b0;
+    end else if (cc_state == CC_RESP && cc_ready) begin
+                    cc_valid            <= 1'b1;
+                    cc_requester_id     <= temp_cq_requester_id;
+                    cc_tag              <= temp_cq_tag;
+                    cc_tc               <= temp_cq_tc;
+                    cc_lower_addr       <= temp_cq_lower_addr;
+                    cc_dword_count      <= temp_cq_payload_dw_count;
+                    cc_status           <= 3'b000; // Successful completion
+                    cc_payload          <= {{64{1'b0}}, get_cc_payload(temp_cq_reg_addr)};
+                    cc_last             <= 1'b1; // Single beat response
+                end
+    else if (cc_state == IDLE) begin
+        cc_valid            <= 1'b0;
+        cc_last             <= 1'b0; // Single beat response    
+    end
+    
+end
+
+
+// RQ channel ======================================================
+    reg [2:0]  rt_state;
+    reg        rt_rc_received;
+    reg        write_beat_upper; 
+
+    localparam RT_IDLE       = 3'd0;
+    localparam RT_SEND_READ  = 3'd1;
+    localparam RT_WAIT_DATA  = 3'd2;
+    localparam RT_SEND_WRITE = 3'd3;
+    localparam RT_DONE       = 3'd4;
+ 
+always @(posedge user_clk or posedge user_reset_p) begin
+    if (user_reset_p) begin
+        rt_state           <= RT_IDLE;
+        in_val_REG_RT_STATUS <= 64'b0;
+    end else begin
+        case (rt_state)
+            RT_IDLE: begin
+                if (cq_val_REG_RT_CTRL == 1 || cq_val_REG_RT_CTRL == 2)
+                    rt_state <= RT_SEND_READ;
+            end
+            RT_SEND_READ: begin
+                if (rq_ready)
+                    rt_state <= RT_WAIT_DATA;
+            end
+            RT_WAIT_DATA: begin
+                if (rt_rc_received)
+                    rt_state <= RT_SEND_WRITE;
+            end
+            RT_SEND_WRITE: begin
+                if (rq_ready) begin
+                    if (cq_val_REG_RT_CTRL == 1) begin
+                        rt_state <= RT_DONE;
+                    end else if (cq_val_REG_RT_CTRL == 2) begin
+                        // Only transition to DONE when second beat is sent AND accepted
+                        if (write_beat_upper && rq_payload_last)
+                            rt_state <= RT_DONE;
+                    end
+                end
+            end
+            RT_DONE: begin
+                 in_val_REG_RT_STATUS <= 64'd2; // Set Done bit
+                 if (cq_val_REG_RT_CTRL == 0)
+                    rt_state <= RT_IDLE;
+            end
+            default: begin
+                rt_state <= rt_state;
+            end
+        endcase
+
+        if (rt_state == RT_IDLE)
+            in_val_REG_RT_STATUS <= 64'd0;
+    end
+end
+
+
+always @(posedge user_clk or posedge user_reset_p)  begin
+    if (user_reset_p) begin
+        rq_valid            <= 1'b0;
+        rq_type             <= 4'b0;
+        rq_payload_sop      <= 1'b0;
+        rq_payload_last     <= 1'b0;
+        rq_addr             <= 64'b0;
+        rq_payload_dw_count <= 11'b0;
+        rq_tag              <= 8'b0;
+        rq_tc               <= 3'b0;
+        rq_payload          <= 256'b0;
+        write_beat_upper    <= 1'b0;
+    end else begin
+        case (rt_state)
+            RT_SEND_READ: begin
+                rq_valid            <= 1'b1;
+                rq_type             <= TYPE_READ;
+                rq_payload_sop      <= 1'b1;
+                rq_payload_last     <= 1'b1;
+                rq_addr             <= cq_val_REG_RT_SRC_ADDR;
+                rq_payload_dw_count <= (cq_val_REG_RT_CTRL == 1) ? 11'd4 : 11'd12;
+                rq_tag              <= 8'd1;
+            end
+            RT_SEND_WRITE: begin
+                rq_valid            <= 1'b1;
+                rq_type             <= TYPE_WRITE;
+                rq_addr             <= cq_val_REG_RT_DST_ADDR;
+                rq_tag              <= 8'd2;
+
+                if (cq_val_REG_RT_CTRL == 1) begin
+                    // Small Trip: 1 Beat
+                    rq_payload_sop      <= 1'b1;
+                    rq_payload_last     <= 1'b1;
+                    rq_payload_dw_count <= 11'd4;
+                    rq_payload          <= small_buffer;
+                end else begin
+                    // Large Trip: 2 Beats for 48 bytes (384 bits)
+                    rq_payload_dw_count <= 11'd12;
+                    if (!write_beat_upper) begin
+                         // First Beat (Lower 256 bits)
+                         rq_payload_sop      <= 1'b1;
+                         rq_payload_last     <= 1'b0;
+                         rq_payload          <= large_buffer[0];
+                         if (rq_ready) write_beat_upper <= 1'b1;
+                    end else begin
+                         // Second Beat (Upper 128 bits)
+                         rq_payload_sop      <= 1'b0;
+                         rq_payload_last     <= 1'b1;
+                         rq_payload          <= large_buffer[1];
+                         if (rq_ready) write_beat_upper <= 1'b0;
+                    end
+                end
+            end
+            RT_DONE: begin
+                 write_beat_upper <= 1'b0;
+                 rq_valid <= 1'b0;
+            end
+            default: begin
+                 rq_valid <= 1'b0;
+            end
+        endcase
+    end
+end
+
+// RC channel ======================================================
+// RC channel just do waiting and saving.
+always @(posedge user_clk or posedge user_reset_p)  begin
+    if (user_reset_p) begin
+        small_buffer    <= 256'b0;
+        small_buffer_dw_keep <= 8'b0;
+        small_byte_count <= 13'b0;
+        large_buffer[0] <= 256'b0;
+        large_buffer[1] <= 256'b0;
+        large_buffer_dw_keep[0] <= 8'b0;
+        large_buffer_dw_keep[1] <= 8'b0;
+        large_byte_count[0] <= 13'b0;
+        large_byte_count[1] <= 13'b0;
+        beat_cnt        <= 2'b0;
+        rt_rc_received  <= 1'b0;
+    end else begin
+        // Reset flag when starting a new operation or explicitly in IDLE
+        if (rt_state == RT_IDLE) 
+            rt_rc_received <= 1'b0;
+
+        if (rc_valid) begin
+            if (cq_val_REG_RT_CTRL == 1) begin
+                small_buffer <= rc_payload;
+                small_buffer_dw_keep <= rc_payload_dw_keep;
+                small_byte_count <= rc_payload_byte_count;
+                if (rc_payload_last) rt_rc_received <= 1'b1;
+
+            end else if (cq_val_REG_RT_CTRL == 2) begin
+                large_buffer[beat_cnt] <= rc_payload;
+                large_buffer_dw_keep[beat_cnt] <= rc_payload_dw_keep;
+                large_byte_count[beat_cnt] <= rc_payload_byte_count;
+                
+                if (rc_payload_last) begin
+                    beat_cnt <= 2'b0;
+                    rt_rc_received <= 1'b1;
+                end else
+                    beat_cnt <= beat_cnt + 1'b1;
+            end
+        end
+    end
+end
+
+
 
 endmodule

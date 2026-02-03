@@ -2,11 +2,17 @@
 
 ## Overview
 
-The RQ (Requester) path sends Memory Read/Write requests from FPGA to Host via PCIe.
+1. The RQ (Requester) path sends Memory Read/Write requests from FPGA to Host via PCIe.
+
+2. The descriptors must be sent along with the data at the first beat. Thus, there is only one `rq_valid`.
+3. Actually, `rq_payload_dw_count` and `rq_payload_last` are redundant, since with one can dedrive the other. However, since `rq_payload_dw_count` is required by the descriptor, the inputs are designed like this.
+4. Like above, `rq_payload_sop` is also redundant, but kept as an input since it makes the logic simpler.
+
 
 ```
 User Logic → RQ_formatter → RQ_gearbox256 → PCIe IP Core → Host
 ```
+
 
 ## Module Hierarchy
 
@@ -64,14 +70,14 @@ When `(dw_count % 8) > 4`, the last user beat leaves remnant data in `data_saver
 |--------|-------|-------------|
 | rq_type | 4 | Request type |
 | rq_addr | 64 | Host physical address |
-| rq_dword_count | 11 | Payload DWords |
+| rq_payload_dw_count | 11 | Payload DWords |
 | rq_tag | 8 | Transaction tag |
 | rq_requester_id | 16 | BDF |
 | rq_tc | 3 | Traffic class |
 | rq_valid | 1 | Data valid |
-| rq_sop | 1 | Start of packet |
-| rq_last | 1 | End of packet |
-| rq_wr_data | 256 | Write data |
+| rq_payload_sop | 1 | Start of packet |
+| rq_payload_last | 1 | End of packet |
+| rq_payload | 256 | Write data |
 | rq_ready | 1 | Ready (output) |
 
 ### PCIe Interface (AXI-Stream to IP core)
@@ -97,16 +103,16 @@ rq_ready = s_axis_rq_tready && !one_more_cycle
 
 **4 DWord Write (single cycle, no one_more):**
 ```
-Cycle 1: rq_valid=1, rq_sop=1, rq_last=1, rq_dword_count=4, rq_wr_data={D3,D2,D1,D0}
+Cycle 1: rq_valid=1, rq_payload_sop=1, rq_payload_last=1, rq_payload_dw_count=4, rq_payload={D3,D2,D1,D0}
 Output:  tdata={D3,D2,D1,D0,DESC}, tkeep=0xFF, tlast=1
 ```
 
 **9 DWord Write (2 user beats + one_more):**
 ```
-Cycle 1: rq_valid=1, rq_sop=1, rq_last=0, rq_dword_count=9, rq_wr_data={D7..D0}
+Cycle 1: rq_valid=1, rq_payload_sop=1, rq_payload_last=0, rq_payload_dw_count=9, rq_payload={D7..D0}
 Output:  tdata={D3,D2,D1,D0,DESC}, tkeep=0xFF, tlast=0
 
-Cycle 2: rq_valid=1, rq_sop=0, rq_last=1, rq_wr_data={0,0,0,0,0,0,0,D8}
+Cycle 2: rq_valid=1, rq_payload_sop=0, rq_payload_last=1, rq_payload={0,0,0,0,0,0,0,D8}
 Output:  tdata={D8,0,0,0,D7,D6,D5,D4}, tkeep=0xFF, tlast=0
 
 Cycle 3: (one_more_cycle, rq_valid=0)

@@ -68,10 +68,10 @@ CC/RC (96-bit descriptor):
 **Common Bug:** Putting padding between descriptor and payload in CC:
 ```verilog
 // WRONG: Payload starts at bit 128, wastes DW0 position
-assign s_axis_cc_tdata = {cc_data, 32'h0, descriptor};
+assign s_axis_cc_tdata = {cc_payload, 32'h0, descriptor};
 
 // CORRECT: Payload starts immediately after 96-bit descriptor
-assign s_axis_cc_tdata = {32'h0, cc_data[127:0], descriptor};
+assign s_axis_cc_tdata = {32'h0, cc_payload[127:0], descriptor};
 ```
 
 ---
@@ -104,13 +104,13 @@ module CQ_parser #(parameter BAR0_SIZE = 16)(
     output wire                  cq_is_write,       // Memory Write
     output wire                  cq_is_read,        // Memory Read
     output wire [BAR0_SIZE-4:0] cq_dw_addr,        // QWord address
-    output wire [63:0]           cq_wr_data,        // Write data
+    output wire [63:0]           cq_payload,        // Write data
     output wire [2:0]            cq_bar_id,
     output wire [15:0]           cq_requester_id,   // Echo to CC
     output wire [7:0]            cq_tag,            // Echo to CC
     output wire [2:0]            cq_tc,             // Echo to CC
     output wire [6:0]            cq_lower_addr,     // Echo to CC
-    output wire [10:0]           cq_dword_count
+    output wire [10:0]           cq_payload_dw_count
 );
 ```
 
@@ -128,9 +128,8 @@ module CC_formatter #(parameter DATA_WIDTH = 256, KEEP_WIDTH = 8)(
     input  wire [6:0]            cc_lower_addr,       // From CQ
     input  wire [10:0]           cc_dword_count,
     input  wire [12:0]           cc_byte_count,
-    input  wire [15:0]           cc_completer_id,     // Our own ID
     input  wire [2:0]            cc_status,           // 000=Success
-    input  wire [127:0]          cc_data,
+    input  wire [127:0]          cc_payload,
     input  wire                  cc_last,
 
     // AXI-Stream to PCIe IP
@@ -151,12 +150,12 @@ module RQ_formatter #(parameter DATA_WIDTH = 256, KEEP_WIDTH = 8)(
     input  wire                  rq_valid,
     output wire                  rq_ready,
     input 
-    input  wire                  rq_sop,              // First beat (descriptor)
-    input  wire                  rq_last,             // Last beat
+    input  wire                  rq_payload_sop,              // First beat (descriptor)
+    input  wire                  rq_payload_last,             // Last beat
     
     // Descriptor fields (SOP beat only)
     input  wire [63:0]           rq_addr,
-    input  wire [10:0]           rq_dword_count,
+    input  wire [10:0]           rq_payload_dw_count,
     input  wire [7:0]            rq_tag,
     input  wire [15:0]           rq_requester_id,
     input  wire [2:0]            rq_tc,
@@ -198,20 +197,17 @@ module RC_parser #(parameter DATA_WIDTH = 256, KEEP_WIDTH = 8)(
     output wire                  m_axis_rc_tready,
 
     // Descriptor (SOP only)
-    output wire                  rc_desc_valid,
+    output wire                  rc_valid,
     output wire [7:0]            rc_tag,
-    output wire [2:0]            rc_status,
-    output wire [10:0]           rc_dword_count,
-    output wire [12:0]           rc_byte_count,
+    output wire [12:0]           rc_payload_byte_count,
     output wire                  rc_request_completed,
     output wire [3:0]            rc_error_code,
 
     // Data (all beats)
-    output wire                  rc_data_valid,
-    output wire                  rc_data_sop,
-    output wire                  rc_data_eop,
+    output wire                  rc_payload_sop,
+    output wire                  rc_payload_last,
     output wire [255:0]          rc_payload,          // Full 256 bits
-    output wire [KEEP_WIDTH-1:0] rc_payload_keep
+    output wire [KEEP_WIDTH-1:0] rc_payload_dw_keep
 );
 ```
 
@@ -221,7 +217,7 @@ Beat 0 (SOP): rc_payload = {tdata[255:128], 128'h0}  (descriptor in lower bits)
 Beat 1:       rc_payload = tdata[255:0]
 Beat 2:       rc_payload = tdata[255:0]
 ...
-Beat N (EOP): rc_payload = tdata, rc_payload_keep = partial
+Beat N (EOP): rc_payload = tdata, rc_payload_dw_keep = partial
 ```
 
 ---
@@ -231,7 +227,7 @@ Beat N (EOP): rc_payload = tdata, rc_payload_keep = partial
 ### TX Path (Send Packet)
 
 ```
-1. Host writes doorbell    → CQ: cq_is_write=1, cq_dw_addr=TX_TAIL, cq_wr_data=5
+1. Host writes doorbell    → CQ: cq_is_write=1, cq_dw_addr=TX_TAIL, cq_payload=5
 2. FPGA fetches descriptor → RQ: req_addr=desc_ring_base+5*16, req_tag=0x50
 3. Host returns descriptor → RC: cq_tag=0x50, data_payload={buffer_addr, len}
 4. FPGA fetches packet     → RQ: req_addr=buffer_addr, req_tag=0x51

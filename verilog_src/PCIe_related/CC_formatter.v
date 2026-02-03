@@ -17,6 +17,7 @@ input  wire [7:0]                   cc_tag,            // (cq -> cc -> IP core)
 input  wire [2:0]                   cc_tc,             // (cq -> cc -> IP core)
 input  wire [6:0]                   cc_lower_addr,     // (cq -> cc -> IP core)
 input  wire [10:0]                  cc_dword_count,    // (cq -> cc -> IP core)
+output wire                         cc_ready,          // (IP core -> cc -> user logic)
 // Our ID (FPGA's Bus:Dev:Func) 
 
 // Completion status
@@ -26,13 +27,12 @@ input  wire [10:0]                  cc_dword_count,    // (cq -> cc -> IP core)
 // 3'b100 = completer abort (FPGA internal error, aborted)
 input  wire [2:0]                   cc_status,     
 // Read data payload    
-input  wire [127:0]                 cc_data,           // Up to 4 DWords of read data
-input  wire                         cc_last,           // Last beat of this completion
+input  wire [127:0]                 cc_payload,           // Up to 4 DWords of read data
+input  wire                         cc_last,              // Last beat of this completion
 
 // =========================================================================
 // AXI-Stream to PCIe IP (s_axis_cc_*)
 // =========================================================================
-output wire                         cc_ready,          // (IP core -> cc -> user logic)
 output wire [DATA_WIDTH-1:0]        s_axis_cc_tdata,
 output wire                         s_axis_cc_tvalid,
 output wire [32:0]                  s_axis_cc_tuser,
@@ -58,13 +58,13 @@ assign descriptor[46]       = 1'b0;                  // Not poisoned
 assign descriptor[47]       = 1'b0;                  // Reserved
 assign descriptor[63:48]    = cc_requester_id;      // Requester ID (from CQ)
 assign descriptor[71:64]    = cc_tag;               // Tag (from CQ)
-assign descriptor[87:72]    = 16'h0000;;             // No need for being an endpoint.
+assign descriptor[87:72]    = 16'h0000;      // Completer ID (from IP Core Status)
 assign descriptor[88]       = 1'b0;                  // As an end point, it must be 0.
 assign descriptor[91:89]    = cc_tc;                // Traffic Class
 assign descriptor[94:92]    = 3'b000;              // Attributes
 assign descriptor[95]       = 1'b0;                  // Reserved
 
-assign s_axis_cc_tdata      = {32'h0, cc_data[127:0], descriptor};
+assign s_axis_cc_tdata      = {32'h0, cc_payload[127:0], descriptor};
 
 // tvalid: Pass through completion valid
 assign s_axis_cc_tvalid     = cc_valid;
@@ -73,13 +73,7 @@ assign s_axis_cc_tkeep      = (cc_dword_count == 11'd2) ? 8'h1F :           // u
 assign s_axis_cc_tlast      = cc_last;
 assign cc_ready             = s_axis_cc_tready[0];
 
+
 endmodule
 
-// =============================================================================
-// Completion Status Codes (cc_status)
-// =============================================================================
-// 3'b000 = Successful Completion (SC)
-// 3'b001 = Unsupported Request (UR) - address not recognized
-// 3'b010 = Configuration Request Retry Status (CRS)
-// 3'b100 = Completer Abort (CA) - internal error
-// =============================================================================
+

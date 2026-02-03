@@ -16,88 +16,71 @@ module pcie_interface #(
     parameter BAR0_SIZE  = 16                // 2^16 = 64 KB BAR
 )(
     // =========================================================================
-    // PCIe Physical Pins
+    // Top Interface
     // =========================================================================
-    output wire [7:0]               pci_exp_txn,
-    output wire [7:0]               pci_exp_txp,
-    input  wire [7:0]               pci_exp_rxn,
-    input  wire [7:0]               pci_exp_rxp,
-
+    output wire [7:0]                   pci_exp_txn,
+    output wire [7:0]                   pci_exp_txp,
+    input  wire [7:0]                   pci_exp_rxn,
+    input  wire [7:0]                   pci_exp_rxp,
+    input  wire                         sys_clk,
+    input  wire                         sys_clk_gt,
+    input  wire                         sys_reset,
     // =========================================================================
-    // System Interface
+    // Logic Interface
     // =========================================================================
-    input  wire                     sys_clk,
-    input  wire                     sys_clk_gt,
-    input  wire                     sys_reset,
-    output wire                     user_clk,
-    output wire                     user_reset,
-
-    // =========================================================================
+    output wire                         user_clk,
+    output wire                         user_reset_p, //active high
     // CQ Parser Outputs (Host → FPGA MMIO Requests)
-    // =========================================================================
-    output wire                     cq_valid,
-    output wire [3:0]               cq_type,
-    output wire [BAR0_SIZE-1:0]     cq_reg_addr,
-    output wire [63:0]              cq_wr_data,
-    output wire [2:0]               cq_bar_id,
-    output wire [15:0]              cq_requester_id,
-    output wire [7:0]               cq_tag,
-    output wire [2:0]               cq_tc,
-    output wire [6:0]               cq_lower_addr,
-    output wire [10:0]              cq_dword_count,
-
-
-    // =========================================================================
-    // CC Formatter Inputs (FPGA → Host Read Responses)
-    // =========================================================================
-    output wire                     cc_ready,
-    input  wire                     cc_valid,
-    input  wire [15:0]              cc_requester_id,
-    input  wire [7:0]               cc_tag,
-    input  wire [2:0]               cc_tc,
-    input  wire [6:0]               cc_lower_addr,
-    input  wire [10:0]              cc_dword_count,
-    input  wire [2:0]               cc_status,
-    input  wire [DATA_WIDTH/2-1:0]  cc_data,
-    input  wire                     cc_last,
-
-    // =========================================================================
+    output wire                         cq_valid,
+    output wire [3:0]                   cq_type,
+    output wire [BAR0_SIZE-1:0]         cq_reg_addr,
+    output wire [63:0]                  cq_payload,
+    output wire [2:0]                   cq_bar_id,
+    output wire [15:0]                  cq_requester_id,
+    output wire [7:0]                   cq_tag,
+    output wire [2:0]                   cq_tc,
+    output wire [6:0]                   cq_lower_addr,
+    output wire [10:0]                  cq_payload_dw_count,
+    output wire                         cq_last,
+    // CC Formatter Inputs (FPGA → Host Read Responses)s
+    output wire                         cc_ready,
+    input  wire                         cc_valid,
+    input  wire [15:0]                  cc_requester_id,
+    input  wire [7:0]                   cc_tag,
+    input  wire [2:0]                   cc_tc,
+    input  wire [6:0]                   cc_lower_addr,
+    input  wire [10:0]                  cc_dword_count,
+    input  wire [2:0]                   cc_status,
+    input  wire [DATA_WIDTH/2-1:0]      cc_payload,
+    input  wire                         cc_last,
     // RQ Formatter Inputs (FPGA → Host DMA Requests)
-    // =========================================================================
-    output wire                     rq_ready,
-    input  wire                     rq_valid,
-    input  wire [3:0]               rq_type,
-    input  wire                     rq_sop,
-    input  wire                     rq_last,        // the last cycle of data sending
-    input  wire [63:0]              rq_addr,
-    input  wire [10:0]              rq_dword_count, // Total Data DWords (1-1024) in this burst. Does not include header.
-    input  wire [7:0]               rq_tag,
-    input  wire [15:0]              rq_requester_id,
-    input  wire [2:0]               rq_tc,
-    input  wire [255:0]             rq_wr_data,
-
-    // =========================================================================
-    // RC Parser Outputs (Host → FPGA DMA Read Completions)
-    // =========================================================================
-    output wire                     rc_desc_valid,
-    output wire [7:0]               rc_tag,
-    output wire [2:0]               rc_status,
-    output wire [10:0]              rc_dword_count,
-    output wire [12:0]              rc_byte_count,
-    output wire [11:0]              rc_lower_addr,
-    output wire                     rc_request_completed,
-    output wire [3:0]               rc_error_code,
-    output wire                     rc_data_valid,
-    output wire                     rc_data_sop,
-    output wire                     rc_data_eop,
-    output wire [255:0]             rc_payload,
-    output wire [DATA_WIDTH / 32-1:0]    rc_payload_keep,
-
-    // =========================================================================
+    output wire                         rq_ready,
+    input  wire                         rq_valid,
+    input  wire [3:0]                   rq_type,
+    input  wire                         rq_payload_sop,
+    input  wire                         rq_payload_last,        // the last cycle of data sending
+    input  wire [63:0]                  rq_addr,
+    input  wire [10:0]                  rq_payload_dw_count, // Total Data DWords (1-1024) in this burst. Does not include header.
+    input  wire [7:0]                   rq_tag,
+    input  wire [2:0]                   rq_tc,
+    input  wire [255:0]                 rq_payload,
+    // RC Parser Outputs (Host → FPGA DMA Read Completions) - Realigned by gearbox
+    output wire  [11:0]                 rc_lower_addr,
+    output wire  [3:0]                  rc_err_code,
+    output wire  [12:0]                 rc_payload_byte_count,
+    output wire                         rc_request_completed,
+    output wire  [15:0]                 rc_requester_id,
+    output wire  [7:0]                  rc_tag,
+    output wire                         rc_valid,               // valid for all
+    output wire                         rc_payload_last,         // End of packet
+    output wire [255:0]                 rc_payload,             // Realigned 256-bit payload
+    output wire [DATA_WIDTH / 32-1:0]   rc_payload_dw_keep,         // Byte enables
+    output wire                         rc_posioned,
+    output wire [12:0]                  rc_payload_dw_count,
     // Configuration Outputs
-    // =========================================================================
-    output wire [2:0]               cfg_max_payload,
-    output wire [2:0]               cfg_max_read_req
+    output wire [2:0]                   cfg_max_payload,
+    output wire [2:0]                   cfg_max_read_req,
+    output wire [15:0]                  pcie_requester_id
 );
 
     // =========================================================================
@@ -136,7 +119,7 @@ module pcie_interface #(
     wire [DATA_WIDTH-1:0]           m_axis_rc_tdata;
     wire                            m_axis_rc_tvalid;
     wire [74:0]                     m_axis_rc_tuser;
-    wire [DATA_WIDTH / 32-1:0]           m_axis_rc_tkeep;
+    wire [DATA_WIDTH / 32-1:0]      m_axis_rc_tkeep;
     wire                            m_axis_rc_tlast;
     wire                            m_axis_rc_tready;
 
@@ -182,6 +165,7 @@ module pcie_interface #(
     wire                            cfg_interrupt_msix_sent;
     wire                            cfg_interrupt_msix_fail;
     wire [3:0]                      cfg_interrupt_msi_function_number;
+    wire [15:0]                     cfg_function_status; // Bus[15:8], Dev[7:3], Func[2:0]
 
     // =========================================================================
     // Internal Wires - RQ Sequence
@@ -224,14 +208,15 @@ module pcie_interface #(
         .m_axis_cq_tready           (m_axis_cq_tready),
         .cq_valid                   (cq_valid),
         .cq_type                    (cq_type),
-        .cq_reg_addr                 (cq_reg_addr),
-        .cq_wr_data                 (cq_wr_data),
+        .cq_reg_addr                (cq_reg_addr),
+        .cq_payload                 (cq_payload),
         .cq_bar_id                  (cq_bar_id),
         .cq_requester_id            (cq_requester_id),
         .cq_tag                     (cq_tag),
         .cq_tc                      (cq_tc),
         .cq_lower_addr              (cq_lower_addr),
-        .cq_dword_count             (cq_dword_count)
+        .cq_payload_dw_count        (cq_payload_dw_count),
+        .cq_last                    (cq_last)
     );
 
     // =========================================================================
@@ -248,7 +233,7 @@ module pcie_interface #(
         .cc_lower_addr              (cc_lower_addr),
         .cc_dword_count             (cc_dword_count),
         .cc_status                  (cc_status),
-        .cc_data                    (cc_data),
+        .cc_payload                 (cc_payload),
         .cc_last                    (cc_last),
         .s_axis_cc_tdata            (s_axis_cc_tdata),
         .s_axis_cc_tvalid           (s_axis_cc_tvalid),
@@ -264,17 +249,18 @@ module pcie_interface #(
     RQ_formatter #(
         .DATA_WIDTH                 (DATA_WIDTH)
     ) rq_formatter_inst (
+        .clk                        (user_clk),
+        .rst_n                      (~user_reset_p),
         .rq_valid                   (rq_valid),
         .rq_ready                   (rq_ready),
         .rq_type                    (rq_type),
-        .rq_sop                     (rq_sop),
-        .rq_last                    (rq_last),
+        .rq_payload_sop             (rq_payload_sop),
+        .rq_payload_last            (rq_payload_last),
         .rq_addr                    (rq_addr),
-        .rq_dword_count             (rq_dword_count),
+        .rq_payload_dw_count        (rq_payload_dw_count),
         .rq_tag                     (rq_tag),
-        .rq_requester_id            (rq_requester_id),
         .rq_tc                      (rq_tc),
-        .rq_wr_data                 (rq_wr_data),
+        .rq_payload                 (rq_payload),
         .s_axis_rq_tdata            (s_axis_rq_tdata),
         .s_axis_rq_tvalid           (s_axis_rq_tvalid),
         .s_axis_rq_tuser            (s_axis_rq_tuser),
@@ -284,30 +270,35 @@ module pcie_interface #(
     );
 
     // =========================================================================
-    // RC_parser Instantiation
+    // RC_parser Instantiation (includes RC_gearbox256 for data realignment)
     // =========================================================================
+
+
+
     RC_parser #(
         .DATA_WIDTH                 (DATA_WIDTH)
     ) rc_parser_inst (
+        .clk                        (user_clk),
+        .rst_n                      (~user_reset_p),
         .m_axis_rc_tdata            (m_axis_rc_tdata),
         .m_axis_rc_tvalid           (m_axis_rc_tvalid),
         .m_axis_rc_tuser            (m_axis_rc_tuser),
         .m_axis_rc_tkeep            (m_axis_rc_tkeep),
         .m_axis_rc_tlast            (m_axis_rc_tlast),
         .m_axis_rc_tready           (m_axis_rc_tready),
-        .rc_desc_valid              (rc_desc_valid),
-        .rc_tag                     (rc_tag),
-        .rc_status                  (rc_status),
-        .rc_dword_count             (rc_dword_count),
-        .rc_byte_count              (rc_byte_count),
         .rc_lower_addr              (rc_lower_addr),
+        .rc_err_code                (rc_err_code),
+        .rc_payload_byte_count      (rc_payload_byte_count),
         .rc_request_completed       (rc_request_completed),
-        .rc_error_code              (rc_error_code),
-        .rc_data_valid              (rc_data_valid),
-        .rc_data_sop                (rc_data_sop),
-        .rc_data_eop                (rc_data_eop),
+        .rc_requester_id            (rc_requester_id),
+        .rc_completer_id            (),
+        .rc_tag                     (rc_tag),
+        .rc_valid                   (rc_valid),
+        .rc_payload_last            (rc_payload_last),
         .rc_payload                 (rc_payload),
-        .rc_payload_keep            (rc_payload_keep)
+        .rc_payload_dw_keep         (rc_payload_dw_keep),
+        .rc_posioned                (rc_posioned),
+        .rc_payload_dw_count        (rc_payload_dw_count)
     );
 
     // =========================================================================
@@ -330,8 +321,7 @@ module pcie_interface #(
 
         // User Clock and Reset
         .user_clk                   (user_clk),
-        .user_reset                 (user_reset),
-        .user_lnk_up                (),
+        .user_reset                 (user_reset_p), //active high
 
         // CQ Channel (Host → FPGA MMIO Requests)
         .m_axis_cq_tdata            (m_axis_cq_tdata),
@@ -383,7 +373,7 @@ module pcie_interface #(
         .cfg_current_speed          (),
         .cfg_max_payload            (cfg_max_payload),
         .cfg_max_read_req           (cfg_max_read_req),
-        .cfg_function_status        (),
+        .cfg_function_status        (cfg_function_status), // Capturing BDF
         .cfg_function_power_state   (),
         .cfg_vf_status              (),
         .cfg_vf_power_state         (),
@@ -496,5 +486,7 @@ module pcie_interface #(
         .int_qpll1outclk_out        (),
         .phy_rdy_out                ()
     );
+
+    assign pcie_requester_id = cfg_function_status;
 
 endmodule

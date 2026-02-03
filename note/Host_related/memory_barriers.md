@@ -52,7 +52,7 @@ while (!(read_reg32(REG_STATUS) & DONE_BIT)) {
 ## Implementation in This Project
 
 ```c
-void FPGAHelloDev::write_reg32(uint32_t offset, uint32_t value) {
+void FPGADev::write_reg32(uint32_t offset, uint32_t value) {
     __asm__ volatile ("mfence" ::: "memory");
     volatile uint32_t* reg = (volatile uint32_t*)(m_basic_para.p_bar_addr[0] + offset);
     *reg = value;

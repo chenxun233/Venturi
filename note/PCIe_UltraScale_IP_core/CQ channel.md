@@ -100,7 +100,7 @@ Parsed descriptor fields, valid only on the first beat (SOP):
 | `cq_valid` | 1 | Descriptor valid (asserted when `tvalid && SOP`) |
 | `cq_addr_type` | 2 | Address type (from `tdata[1:0]`) |
 | `cq_reg_addr` | `BAR0_SIZE` | Register address (from `tdata[63:2]`, masked to BAR0_SIZE) |
-| `cq_dword_count` | 11 | Number of Dwords (from `tdata[74:64]`) |
+| `cq_payload_dw_count` | 11 | Number of Dwords (from `tdata[74:64]`) |
 | `cq_poisoned` | 1 | Poisoned flag (from `tdata[79]`) |
 | `cq_requester_id` | 16 | Requester ID (from `tdata[95:80]`) |
 | `cq_tag` | 8 | Transaction tag (from `tdata[103:96]`) |

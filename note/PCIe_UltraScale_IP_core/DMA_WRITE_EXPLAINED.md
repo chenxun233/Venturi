@@ -208,7 +208,7 @@ ioctl(container_fd, VFIO_IOMMU_MAP_DMA, &dma_map);
 - [pcie_register_interface_dma.v](../verilog_src/pcie_register_interface_dma.v) - Integrated register + DMA
 
 **C++:**
-- [fpga_hello_dev.cpp](../cpp_src/fpga_driver/fpga_hello_dev.cpp) - `test_dma_write()` function
+- [fpga_dev.cpp](../cpp_src/fpga_driver/fpga_dev.cpp) - `test_dma_write()` function
 - [dma_memory_allocator.cpp](../cpp_src/common/dma_memory_allocator.cpp) - IOMMU buffer allocation
 
 ---

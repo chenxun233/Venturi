@@ -16,11 +16,11 @@ module tb_RQ_gearbox256;
     
     // User Interface
     reg  [127:0]            descriptor;
-    reg  [255:0]            rq_wr_data;
-    reg  [10:0]             rq_dword_count;
-    reg                     rq_last;
+    reg  [255:0]            rq_payload;
+    reg  [10:0]             rq_payload_dw_count;
+    reg                     rq_payload_last;
     reg                     rq_valid;
-    reg                     rq_sop;
+    reg                     rq_payload_sop;
     wire                    rq_ready;
     
     // PCIe IP Core Interface
@@ -43,11 +43,11 @@ module tb_RQ_gearbox256;
         .clk                (clk),
         .rst_n              (rst_n),
         .descriptor         (descriptor),
-        .rq_wr_data         (rq_wr_data),
-        .rq_dword_count     (rq_dword_count),
-        .rq_last            (rq_last),
+        .rq_payload         (rq_payload),
+        .rq_payload_dw_count     (rq_payload_dw_count),
+        .rq_payload_last            (rq_payload_last),
         .rq_valid           (rq_valid),
-        .rq_sop             (rq_sop),
+        .rq_payload_sop             (rq_payload_sop),
         .rq_ready           (rq_ready),
         .s_axis_rq_tdata    (s_axis_rq_tdata),
         .s_axis_rq_tvalid   (s_axis_rq_tvalid),
@@ -84,11 +84,11 @@ module tb_RQ_gearbox256;
         // Initialize
         rst_n            = 0;
         descriptor       = 0;
-        rq_wr_data       = 0;
-        rq_dword_count   = 0;
-        rq_last          = 0;
+        rq_payload       = 0;
+        rq_payload_dw_count   = 0;
+        rq_payload_last          = 0;
         rq_valid         = 0;
-        rq_sop           = 0;
+        rq_payload_sop           = 0;
         s_axis_rq_tready = 1;
         
         // Reset
@@ -102,13 +102,13 @@ module tb_RQ_gearbox256;
         $display("\n[TEST] dw_count = 1");
         @(posedge clk);
         descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
-        rq_wr_data     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0001;
-        rq_dword_count <= 11'd1;
+        rq_payload     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0001;
+        rq_payload_dw_count <= 11'd1;
         rq_valid       <= 1;
-        rq_sop         <= 1;
-        rq_last        <= 1;
+        rq_payload_sop         <= 1;
+        rq_payload_last        <= 1;
         @(posedge clk);
-        rq_valid <= 0; rq_sop <= 0; rq_last <= 0;
+        rq_valid <= 0; rq_payload_sop <= 0; rq_payload_last <= 0;
         repeat(3) @(posedge clk);
 
         // -----------------------------------------------------------------
@@ -117,13 +117,13 @@ module tb_RQ_gearbox256;
         $display("\n[TEST] dw_count = 2");
         @(posedge clk);
         descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
-        rq_wr_data     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0002_DEAD_0001;
-        rq_dword_count <= 11'd2;
+        rq_payload     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0002_DEAD_0001;
+        rq_payload_dw_count <= 11'd2;
         rq_valid       <= 1;
-        rq_sop         <= 1;
-        rq_last        <= 1;
+        rq_payload_sop         <= 1;
+        rq_payload_last        <= 1;
         @(posedge clk);
-        rq_valid <= 0; rq_sop <= 0; rq_last <= 0;
+        rq_valid <= 0; rq_payload_sop <= 0; rq_payload_last <= 0;
         repeat(3) @(posedge clk);
 
         // -----------------------------------------------------------------
@@ -132,13 +132,13 @@ module tb_RQ_gearbox256;
         $display("\n[TEST] dw_count = 4");
         @(posedge clk);
         descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
-        rq_wr_data     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
-        rq_dword_count <= 11'd4;
+        rq_payload     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
+        rq_payload_dw_count <= 11'd4;
         rq_valid       <= 1;
-        rq_sop         <= 1;
-        rq_last        <= 1;
+        rq_payload_sop         <= 1;
+        rq_payload_last        <= 1;
         @(posedge clk);
-        rq_valid <= 0; rq_sop <= 0; rq_last <= 0;
+        rq_valid <= 0; rq_payload_sop <= 0; rq_payload_last <= 0;
         repeat(3) @(posedge clk);
 
         // -----------------------------------------------------------------
@@ -147,13 +147,13 @@ module tb_RQ_gearbox256;
         $display("\n[TEST] dw_count = 7");
         @(posedge clk);
         descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
-        rq_wr_data     <= 256'h0000_0000_DEAD_0007_DEAD_0006_DEAD_0005_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
-        rq_dword_count <= 11'd7;
+        rq_payload     <= 256'h0000_0000_DEAD_0007_DEAD_0006_DEAD_0005_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
+        rq_payload_dw_count <= 11'd7;
         rq_valid       <= 1;
-        rq_sop         <= 1;
-        rq_last        <= 1;
+        rq_payload_sop         <= 1;
+        rq_payload_last        <= 1;
         @(posedge clk);
-        rq_valid <= 0; rq_sop <= 0; rq_last <= 0;
+        rq_valid <= 0; rq_payload_sop <= 0; rq_payload_last <= 0;
         repeat(5) @(posedge clk);  // Extra cycles for one_more_cycle
 
         // -----------------------------------------------------------------
@@ -163,19 +163,19 @@ module tb_RQ_gearbox256;
         // Beat 1 (SOP)
         @(posedge clk);
         descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
-        rq_wr_data     <= 256'hDEAD_0008_DEAD_0007_DEAD_0006_DEAD_0005_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
-        rq_dword_count <= 11'd9;
+        rq_payload     <= 256'hDEAD_0008_DEAD_0007_DEAD_0006_DEAD_0005_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
+        rq_payload_dw_count <= 11'd9;
         rq_valid       <= 1;
-        rq_sop         <= 1;
-        rq_last        <= 0;
+        rq_payload_sop         <= 1;
+        rq_payload_last        <= 0;
         @(posedge clk);
         // Beat 2 (LAST)
         descriptor     <= 0;
-        rq_wr_data     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0009;
-        rq_sop         <= 0;
-        rq_last        <= 1;
+        rq_payload     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0009;
+        rq_payload_sop         <= 0;
+        rq_payload_last        <= 1;
         @(posedge clk);
-        rq_valid <= 0; rq_sop <= 0; rq_last <= 0;
+        rq_valid <= 0; rq_payload_sop <= 0; rq_payload_last <= 0;
         repeat(5) @(posedge clk);
 
         // -----------------------------------------------------------------

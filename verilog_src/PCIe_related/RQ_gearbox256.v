@@ -7,22 +7,22 @@ module RQ_gearbox256 #(
     // =========================================================================
     // User Interface
     // =========================================================================
-    input  wire [127:0]           descriptor,
-    input  wire [255:0]           rq_wr_data,
-    input  wire [10:0]            rq_dword_count,
-    input  wire                   rq_last,
-    input  wire                   rq_valid,
-    input  wire                   rq_sop,
-    output wire                   rq_ready, 
+    (* MARK_DEBUG = "TRUE" *)   input  wire [127:0]              rq_descriptor,
+    (* MARK_DEBUG = "TRUE" *)   input  wire [255:0]              rq_payload,
+    (* MARK_DEBUG = "TRUE" *)   input  wire [10:0]               rq_payload_dw_count, // keep the same all the way
+    (* MARK_DEBUG = "TRUE" *)   input  wire                      rq_payload_last,
+    (* MARK_DEBUG = "TRUE" *)   input  wire                      rq_valid,
+    (* MARK_DEBUG = "TRUE" *)   input  wire                      rq_payload_sop,
+    (* MARK_DEBUG = "TRUE" *)   output wire                      rq_ready, 
     // =========================================================================
     // PCIe IP Core Interface
     // =========================================================================
-    output reg  [DATA_WIDTH-1:0]      s_axis_rq_tdata,
-    output reg                        s_axis_rq_tvalid,
-    output reg  [59:0]                s_axis_rq_tuser,
-    output reg  [7:0]                 s_axis_rq_tkeep,
-    output reg                        s_axis_rq_tlast,
-    input  wire                       s_axis_rq_tready
+    (* MARK_DEBUG = "TRUE" *)   output reg  [DATA_WIDTH-1:0]      s_axis_rq_tdata,
+    (* MARK_DEBUG = "TRUE" *)   output reg                        s_axis_rq_tvalid,
+    (* MARK_DEBUG = "TRUE" *)   output reg  [59:0]                s_axis_rq_tuser,
+    (* MARK_DEBUG = "TRUE" *)   output reg  [7:0]                 s_axis_rq_tkeep,
+    (* MARK_DEBUG = "TRUE" *)   output reg                        s_axis_rq_tlast,
+    (* MARK_DEBUG = "TRUE" *)   input  wire                       s_axis_rq_tready
 );
 
     reg [127:0] data_saver;
@@ -69,54 +69,68 @@ module RQ_gearbox256 #(
             // Priority 2: NORMAL PROCESSING
             // -------------------------------------------------------------
             if (rq_valid) begin
-                one_more_cycle <= one_more(rq_dword_count);
-                // Case A: Small Packet (<= 4 DW) - No Remnant created
-                if (rq_sop && !one_more(rq_dword_count) && rq_dword_count <= 11'd4) begin
-                    s_axis_rq_tdata   <= {rq_wr_data[127:0], descriptor};
+                if (s_axis_rq_tlast) begin
+                    s_axis_rq_tlast   <= 1'b0;
+                end
+                // Check if it is a Read Request (Type 0000)
+                if (rq_descriptor[78:75] == 4'b0000) begin
+                    s_axis_rq_tdata   <= {128'b0, rq_descriptor};
                     s_axis_rq_tvalid  <= 1'b1;
                     s_axis_rq_tlast   <= 1'b1;
-                    // Calculate keep for small packet (Header(4) + Payload)
-                    // If count=1(Total5)->0x1F. If count=2(Total6)->0x3F.
-                    s_axis_rq_tkeep   <= calc_tail_keep(rq_dword_count);
-                    s_axis_rq_tuser   <= {52'b0, descriptor[107:104], descriptor[111:108]};
+                    s_axis_rq_tkeep   <= 8'h0F; // 4 DWs Header
+                    s_axis_rq_tuser   <= {52'b0, rq_descriptor[107:104], rq_descriptor[111:108]};
+                    one_more_cycle    <= 1'b0;
                 end
-                
-                // Case B: Large Packet 1. The SOP
-                else if (rq_sop) begin
-                    s_axis_rq_tdata   <= {rq_wr_data[127:0], descriptor};
-                    data_saver        <= rq_wr_data[255:128]; // Save Upper
-                    s_axis_rq_tuser   <= {52'b0, descriptor[107:104], descriptor[111:108]};
-                    s_axis_rq_tvalid  <= 1'b1;
-                    s_axis_rq_tlast   <= 1'b0;
-                    s_axis_rq_tkeep   <= 8'hFF;
-                end
-                
-                // Case B: Large Packet 2. The body
-                else if (!rq_last) begin
-                    s_axis_rq_tdata   <= {rq_wr_data[127:0], data_saver};
-                    data_saver        <= rq_wr_data[255:128]; // Save New Upper
-                    s_axis_rq_tuser   <= 60'b0;
-                    s_axis_rq_tlast   <= 1'b0;
-                    s_axis_rq_tvalid  <= 1'b1;
-                    s_axis_rq_tkeep   <= 8'hFF;
-                end
-                // Case B: Large Packet 3. End, but no one more cycle needed
-                else if (rq_last && ! one_more(rq_dword_count))begin
-                    s_axis_rq_tdata   <= {rq_wr_data[127:0], data_saver};
-                    data_saver        <= 0; //  not needed anymore
-                    s_axis_rq_tuser   <= 60'b0;
-                    s_axis_rq_tlast   <= 1'b1;
-                    s_axis_rq_tvalid  <= 1'b1;
-                    s_axis_rq_tkeep   <= calc_tail_keep(rq_dword_count);
-                end
-                // Case B: Large Packet 3. End, one more cycle needed
-                else if (rq_last && one_more(rq_dword_count))begin
-                    s_axis_rq_tdata   <= {rq_wr_data[127:0], data_saver};
-                    data_saver        <= rq_wr_data[255:128]; // Save New Upper
-                    s_axis_rq_tuser   <= 60'b0;
-                    s_axis_rq_tlast   <= 1'b0; //hold, the last is in the one more cycle.
-                    s_axis_rq_tvalid  <= 1'b1;
-                    s_axis_rq_tkeep   <= 8'hFF;
+                else begin
+                    one_more_cycle <= one_more(rq_payload_dw_count);
+                    // Case A: Small Packet (<= 4 DW) - No Remnant created
+                    if (rq_payload_sop && !one_more(rq_payload_dw_count) && rq_payload_dw_count <= 11'd4) begin
+                        s_axis_rq_tdata   <= {rq_payload[127:0], rq_descriptor};
+                        s_axis_rq_tvalid  <= 1'b1;
+                        s_axis_rq_tlast   <= 1'b1;
+                        // Calculate keep for small packet (Header(4) + Payload)
+                        // If count=1(Total5)->0x1F. If count=2(Total6)->0x3F.
+                        s_axis_rq_tkeep   <= calc_tail_keep(rq_payload_dw_count);
+                        s_axis_rq_tuser   <= {52'b0, rq_descriptor[107:104], rq_descriptor[111:108]};
+                    end
+                    
+                    // Case B: Large Packet 1. The SOP
+                    else if (rq_payload_sop) begin
+                        s_axis_rq_tdata   <= {rq_payload[127:0], rq_descriptor};
+                        data_saver        <= rq_payload[255:128]; // Save Upper
+                        s_axis_rq_tuser   <= {52'b0, rq_descriptor[107:104], rq_descriptor[111:108]};
+                        s_axis_rq_tvalid  <= 1'b1;
+                        s_axis_rq_tlast   <= 1'b0;
+                        s_axis_rq_tkeep   <= 8'hFF;
+                    end
+                    
+                    // Case B: Large Packet 2. The body
+                    else if (!rq_payload_last) begin
+                        s_axis_rq_tdata   <= {rq_payload[127:0], data_saver};
+                        data_saver        <= rq_payload[255:128]; // Save New Upper
+                        s_axis_rq_tuser   <= 60'b0;
+                        s_axis_rq_tlast   <= 1'b0;
+                        s_axis_rq_tvalid  <= 1'b1;
+                        s_axis_rq_tkeep   <= 8'hFF;
+                    end
+                    // Case B: Large Packet 3. End, but no one more cycle needed
+                    else if (rq_payload_last && ! one_more(rq_payload_dw_count))begin
+                        s_axis_rq_tdata   <= {rq_payload[127:0], data_saver};
+                        data_saver        <= 0; //  not needed anymore
+                        s_axis_rq_tuser   <= 60'b0;
+                        s_axis_rq_tlast   <= 1'b1;
+                        s_axis_rq_tvalid  <= 1'b1;
+                        s_axis_rq_tkeep   <= calc_tail_keep(rq_payload_dw_count);
+                    end
+                    // Case B: Large Packet 3. End, one more cycle needed
+                    else if (rq_payload_last && one_more(rq_payload_dw_count))begin
+                        s_axis_rq_tdata   <= {rq_payload[127:0], data_saver};
+                        data_saver        <= rq_payload[255:128]; // Save New Upper
+                        s_axis_rq_tuser   <= 60'b0;
+                        s_axis_rq_tlast   <= 1'b0; //hold, the last is in the one more cycle.
+                        s_axis_rq_tvalid  <= 1'b1;
+                        s_axis_rq_tkeep   <= 8'hFF;
+                    end
                 end
             end
             // even if rq_valid is low, we may have one more cycle to send
@@ -125,7 +139,7 @@ module RQ_gearbox256 #(
                 s_axis_rq_tdata   <= {data_saver, 128'b0};
                 s_axis_rq_tvalid  <= 1'b1;  // still valid to the PCIe core
                 s_axis_rq_tlast   <= 1'b1; // last for one more cycle
-                s_axis_rq_tkeep   <= calc_tail_keep(rq_dword_count);
+                s_axis_rq_tkeep   <= calc_tail_keep(rq_payload_dw_count);
                 s_axis_rq_tuser   <= 60'b0;
                 one_more_cycle    <= 1'b0;
             end
@@ -140,7 +154,6 @@ module RQ_gearbox256 #(
                 s_axis_rq_tuser   <= 60'b0;
                 data_saver        <= 128'b0;
                 one_more_cycle    <= 1'b0;
-
             end
         end
     end
