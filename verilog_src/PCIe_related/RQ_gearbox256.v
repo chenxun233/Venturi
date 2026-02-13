@@ -7,22 +7,22 @@ module RQ_gearbox256 #(
     // =========================================================================
     // User Interface
     // =========================================================================
-    (* MARK_DEBUG = "TRUE" *)   input  wire [127:0]              rq_descriptor,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [255:0]              rq_payload,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [10:0]               rq_payload_dw_count, // keep the same all the way
-    (* MARK_DEBUG = "TRUE" *)   input  wire                      rq_payload_last,
-    (* MARK_DEBUG = "TRUE" *)   input  wire                      rq_valid,
-    (* MARK_DEBUG = "TRUE" *)   input  wire                      rq_payload_sop,
-    (* MARK_DEBUG = "TRUE" *)   output wire                      rq_ready, 
+    input  wire [127:0]              rq_descriptor,
+    input  wire [255:0]              rq_payload,
+    input  wire [10:0]               rq_payload_dw_count, // keep the same all the way
+    input  wire                      rq_payload_last,
+    input  wire                      rq_valid,
+    input  wire                      rq_payload_sop,
+    output wire                      rq_ready, 
     // =========================================================================
     // PCIe IP Core Interface
     // =========================================================================
-    (* MARK_DEBUG = "TRUE" *)   output reg  [DATA_WIDTH-1:0]      s_axis_rq_tdata,
-    (* MARK_DEBUG = "TRUE" *)   output reg                        s_axis_rq_tvalid,
-    (* MARK_DEBUG = "TRUE" *)   output reg  [59:0]                s_axis_rq_tuser,
-    (* MARK_DEBUG = "TRUE" *)   output reg  [7:0]                 s_axis_rq_tkeep,
-    (* MARK_DEBUG = "TRUE" *)   output reg                        s_axis_rq_tlast,
-    (* MARK_DEBUG = "TRUE" *)   input  wire                       s_axis_rq_tready
+    output reg  [DATA_WIDTH-1:0]      s_axis_rq_tdata,
+    output reg                        s_axis_rq_tvalid,
+    output reg  [59:0]                s_axis_rq_tuser,
+    output reg  [7:0]                 s_axis_rq_tkeep,
+    output reg                        s_axis_rq_tlast,
+    input  wire                       s_axis_rq_tready
 );
 
     reg [127:0] data_saver;

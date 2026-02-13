@@ -1,0 +1,27 @@
+$date
+        2026-Feb-13 22:54:49
+$end
+$version
+        Vivado v2018.3 (64-bit)
+$end
+$timescale
+        1ps
+$end
+$scope module dut $end
+$var reg 64 " xgmii_rxd [63:0] $end
+$var reg 8 b xgmii_rxc [7:0] $end
+$var reg 1 j _TRIGGER $end
+$var reg 1 k _WINDOW $end
+$var reg 1 l _GAP $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b11100000111000001110000011100000111000001110000011100000111 "
+b11111111 b
+0j
+1k
+0l
+$end
+#512
+1j

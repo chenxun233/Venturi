@@ -23,23 +23,23 @@ module RC_gearbox256 #(
     // =========================================================================
     // PCIe IP Core Interface (from RC)
     // =========================================================================
-    (* MARK_DEBUG = "TRUE" *)   input  wire [DATA_WIDTH-1:0]        m_axis_rc_tdata,
-    (* MARK_DEBUG = "TRUE" *)   input  wire                         m_axis_rc_tvalid,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [74:0]                  m_axis_rc_tuser,
-    (* MARK_DEBUG = "TRUE" *)   input  wire [DATA_WIDTH/32-1:0]     m_axis_rc_tkeep,
-    (* MARK_DEBUG = "TRUE" *)   input  wire                         m_axis_rc_tlast,
-    (* MARK_DEBUG = "TRUE" *)   output wire                         m_axis_rc_tready,
+    input  wire [DATA_WIDTH-1:0]        m_axis_rc_tdata,
+    input  wire                         m_axis_rc_tvalid,
+    input  wire [74:0]                  m_axis_rc_tuser,
+    input  wire [DATA_WIDTH/32-1:0]     m_axis_rc_tkeep,
+    input  wire                         m_axis_rc_tlast,
+    output wire                         m_axis_rc_tready,
 
     // =========================================================================
     // User Interface 
     // =========================================================================
     // data, can last for multiple beats
-    (* MARK_DEBUG = "TRUE" *)   output reg                          rc_valid,
-    (* MARK_DEBUG = "TRUE" *)   output reg                          rc_payload_last,
-    (* MARK_DEBUG = "TRUE" *)   output wire  [255:0]                rc_payload     ,
-    (* MARK_DEBUG = "TRUE" *)   output reg   [7:0]                  rc_payload_dw_keep,
+    output reg                          rc_valid,
+    output reg                          rc_payload_last,
+    output wire  [255:0]                rc_payload     ,
+    output reg   [7:0]                  rc_payload_dw_keep,
     // Descriptor, taks [95:0] tdata, only last for the first beat (SOP). Thus, no last signal.
-    (* MARK_DEBUG = "TRUE" *)   output reg   [95:0]                 rc_descriptor
+    output reg   [95:0]                 rc_descriptor
 );
 
 
@@ -48,9 +48,9 @@ module RC_gearbox256 #(
 // =========================================================================
 // Internal Signals
 // =========================================================================
-    (* MARK_DEBUG = "TRUE" *)   wire   sop     = m_axis_rc_tvalid? m_axis_rc_tuser[32] : 1'b0; // SOP indicator
-    (* MARK_DEBUG = "TRUE" *)   reg [159:0]    data_saver           ;
-    (* MARK_DEBUG = "TRUE" *)   reg [7:0]      rc_last_keep         ;
+    wire   sop     = m_axis_rc_tvalid? m_axis_rc_tuser[32] : 1'b0; // SOP indicator
+    reg [159:0]    data_saver           ;
+    reg [7:0]      rc_last_keep         ;
 // save the current state   ==========================
 
 assign rc_payload = {m_axis_rc_tdata[95:0], data_saver};
@@ -90,11 +90,6 @@ always @(posedge clk or negedge rst_n) begin
 
     end
 end
-
-
-
-      
-    
     assign m_axis_rc_tready = 1'b1;
 // =========================================================================
     // function [7:0] calc_tail_keep(input [DATA_WIDTH/32-1:0] m_axis_rc_tkeep);

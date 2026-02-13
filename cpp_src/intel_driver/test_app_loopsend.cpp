@@ -15,7 +15,7 @@ uint64_t interrupt_interval = 100;
 #define NUM_OF_QUEUE 1
 
 
-std::unique_ptr<BasicDev> device1 = createDevice("0000:04:00.0",0,NUM_OF_QUEUE,NUM_OF_RX_BUF, PKT_BUF_SIZE, INTERRUPT_INITIAL_INTERVAL, 100);
+std::unique_ptr<BasicDev> device1 = createDevice("0000:01:00.0",0,NUM_OF_QUEUE,NUM_OF_RX_BUF, PKT_BUF_SIZE, INTERRUPT_INITIAL_INTERVAL, 100);
 // std::unique_ptr<BasicDev> device2 = createDevice("0000:05:00.0",0,NUM_OF_QUEUE,NUM_OF_RX_BUF, PKT_BUF_SIZE, INTERRUPT_INITIAL_INTERVAL, 100);
 
 void thread1(){
