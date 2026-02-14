@@ -7,7 +7,7 @@
 // Corundum's eth_phy_10g for 10GBASE-R encoding/decoding.
 //
 // Architecture:
-//   eth_xcvr_gth_full_example_wrapper  (GT channel + QPLL + user clocking + reset ctrl)
+//   eth_xcvr_gth_full_wrapper  (GT channel + QPLL + user clocking + reset ctrl)
 //   eth_xcvr_gth_full_example_init     (retry logic)
 //   eth_phy_10g                        (XGMII <-> 64b/66b SERDES)
 // =============================================================================
@@ -87,10 +87,6 @@ module SFP_wrapper #(
 
   // GT status
   wire [0:0]  gtpowergood_int;
-  wire [0:0]  rxpmaresetdone_int;
-  wire [0:0]  txpmaresetdone_int;
-  wire [0:0]  rxprgdivresetdone_int;
-  wire [0:0]  txprgdivresetdone_int;
   wire [16:0] dmonitorout_int;
   wire [0:0]  eyescandataerror_int;
   wire [0:0]  rxprbserr_int;
@@ -128,12 +124,7 @@ module SFP_wrapper #(
   );
 
 
-  // ===========================================================================
-  // User clocking resets
-  // ===========================================================================
 
-  assign gtwiz_userclk_tx_reset_int = ~(&txprgdivresetdone_int && &txpmaresetdone_int);
-  assign gtwiz_userclk_rx_reset_int = ~(&rxprgdivresetdone_int && &rxpmaresetdone_int);
 
 
   // ===========================================================================
@@ -299,7 +290,7 @@ module SFP_wrapper #(
   // GT Wizard Example Wrapper
   // ===========================================================================
 
-  eth_xcvr_gth_full_example_wrapper example_wrapper_inst (
+  eth_xcvr_gth_full_wrapper example_wrapper_inst (
     .gthrxn_in                               (i_gt_rx_n_0)
    ,.gthrxp_in                               (i_gt_rx_p_0)
    ,.gthtxn_out                              (o_gt_tx_n_0)
@@ -387,13 +378,9 @@ module SFP_wrapper #(
    ,.rxdatavalid_out                         (rxdatavalid_int)
    ,.rxheader_out                            (rxheader_int)
    ,.rxheadervalid_out                       (rxheadervalid_int)
-   ,.rxpmaresetdone_out                      (rxpmaresetdone_int)
    ,.rxprbserr_out                           (rxprbserr_int)
    ,.rxprbslocked_out                        (rxprbslocked_int)
-   ,.rxprgdivresetdone_out                   (rxprgdivresetdone_int)
    ,.rxstartofseq_out                        (rxstartofseq_int)
-   ,.txpmaresetdone_out                      (txpmaresetdone_int)
-   ,.txprgdivresetdone_out                   (txprgdivresetdone_int)
   );
 
 

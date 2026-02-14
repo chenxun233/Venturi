@@ -54,7 +54,7 @@
 // the core, connects them as appropriate, and maps enabled ports
 // =====================================================================================================================
 
-module eth_xcvr_gth_full_example_wrapper (
+module eth_xcvr_gth_full_wrapper (
   input  wire [0:0] gthrxn_in
  ,input  wire [0:0] gthrxp_in
  ,output wire [0:0] gthtxn_out
@@ -142,13 +142,9 @@ module eth_xcvr_gth_full_example_wrapper (
  ,output wire [1:0] rxdatavalid_out
  ,output wire [5:0] rxheader_out
  ,output wire [1:0] rxheadervalid_out
- ,output wire [0:0] rxpmaresetdone_out
  ,output wire [0:0] rxprbserr_out
  ,output wire [0:0] rxprbslocked_out
- ,output wire [0:0] rxprgdivresetdone_out
  ,output wire [1:0] rxstartofseq_out
- ,output wire [0:0] txpmaresetdone_out
- ,output wire [0:0] txprgdivresetdone_out
 );
 
 
@@ -240,7 +236,7 @@ module eth_xcvr_gth_full_example_wrapper (
 
   // Instantiate the single reset controller
   eth_xcvr_gth_full_example_gtwiz_reset gtwiz_reset_inst (
-    .drp_clk_100         (drp_clk_100),
+    .drp_clk_100                        (drp_clk_100),
     .gtwiz_reset_all_in                 (gtwiz_reset_all_in),
     .gtwiz_reset_tx_pll_and_datapath_in (gtwiz_reset_tx_pll_and_datapath_in),
     .gtwiz_reset_tx_datapath_in         (gtwiz_reset_tx_datapath_in),
@@ -311,6 +307,14 @@ module eth_xcvr_gth_full_example_wrapper (
   // ===================================================================================================================
 
   // Instantiate the core, mapping its enabled ports to example design ports and helper blocks as appropriate
+  wire gtwiz_userclk_tx_reset_in;
+  wire gtwiz_userclk_rx_reset_in;
+  wire txprgdivresetdone_out    ;
+  wire rxprgdivresetdone_out    ;
+  wire txpmaresetdone_out       ;
+  wire rxpmaresetdone_out       ;
+  assign gtwiz_userclk_tx_reset_in = ~(txprgdivresetdone_out && txpmaresetdone_out);
+  assign gtwiz_userclk_rx_reset_in = ~(rxprgdivresetdone_out && rxpmaresetdone_out);
   eth_xcvr_gth_full eth_xcvr_gth_full_inst (
     .gthrxn_in                               (gthrxn_in)
    ,.gthrxp_in                               (gthrxp_in)

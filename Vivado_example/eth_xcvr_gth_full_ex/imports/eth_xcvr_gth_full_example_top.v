@@ -457,7 +457,7 @@ module eth_xcvr_gth_full_example_top (
   // EXAMPLE WRAPPER INSTANCE (GT Wizard IP + reset controller)
   // ===================================================================================================================
 
-  eth_xcvr_gth_full_example_wrapper example_wrapper_inst (
+  eth_xcvr_gth_full_wrapper example_wrapper_inst (
     .gthrxn_in                               (gthrxn_int)
    ,.gthrxp_in                               (gthrxp_int)
    ,.gthtxn_out                              (gthtxn_int)

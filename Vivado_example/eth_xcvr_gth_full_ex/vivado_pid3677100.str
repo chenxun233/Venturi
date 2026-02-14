@@ -1736,3 +1736,7 @@ selectTree(PAResourceEtoH.FileSetPanel_FILE_SET_PANEL_TREE, "[root, Design Sourc
 // TclEventType: FILE_SET_CHANGE
 // HMemoryUtils.trashcanNow. Engine heap size: 3,541 MB. GUI used memory: 183 MB. Current time: 2/14/26, 2:06:08 PM HKT
 // [Engine Memory]: 3,541 MB (+13168kb) [16:23:23]
+// HMemoryUtils.trashcanNow. Engine heap size: 3,541 MB. GUI used memory: 183 MB. Current time: 2/14/26, 2:36:08 PM HKT
+// TclEventType: DG_GRAPH_STALE
+// TclEventType: FILE_SET_CHANGE
+// HMemoryUtils.trashcanNow. Engine heap size: 3,549 MB. GUI used memory: 183 MB. Current time: 2/14/26, 3:06:08 PM HKT

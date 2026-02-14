@@ -54,7 +54,7 @@
 // the core, connects them as appropriate, and maps enabled ports
 // =====================================================================================================================
 
-module eth_xcvr_gth_full_example_wrapper (
+module eth_xcvr_gth_full_wrapper (
   input  wire [0:0] gthrxn_in
  ,input  wire [0:0] gthrxp_in
  ,output wire [0:0] gthtxn_out
