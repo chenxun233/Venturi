@@ -267,12 +267,9 @@ sfp_ctrl_reset_sync_inst (
     .o_sync_reset                   (w_sys_rst)
 );
 
-wire w_sfp_gtpowergood;
 wire w_sfp_rx_block_lock;
 wire w_sfp_rx_high_ber;
 wire w_sfp_rx_status;
-wire w_sfp_init_done;
-wire [3:0] w_sfp_init_retry_ctr;
 
 // In this standalone test design (no Corundum control path), force optics TX enabled.
 assign sfp_0_tx_disable = 1'b0;
@@ -281,7 +278,7 @@ SFP_wrapper #(
     .DATA_WIDTH(64)
 )
 orderbook_sfp_wrapper_inst (
-    .i_ctrl_clk                     (sys_clk_100        ),
+    .i_drp_clk                      (sys_clk_100        ),
     .i_ctrl_rst                     (w_sys_rst          ),
     .i_gt_refclk_p                  (i_gt_refclk_p      ),
     .i_gt_refclk_n                  (i_gt_refclk_n      ),
@@ -299,10 +296,7 @@ orderbook_sfp_wrapper_inst (
     .o_xgmii_rx_rst                 (w_xgmii_rx_rst     ),
     .o_rx_block_lock                (w_sfp_rx_block_lock ),
     .o_rx_high_ber                  (w_sfp_rx_high_ber   ),
-    .o_rx_status                    (w_sfp_rx_status     ),
-    .o_gtpowergood                  (w_sfp_gtpowergood   ),
-    .o_init_done                    (w_sfp_init_done     ),
-    .o_init_retry_ctr               (w_sfp_init_retry_ctr)
+    .o_rx_status                    (w_sfp_rx_status     )
 );
 
 

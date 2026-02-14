@@ -363,16 +363,16 @@ module eth_xcvr_gth_full_example_top (
   wire       init_done_int;
   wire [3:0] init_retry_ctr_int;
 
-  eth_xcvr_gth_full_example_init example_init_inst (
-    .clk_freerun_in  (hb_gtwiz_reset_clk_freerun_buf_int),
-    .reset_all_in    (hb_gtwiz_reset_all_int),
-    .tx_init_done_in (gtwiz_reset_tx_done_int),
-    .rx_init_done_in (gtwiz_reset_rx_done_int),
-    .rx_data_good_in (rx_status_sync),
-    .reset_all_out   (hb_gtwiz_reset_all_init_int),
-    .reset_rx_out    (hb_gtwiz_reset_rx_datapath_init_int),
-    .init_done_out   (init_done_int),
-    .retry_ctr_out   (init_retry_ctr_int)
+  eth_xcvr_gth_full_init example_init_inst (
+    .i_drp_clk   (hb_gtwiz_reset_clk_freerun_buf_int),
+    .i_reset_all     (hb_gtwiz_reset_all_int),
+    .i_tx_init_done  (gtwiz_reset_tx_done_int),
+    .i_rx_init_done  (gtwiz_reset_rx_done_int),
+    .i_rx_data_good  (rx_status_sync),
+    .o_reset_all     (hb_gtwiz_reset_all_init_int),
+    .o_reset_rx      (hb_gtwiz_reset_rx_datapath_init_int),
+    .o_init_done     (init_done_int),
+    .o_retry_ctr     (init_retry_ctr_int)
   );
 
 

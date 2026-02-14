@@ -1,17 +1,17 @@
 //------------------------------------------------------------------------------
 // rst_synchronizer
 //
-// Reset synchronizer: brings an asynchronous reset into the clk_in domain with
+// Reset synchronizer: brings an asynchronous reset into the i_clk domain with
 // safe, glitch-free deassertion. Assertion of reset is asynchronous (immediate);
 // deassertion is synchronous (after a short pipeline) so release is aligned to
-// clk_in and no runt pulses occur.
+// i_clk and no runt pulses occur.
 //
 // Parameters:
 //   IN_ACTIVE_HIGH  1 = rst_in is active high (1 = reset), 0 = active low (0 = reset)
 //   OUT_ACTIVE_HIGH 1 = rst_out is active high, 0 = active low
 //
 // Ports:
-//   clk_in   Destination clock domain
+//   i_clk   Destination clock domain
 //   rst_in   Asynchronous reset input (polarity set by IN_ACTIVE_HIGH)
 //   rst_out  Synchronized reset output (polarity set by OUT_ACTIVE_HIGH)
 //
@@ -26,7 +26,7 @@ module rst_synchronizer #(
   parameter IN_ACTIVE_HIGH  = 1,   // 1: rst_in active high (1 = reset), 0: active low (0 = reset)
   parameter OUT_ACTIVE_HIGH = 1    // 1: rst_out active high, 0: active low
 )(
-  input  wire clk_in,
+  input  wire i_clk,
   input  wire rst_in,
   output wire rst_out
 );
@@ -38,7 +38,7 @@ module rst_synchronizer #(
   (* ASYNC_REG = "TRUE" *) reg rst_in_sync1 = 1'b0;
                            reg rst_in_out   = 1'b0;
 
-  always @(posedge clk_in, posedge rst_active) begin
+  always @(posedge i_clk, posedge rst_active) begin
     if (rst_active) begin
       rst_in_meta  <= 1'b1;
       rst_in_sync1 <= 1'b1;

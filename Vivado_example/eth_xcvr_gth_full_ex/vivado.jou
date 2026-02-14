@@ -161,3 +161,4 @@ display_hw_ila_data [upload_hw_ila_data [get_hw_ilas -of_objects [get_hw_devices
 run_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]
 wait_on_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]
 display_hw_ila_data [upload_hw_ila_data [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]]
+update_compile_order -fileset sources_1

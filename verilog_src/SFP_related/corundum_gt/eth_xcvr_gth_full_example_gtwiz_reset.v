@@ -111,7 +111,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
     .OUT_ACTIVE_HIGH    (1                    )
   )
   rst_sync_inst_0 (
-    .clk_in             (drp_clk_100          ),
+    .i_clk             (drp_clk_100          ),
     .rst_in             (gtwiz_reset_all_in   ),
     .rst_out            (gtwiz_reset_all_sync )
   );
@@ -120,7 +120,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtpowergood_sync;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst0 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (gtpowergood_in),
     .o_out  (gtpowergood_sync)
   );
@@ -262,7 +262,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
                               gtwiz_reset_tx_datapath_in;
   (* DONT_TOUCH = "TRUE" *)
   rst_synchronizer reset_synchronizer_gtwiz_reset_tx_any_inst (
-    .clk_in  (drp_clk_100),
+    .i_clk  (drp_clk_100),
     .rst_in  (gtwiz_reset_tx_any),
     .rst_out (gtwiz_reset_tx_any_sync)
   );
@@ -271,7 +271,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_tx_pll_and_datapath_sync;
   (* DONT_TOUCH = "TRUE" *)
   rst_synchronizer reset_synchronizer_gtwiz_reset_tx_pll_and_datapath_inst (
-    .clk_in  (drp_clk_100),
+    .i_clk  (drp_clk_100),
     .rst_in  (gtwiz_reset_tx_pll_and_datapath_in || gtwiz_reset_tx_pll_and_datapath_int),
     .rst_out (gtwiz_reset_tx_pll_and_datapath_sync)
   );
@@ -280,7 +280,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_tx_pll_and_datapath_dly;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst1 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (gtwiz_reset_tx_pll_and_datapath_sync),
     .o_out  (gtwiz_reset_tx_pll_and_datapath_dly)
   );
@@ -289,7 +289,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_tx_datapath_sync;
   (* DONT_TOUCH = "TRUE" *)
   rst_synchronizer reset_synchronizer_gtwiz_reset_tx_datapath_inst (
-    .clk_in  (drp_clk_100),
+    .i_clk  (drp_clk_100),
     .rst_in  (gtwiz_reset_tx_datapath_in),
     .rst_out (gtwiz_reset_tx_datapath_sync)
   );
@@ -298,7 +298,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_tx_datapath_dly;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst2 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (gtwiz_reset_tx_datapath_sync),
     .o_out  (gtwiz_reset_tx_datapath_dly)
   );
@@ -307,7 +307,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_userclk_tx_active_sync;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst3 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (gtwiz_reset_userclk_tx_active_in),
     .o_out  (gtwiz_reset_userclk_tx_active_sync)
   );
@@ -316,7 +316,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire plllock_tx_sync;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst4 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (plllock_tx_in),
     .o_out  (plllock_tx_sync)
   );
@@ -478,7 +478,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
     .OUT_ACTIVE_HIGH  (1)
   )
    reset_synchronizer_txprogdivreset_inst (
-    .clk_in  (drp_clk_100),
+    .i_clk  (drp_clk_100),
     .rst_in  (plllock_tx_in),
     .rst_out (txprogdivreset_out)
   );
@@ -489,7 +489,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
     .OUT_ACTIVE_HIGH  (0)
   )
   reset_synchronizer_tx_done_inst (
-    .clk_in           (txusrclk2_in),
+    .i_clk           (txusrclk2_in),
     .rst_in           (gtwiz_reset_tx_done_int),
     .rst_out          (gtwiz_reset_tx_done_out)
   );
@@ -522,7 +522,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
                               gtwiz_reset_rx_datapath_int;
   (* DONT_TOUCH = "TRUE" *)
   rst_synchronizer reset_synchronizer_gtwiz_reset_rx_any_inst (
-    .clk_in  (drp_clk_100),
+    .i_clk  (drp_clk_100),
     .rst_in  (gtwiz_reset_rx_any),
     .rst_out (gtwiz_reset_rx_any_sync)
   );
@@ -531,7 +531,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_rx_pll_and_datapath_sync;
   (* DONT_TOUCH = "TRUE" *)
   rst_synchronizer reset_synchronizer_gtwiz_reset_rx_pll_and_datapath_inst (
-    .clk_in  (drp_clk_100),
+    .i_clk  (drp_clk_100),
     .rst_in  (gtwiz_reset_rx_pll_and_datapath_in || gtwiz_reset_rx_pll_and_datapath_int),
     .rst_out (gtwiz_reset_rx_pll_and_datapath_sync)
   );
@@ -540,7 +540,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_rx_pll_and_datapath_dly;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst5 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (gtwiz_reset_rx_pll_and_datapath_sync),
     .o_out  (gtwiz_reset_rx_pll_and_datapath_dly)
   );
@@ -549,7 +549,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_rx_datapath_sync;
   (* DONT_TOUCH = "TRUE" *)
   rst_synchronizer reset_synchronizer_gtwiz_reset_rx_datapath_inst (
-    .clk_in  (drp_clk_100),
+    .i_clk  (drp_clk_100),
     .rst_in  (gtwiz_reset_rx_datapath_in || gtwiz_reset_rx_datapath_int),
     .rst_out (gtwiz_reset_rx_datapath_sync)
   );
@@ -558,7 +558,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_rx_datapath_dly;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst6 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (gtwiz_reset_rx_datapath_sync),
     .o_out  (gtwiz_reset_rx_datapath_dly)
   );
@@ -567,7 +567,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire gtwiz_reset_userclk_rx_active_sync;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst7 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (gtwiz_reset_userclk_rx_active_in),
     .o_out  (gtwiz_reset_userclk_rx_active_sync)
   );
@@ -576,7 +576,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire plllock_rx_sync;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst8 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (plllock_rx_in),
     .o_out  (plllock_rx_sync)
   );
@@ -585,7 +585,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   wire rxcdrlock_sync;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_synchronizer_inst9 (
-    .clk_in (drp_clk_100),
+    .i_clk (drp_clk_100),
     .i_in   (rxcdrlock_in),
     .o_out  (rxcdrlock_sync)
   );
@@ -782,7 +782,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
     .IN_ACTIVE_HIGH   (0),
     .OUT_ACTIVE_HIGH  (0)
   ) reset_synchronizer_rx_done_inst (
-    .clk_in  (rxusrclk2_in),
+    .i_clk  (rxusrclk2_in),
     .rst_in  (gtwiz_reset_rx_done_int),
     .rst_out (gtwiz_reset_rx_done_out)
   );

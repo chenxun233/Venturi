@@ -7,9 +7,8 @@
 // Corundum's eth_phy_10g for 10GBASE-R encoding/decoding.
 //
 // Architecture:
-//   eth_xcvr_gth_full_wrapper  (GT channel + QPLL + user clocking + reset ctrl)
-//   eth_xcvr_gth_full_example_init     (retry logic)
-//   eth_phy_10g                        (XGMII <-> 64b/66b SERDES)
+//   eth_xcvr_gth_full_wrapper  (GT channel + QPLL + user clocking + reset ctrl + init retry)
+//   eth_phy_10g                (XGMII <-> 64b/66b SERDES)
 // =============================================================================
 
 module SFP_wrapper #(
@@ -17,7 +16,7 @@ module SFP_wrapper #(
     parameter CTRL_WIDTH = DATA_WIDTH/8
 )(
     // Free-running clock and reset (100 MHz, active-high reset)
-    input  wire                  i_ctrl_clk,
+    input  wire                  i_drp_clk,
     input  wire                  i_ctrl_rst,
 
     // GT reference clock (161.1328125 MHz differential)
@@ -45,10 +44,7 @@ module SFP_wrapper #(
     // Status
     output wire                  o_rx_block_lock,
     output wire                  o_rx_high_ber,
-    output wire                  o_rx_status,
-    output wire                  o_gtpowergood,
-    output wire                  o_init_done,
-    output wire [3:0]            o_init_retry_ctr
+    output wire                  o_rx_status
 );
 
 
@@ -61,7 +57,6 @@ module SFP_wrapper #(
   wire [0:0] gtwiz_userclk_rx_usrclk2_int;
 
   // Reset controller
-  wire [0:0] gtwiz_reset_rx_cdr_stable_int;
   wire [0:0] gtwiz_reset_tx_done_int;
   wire [0:0] gtwiz_reset_rx_done_int;
 
@@ -73,29 +68,7 @@ module SFP_wrapper #(
   wire [5:0]  txheader_int;
   wire [6:0]  txsequence_int;
   wire [5:0]  rxheader_int;
-  wire [1:0]  rxheadervalid_int;
-  wire [1:0]  rxdatavalid_int;
   wire [0:0]  rxgearboxslip_int;
-
-  // GT status
-  wire [0:0]  gtpowergood_int;
-  wire [16:0] dmonitorout_int;
-  wire [0:0]  eyescandataerror_int;
-  wire [0:0]  rxprbserr_int;
-  wire [0:0]  rxprbslocked_int;
-  wire [1:0]  rxstartofseq_int;
-  wire [15:0] drpdo_int;
-  wire [0:0]  drprdy_int;
-  wire [15:0] drpdo_common_int;
-  wire [0:0]  drprdy_common_int;
-  wire [0:0]  qpll0outclk_int;
-  wire [0:0]  qpll0outrefclk_int;
-  wire [0:0]  qpll1lock_int;
-  wire [0:0]  qpll1outclk_int;
-  wire [0:0]  qpll1outrefclk_int;
-
-  assign o_gtpowergood = gtpowergood_int[0];
-
 
   // ===========================================================================
   // Reference clock buffer
@@ -229,94 +202,49 @@ module SFP_wrapper #(
 
 
   // ===========================================================================
-  // Initialization and retry logic
+  // Sync PHY status into freerun domain for wrapper init block
   // ===========================================================================
 
-  wire hb_gtwiz_reset_all_int;
-  wire hb_gtwiz_reset_all_init_int;
-  wire hb_gtwiz_reset_rx_datapath_int;
-  wire hb_gtwiz_reset_rx_datapath_init_int;
-
-  assign hb_gtwiz_reset_all_int = i_ctrl_rst || hb_gtwiz_reset_all_init_int;
-
-  // Synchronize PHY watchdog's rx_reset_req into freerun domain
   wire serdes_rx_reset_req_sync;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_sync_rx_reset_req_inst (
-    .clk_in (i_ctrl_clk),
+    .i_clk (i_drp_clk),
     .i_in   (serdes_rx_reset_req),
     .o_out  (serdes_rx_reset_req_sync)
   );
 
-  assign hb_gtwiz_reset_rx_datapath_int = hb_gtwiz_reset_rx_datapath_init_int || serdes_rx_reset_req_sync;
-
-  // Synchronize rx_status into freerun clock domain
   wire rx_status_sync;
   (* DONT_TOUCH = "TRUE" *)
   bit_synchronizer bit_sync_rx_status_inst (
-    .clk_in (i_ctrl_clk),
+    .i_clk (i_drp_clk),
     .i_in   (rx_status_w),
     .o_out  (rx_status_sync)
   );
 
-  wire       init_done_int;
-  wire [3:0] init_retry_ctr_int;
-
-  eth_xcvr_gth_full_example_init example_init_inst (
-    .clk_freerun_in  (i_ctrl_clk),
-    .reset_all_in    (hb_gtwiz_reset_all_int),
-    .tx_init_done_in (gtwiz_reset_tx_done_int),
-    .rx_init_done_in (gtwiz_reset_rx_done_int),
-    .rx_data_good_in (rx_status_sync),
-    .reset_all_out   (hb_gtwiz_reset_all_init_int),
-    .reset_rx_out    (hb_gtwiz_reset_rx_datapath_init_int),
-    .init_done_out   (init_done_int),
-    .retry_ctr_out   (init_retry_ctr_int)
-  );
-
-  assign o_init_done      = init_done_int;
-  assign o_init_retry_ctr = init_retry_ctr_int;
-
-
   // ===========================================================================
-  // GT Wizard Example Wrapper
+  // GT Wizard Wrapper (includes init/retry logic)
   // ===========================================================================
 
   eth_xcvr_gth_full_wrapper example_wrapper_inst (
-    .gthrxn_in                               (i_gt_rx_n_0)
-   ,.gthrxp_in                               (i_gt_rx_p_0)
-   ,.gthtxn_out                              (o_gt_tx_n_0)
-   ,.gthtxp_out                              (o_gt_tx_p_0)
-   ,.gtwiz_userclk_tx_usrclk2_out            (gtwiz_userclk_tx_usrclk2_int)
-   ,.gtwiz_userclk_rx_usrclk2_out            (gtwiz_userclk_rx_usrclk2_int)
-   ,.drp_clk_100              (i_ctrl_clk)
-   ,.gtwiz_reset_all_in                      (hb_gtwiz_reset_all_int)
-   ,.gtwiz_reset_rx_datapath_in              (hb_gtwiz_reset_rx_datapath_int)
-   ,.gtwiz_reset_rx_cdr_stable_out           (gtwiz_reset_rx_cdr_stable_int)
-   ,.gtwiz_reset_tx_done_out                 (gtwiz_reset_tx_done_int)
-   ,.gtwiz_reset_rx_done_out                 (gtwiz_reset_rx_done_int)
-   ,.gtwiz_userdata_tx_in                    (gtwiz_userdata_tx_int)
-   ,.gtwiz_userdata_rx_out                   (gtwiz_userdata_rx_int)
-   ,.gtrefclk00_in                           (sfp_mgt_refclk)
-   ,.qpll0outclk_out                         (qpll0outclk_int)
-   ,.qpll0outrefclk_out                      (qpll0outrefclk_int)
-   ,.qpll1lock_out                           (qpll1lock_int)
-   ,.qpll1outclk_out                         (qpll1outclk_int)
-   ,.qpll1outrefclk_out                      (qpll1outrefclk_int)
-   ,.rxgearboxslip_in                        (rxgearboxslip_int)
-   ,.txheader_in                             (txheader_int)
-   ,.txsequence_in                           (txsequence_int)
-   ,.dmonitorout_out                         (dmonitorout_int)
-   ,.drpdo_out                               (drpdo_int)
-   ,.drprdy_out                              (drprdy_int)
-   ,.eyescandataerror_out                    (eyescandataerror_int)
-   ,.gtpowergood_out                         (gtpowergood_int)
-   ,.rxdatavalid_out                         (rxdatavalid_int)
-   ,.rxheader_out                            (rxheader_int)
-   ,.rxheadervalid_out                       (rxheadervalid_int)
-   ,.rxprbserr_out                           (rxprbserr_int)
-   ,.rxprbslocked_out                        (rxprbslocked_int)
-   ,.rxstartofseq_out                        (rxstartofseq_int)
+    .i_gthrxn                               (i_gt_rx_n_0)
+   ,.i_gthrxp                               (i_gt_rx_p_0)
+   ,.o_gthtxn                               (o_gt_tx_n_0)
+   ,.o_gthtxp                               (o_gt_tx_p_0)
+   ,.o_gtwiz_userclk_tx_usrclk2             (gtwiz_userclk_tx_usrclk2_int)
+   ,.o_gtwiz_userclk_rx_usrclk2             (gtwiz_userclk_rx_usrclk2_int)
+   ,.i_drp_clk                              (i_drp_clk)
+   ,.i_reset_all                             (i_ctrl_rst)
+   ,.i_rx_data_good                          (rx_status_sync)
+   ,.i_rx_reset_req                          (serdes_rx_reset_req_sync)
+   ,.o_gtwiz_reset_tx_done                   (gtwiz_reset_tx_done_int)
+   ,.o_gtwiz_reset_rx_done                   (gtwiz_reset_rx_done_int)
+   ,.i_gtwiz_userdata_tx                     (gtwiz_userdata_tx_int)
+   ,.o_gtwiz_userdata_rx                     (gtwiz_userdata_rx_int)
+   ,.i_gtrefclk00                            (sfp_mgt_refclk)
+   ,.i_rxgearboxslip                         (rxgearboxslip_int)
+   ,.i_txheader                              (txheader_int)
+   ,.i_txsequence                            (txsequence_int)
+   ,.o_rxheader                              (rxheader_int)
   );
 
 

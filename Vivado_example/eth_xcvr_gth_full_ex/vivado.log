@@ -382,3 +382,4 @@ wait_on_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL
 display_hw_ila_data [upload_hw_ila_data [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]]
 INFO: [Labtools 27-1966] The ILA core 'hw_ila_2' triggered at 2026-Feb-13 22:54:49
 INFO: [Labtools 27-3304] ILA Waveform data saved to file /home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.hw/backup/hw_ila_data_2.ila. Use Tcl command 'read_hw_ila_data' or Vivado File->Import->Import ILA Data menu item to import the previously saved data.
+update_compile_order -fileset sources_1

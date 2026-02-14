@@ -56,7 +56,7 @@
 // with system bring-up such as clock or data connection readiness. This is an example and can be modified as necessary.
 // =====================================================================================================================
 
-module eth_xcvr_gth_full_example_init # (
+module eth_xcvr_gth_full_init # (
 
   parameter real   P_FREERUN_FREQUENCY    = 100,
   parameter real   P_TX_TIMER_DURATION_US = 30000,
@@ -64,15 +64,15 @@ module eth_xcvr_gth_full_example_init # (
 
 )(
 
-  input  wire      clk_freerun_in,
-  input  wire      reset_all_in,
-  input  wire      tx_init_done_in,
-  input  wire      rx_init_done_in,
-  input  wire      rx_data_good_in,
-  output reg       reset_all_out = 1'b0,
-  output reg       reset_rx_out  = 1'b0,
-  output reg       init_done_out = 1'b0,
-  output reg [3:0] retry_ctr_out = 4'd0
+  input  wire      i_drp_clk,
+  input  wire      i_reset_all,
+  input  wire      i_tx_init_done,
+  input  wire      i_rx_init_done,
+  input  wire      i_rx_data_good,
+  output reg       o_reset_all = 1'b0,
+  output reg       o_reset_rx  = 1'b0,
+  output reg       o_init_done = 1'b0,
+  output reg [3:0] o_retry_ctr = 4'd0
 
 );
 
@@ -82,48 +82,48 @@ module eth_xcvr_gth_full_example_init # (
   // -------------------------------------------------------------------------------------------------------------------
 
   // Synchronize the "reset all" input signal into the free-running clock domain
-  // The reset_all_in input should be driven by the master "reset all" example design input
+  // The i_reset_all input should be driven by the master "reset all" example design input
   wire reset_all_sync;
   (* DONT_TOUCH = "TRUE" *)
-  rst_synchronizer reset_synchronizer_reset_all_inst (
-    .clk_in  (clk_freerun_in),
-    .rst_in  (reset_all_in),
+  rst_synchronizer reset_synchronizer_i_reset_allst (
+    .clk_in  (i_drp_clk),
+    .rst_in  (i_reset_all),
     .rst_out (reset_all_sync)
   );
 
   // Synchronize the TX initialization done indicator into the free-running clock domain
-  // The tx_init_done_in input should be driven by the signal or logical combination of signals that represents a
+  // The i_tx_init_done input should be driven by the signal or logical combination of signals that represents a
   // completed TX initialization process; for example, the reset helper block gtwiz_reset_tx_done_out signal, or the
   // logical AND of gtwiz_reset_tx_done_out with gtwiz_buffbypass_tx_done_out if the TX buffer is bypassed.
   wire tx_init_done_sync;
   (* DONT_TOUCH = "TRUE" *)
-  bit_synchronizer bit_synchronizer_tx_init_done_inst (
-    .clk_in (clk_freerun_in),
-    .i_in   (tx_init_done_in),
+  bit_synchronizer bit_synchronizer_i_tx_init_donest (
+    .clk_in (i_drp_clk),
+    .i_in   (i_tx_init_done),
     .o_out  (tx_init_done_sync)
   );
 
   // Synchronize the RX initialization done indicator into the free-running clock domain
-  // The rx_init_done_in input should be driven by the signal or logical combination of signals that represents a
+  // The i_rx_init_done input should be driven by the signal or logical combination of signals that represents a
   // completed RX initialization process; for example, the reset helper block gtwiz_reset_rx_done_out signal, or the
   // logical AND of gtwiz_reset_rx_done_out with gtwiz_buffbypass_rx_done_out if the RX elastic buffer is bypassed.
   wire rx_init_done_sync;
   (* DONT_TOUCH = "TRUE" *)
-  bit_synchronizer bit_synchronizer_rx_init_done_inst (
-    .clk_in (clk_freerun_in),
-    .i_in   (rx_init_done_in),
+  bit_synchronizer bit_synchronizer_i_rx_init_donest (
+    .clk_in (i_drp_clk),
+    .i_in   (i_rx_init_done),
     .o_out  (rx_init_done_sync)
   );
 
   // Synchronize the RX data good indicator into the free-running clock domain
-  // The rx_data_good_in input should be driven the user application's indication of continual good data reception.
-  // The example design drives rx_data_good_in high when no PRBS checker errors are seen in the 8 most recent
+  // The i_rx_data_good input should be driven the user application's indication of continual good data reception.
+  // The example design drives i_rx_data_good high when no PRBS checker errors are seen in the 8 most recent
   // consecutive clock cycles of data reception.
   wire rx_data_good_sync;
   (* DONT_TOUCH = "TRUE" *)
-  bit_synchronizer bit_synchronizer_rx_data_good_inst (
-    .clk_in (clk_freerun_in),
-    .i_in   (rx_data_good_in),
+  bit_synchronizer bit_synchronizer_i_rx_data_goodst (
+    .clk_in (i_drp_clk),
+    .i_in   (i_rx_data_good),
     .o_out  (rx_data_good_sync)
   );
 
@@ -149,7 +149,7 @@ module eth_xcvr_gth_full_example_init # (
   // reaches p_rx_timer_term_cyc_int RX terminal count and rx_timer_sat is asserted. Assert tx_timer_sat when the
   // counter value reaches the p_tx_timer_term_cyc_int TX terminal count. Clear the timer and remove assertions when the
   // timer is disabled by the initialization state machine.
-  always @(posedge clk_freerun_in) begin
+  always @(posedge i_drp_clk) begin
     if (timer_clr) begin
       timer_ctr    <= 25'd0;
       tx_timer_sat <= 1'b0;
@@ -171,15 +171,15 @@ module eth_xcvr_gth_full_example_init # (
   // Retry counter
   // -------------------------------------------------------------------------------------------------------------------
 
-  // Increment the retry_ctr_out register for each TX or RX reset asserted by the initialization state machine until the
+  // Increment the o_retry_ctr register for each TX or RX reset asserted by the initialization state machine until the
   // register saturates at 4'd15. This value, which is initialized on device programming and is never reset, could be
   // useful for debugging purposes. The initialization state machine will continue to retry as needed beyond the retry
   // register saturation point indicated, so 4'd15 should be interpreted as "15 or more attempts since programming."
   reg retry_ctr_incr = 1'b0;
 
-  always @(posedge clk_freerun_in) begin
-    if ((retry_ctr_incr == 1'b1) && (retry_ctr_out != 4'd15))
-      retry_ctr_out <= retry_ctr_out + 4'd1;
+  always @(posedge i_drp_clk) begin
+    if ((retry_ctr_incr == 1'b1) && (o_retry_ctr != 4'd15))
+      o_retry_ctr <= o_retry_ctr + 4'd1;
   end
 
 
@@ -196,15 +196,15 @@ module eth_xcvr_gth_full_example_init # (
   reg              sm_init_active = 1'b0;
 
   // Implement the initialization state machine control and its outputs as a single sequential process. The state
-  // machine is reset by the synchronized reset_all_in input, and does not begin operating until its first use. Note
+  // machine is reset by the synchronized i_reset_all input, and does not begin operating until its first use. Note
   // that this state machine is designed to interact with and enhance the reset controller helper block.
-  always @(posedge clk_freerun_in) begin
+  always @(posedge i_drp_clk) begin
     if (reset_all_sync) begin
       timer_clr      <= 1'b1;
-      reset_all_out  <= 1'b0;
-      reset_rx_out   <= 1'b0;
+      o_reset_all  <= 1'b0;
+      o_reset_rx   <= 1'b0;
       retry_ctr_incr <= 1'b0;
-      init_done_out  <= 1'b0;
+      o_init_done  <= 1'b0;
       sm_init_active <= 1'b1;
       sm_init        <= ST_START;
     end
@@ -216,8 +216,8 @@ module eth_xcvr_gth_full_example_init # (
         ST_START: begin
           if (sm_init_active) begin
             timer_clr      <= 1'b1;
-            reset_all_out  <= 1'b0;
-            reset_rx_out   <= 1'b0;
+            o_reset_all  <= 1'b0;
+            o_reset_rx   <= 1'b0;
             retry_ctr_incr <= 1'b0;
             sm_init        <= ST_TX_WAIT;
           end
@@ -225,7 +225,7 @@ module eth_xcvr_gth_full_example_init # (
 
         // Enable the timer. If TX initialization completes before the counter's TX terminal count, clear the timer and
         // proceed to wait for RX initialization. If the TX terminal count is reached, clear the timer, assert the
-        // reset_all_out output (which in this example causes a master reset_all assertion), and increment the retry
+        // o_reset_all output (which in this example causes a master reset_all assertion), and increment the retry
         // counter. Completion conditions for TX initialization are described above.
         ST_TX_WAIT: begin
           if (tx_init_done_sync) begin
@@ -235,7 +235,7 @@ module eth_xcvr_gth_full_example_init # (
           else begin
             if (tx_timer_sat) begin
               timer_clr      <= 1'b1;
-              reset_all_out  <= 1'b1;
+              o_reset_all  <= 1'b1;
               retry_ctr_incr <= 1'b1;
               sm_init        <= ST_START;
             end
@@ -247,18 +247,18 @@ module eth_xcvr_gth_full_example_init # (
 
         // Enable the timer. When the RX terminal count is reached, check whether RX initialization has completed and
         // whether the data good indicator is high. If both conditions are met, transition to the MONITOR state. If
-        // either condition is not met, then clear the timer, assert the reset_rx_out output (which in this example
+        // either condition is not met, then clear the timer, assert the o_reset_rx output (which in this example
         // either drives gtwiz_reset_rx_pll_and_datapath_in or gtwiz_reset_rx_datapath_in, depending on PLL sharing),
         // and increnent the retry counter.
         ST_RX_WAIT: begin
           if (rx_timer_sat) begin
             if (rx_init_done_sync && rx_data_good_sync) begin
-              init_done_out <= 1'b1;
+              o_init_done <= 1'b1;
               sm_init       <= ST_MONITOR;
             end
             else begin
               timer_clr      <= 1'b1;
-              reset_rx_out   <= 1'b1;
+              o_reset_rx   <= 1'b1;
               retry_ctr_incr <= 1'b1;
               sm_init        <= ST_START;
             end
@@ -268,13 +268,13 @@ module eth_xcvr_gth_full_example_init # (
           end
         end
 
-        // In this MONITOR state, assert the init_done_out output for use as desired. If RX initialization or the data
+        // In this MONITOR state, assert the o_init_done output for use as desired. If RX initialization or the data
         // good indicator is lost while in this state, reset the RX components as described in the ST_RX_WAIT state.
         ST_MONITOR: begin
           if (~rx_init_done_sync || ~rx_data_good_sync) begin
-            init_done_out  <= 1'b0;
+            o_init_done  <= 1'b0;
             timer_clr      <= 1'b1;
-            reset_rx_out   <= 1'b1;
+            o_reset_rx   <= 1'b1;
             retry_ctr_incr <= 1'b1;
             sm_init        <= ST_START;
           end
