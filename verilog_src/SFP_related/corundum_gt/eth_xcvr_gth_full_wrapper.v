@@ -55,95 +55,39 @@
 // =====================================================================================================================
 
 module eth_xcvr_gth_full_wrapper (
-  input  wire [0:0] gthrxn_in
- ,input  wire [0:0] gthrxp_in
- ,output wire [0:0] gthtxn_out
- ,output wire [0:0] gthtxp_out
- ,input  wire [0:0] gtwiz_userclk_tx_reset_in
- ,output wire [0:0] gtwiz_userclk_tx_srcclk_out
- ,output wire [0:0] gtwiz_userclk_tx_usrclk_out
- ,output wire [0:0] gtwiz_userclk_tx_usrclk2_out
- ,output wire [0:0] gtwiz_userclk_tx_active_out
- ,input  wire [0:0] gtwiz_userclk_rx_reset_in
- ,output wire [0:0] gtwiz_userclk_rx_srcclk_out
- ,output wire [0:0] gtwiz_userclk_rx_usrclk_out
- ,output wire [0:0] gtwiz_userclk_rx_usrclk2_out
- ,output wire [0:0] gtwiz_userclk_rx_active_out
- ,input  wire [0:0] drp_clk_100
- ,input  wire [0:0] gtwiz_reset_all_in
- ,input  wire [0:0] gtwiz_reset_tx_pll_and_datapath_in
- ,input  wire [0:0] gtwiz_reset_tx_datapath_in
- ,input  wire [0:0] gtwiz_reset_rx_pll_and_datapath_in
- ,input  wire [0:0] gtwiz_reset_rx_datapath_in
- ,output wire [0:0] gtwiz_reset_rx_cdr_stable_out
- ,output wire [0:0] gtwiz_reset_tx_done_out
- ,output wire [0:0] gtwiz_reset_rx_done_out
+  input  wire  gthrxn_in
+ ,input  wire  gthrxp_in
+ ,output wire  gthtxn_out
+ ,output wire  gthtxp_out
+ ,output wire  gtwiz_userclk_tx_usrclk2_out
+ ,output wire  gtwiz_userclk_rx_usrclk2_out
+ ,input  wire  drp_clk_100
+ ,input  wire  gtwiz_reset_all_in
+ ,input  wire  gtwiz_reset_rx_datapath_in
+ ,output wire  gtwiz_reset_rx_cdr_stable_out
+ ,output wire  gtwiz_reset_tx_done_out
+ ,output wire  gtwiz_reset_rx_done_out
  ,input  wire [63:0] gtwiz_userdata_tx_in
  ,output wire [63:0] gtwiz_userdata_rx_out
- ,input  wire [8:0] drpaddr_common_in
- ,input  wire [0:0] drpclk_common_in
- ,input  wire [15:0] drpdi_common_in
- ,input  wire [0:0] drpen_common_in
- ,input  wire [0:0] drpwe_common_in
- ,input  wire [0:0] gtrefclk00_in
- ,input  wire [0:0] gtrefclk01_in
- ,input  wire [0:0] qpll0pd_in
- ,input  wire [0:0] qpll1pd_in
- ,input  wire [4:0] qpllrsvd2_in
- ,input  wire [4:0] qpllrsvd3_in
- ,output wire [15:0] drpdo_common_out
- ,output wire [0:0] drprdy_common_out
- ,output wire [0:0] qpll0outclk_out
- ,output wire [0:0] qpll0outrefclk_out
- ,output wire [0:0] qpll1lock_out
- ,output wire [0:0] qpll1outclk_out
- ,output wire [0:0] qpll1outrefclk_out
- ,input  wire [8:0] drpaddr_in
- ,input  wire [0:0] drpclk_in
- ,input  wire [15:0] drpdi_in
- ,input  wire [0:0] drpen_in
- ,input  wire [0:0] drpwe_in
- ,input  wire [0:0] eyescanreset_in
- ,input  wire [2:0] loopback_in
- ,input  wire [0:0] rxcdrhold_in
- ,input  wire [0:0] rxdfelpmreset_in
- ,input  wire [0:0] rxgearboxslip_in
- ,input  wire [0:0] rxlpmen_in
- ,input  wire [0:0] rxpcsreset_in
- ,input  wire [1:0] rxpd_in
- ,input  wire [1:0] rxpllclksel_in
- ,input  wire [0:0] rxpmareset_in
- ,input  wire [0:0] rxpolarity_in
- ,input  wire [0:0] rxprbscntreset_in
- ,input  wire [3:0] rxprbssel_in
- ,input  wire [1:0] rxsysclksel_in
- ,input  wire [3:0] txdiffctrl_in
- ,input  wire [0:0] txelecidle_in
+ ,input  wire  gtrefclk00_in
+ ,output wire  qpll0outclk_out
+ ,output wire  qpll0outrefclk_out
+ ,output wire  qpll1lock_out
+ ,output wire  qpll1outclk_out
+ ,output wire  qpll1outrefclk_out
+ ,input  wire  rxgearboxslip_in
  ,input  wire [5:0] txheader_in
- ,input  wire [0:0] txinhibit_in
- ,input  wire [6:0] txmaincursor_in
- ,input  wire [0:0] txpcsreset_in
- ,input  wire [1:0] txpd_in
- ,input  wire [0:0] txpdelecidlemode_in
- ,input  wire [1:0] txpllclksel_in
- ,input  wire [0:0] txpmareset_in
- ,input  wire [0:0] txpolarity_in
- ,input  wire [4:0] txpostcursor_in
- ,input  wire [0:0] txprbsforceerr_in
- ,input  wire [3:0] txprbssel_in
- ,input  wire [4:0] txprecursor_in
  ,input  wire [6:0] txsequence_in
- ,input  wire [1:0] txsysclksel_in
  ,output wire [16:0] dmonitorout_out
  ,output wire [15:0] drpdo_out
- ,output wire [0:0] drprdy_out
- ,output wire [0:0] eyescandataerror_out
- ,output wire [0:0] gtpowergood_out
+ ,output wire  drprdy_out
+ ,output wire  eyescandataerror_out
+ ,output wire  gtpowergood_out
  ,output wire [1:0] rxdatavalid_out
  ,output wire [5:0] rxheader_out
  ,output wire [1:0] rxheadervalid_out
- ,output wire [0:0] rxprbserr_out
- ,output wire [0:0] rxprbslocked_out
+ ,output wire  rxprbserr_out
+ ,output wire  rxprbslocked_out
  ,output wire [1:0] rxstartofseq_out
 );
 
@@ -175,27 +119,25 @@ module eth_xcvr_gth_full_wrapper (
   // Depending on the number of user clocking network helper blocks, either use the single user clock active indicator
   // or a logical combination of per-channel user clock active indicators as the user clock active indicator for use in
   // this block
-  wire gtwiz_reset_userclk_tx_active_int;
-  wire gtwiz_reset_userclk_rx_active_int;
+  wire gtwiz_userclk_tx_active_out;
+  wire gtwiz_userclk_rx_active_out;
 
-  assign gtwiz_reset_userclk_tx_active_int = gtwiz_userclk_tx_active_out;
-  assign gtwiz_reset_userclk_rx_active_int = gtwiz_userclk_rx_active_out;
 
   // Combine the appropriate PLL lock signals such that the reset controller can sense when all PLLs which clock each
   // data direction are locked, regardless of what PLL source is used
   wire gtwiz_reset_plllock_tx_int;
   wire gtwiz_reset_plllock_rx_int;
 
-  wire [0:0] qpll0lock_int;
+  wire  qpll0lock_int;
 
   assign gtwiz_reset_plllock_tx_int = &qpll0lock_int;
   assign gtwiz_reset_plllock_rx_int = &qpll0lock_int;
 
   // Combine the power good, reset done, and CDR lock indicators across all channels, per data direction
-  wire [0:0] gtpowergood_int;
-  wire [0:0] rxcdrlock_int;
-  wire [0:0] txresetdone_int;
-  wire [0:0] rxresetdone_int;
+  wire  gtpowergood_int;
+  wire  rxcdrlock_int;
+  wire  txresetdone_int;
+  wire  rxresetdone_int;
   wire gtwiz_reset_gtpowergood_int;
   wire gtwiz_reset_rxcdrlock_int;
   wire gtwiz_reset_txresetdone_int;
@@ -204,24 +146,21 @@ module eth_xcvr_gth_full_wrapper (
   assign gtwiz_reset_gtpowergood_int = &gtpowergood_int;
   assign gtwiz_reset_rxcdrlock_int   = &rxcdrlock_int;
 
-  wire [0:0] txresetdone_sync;
-  wire [0:0] rxresetdone_sync;
-  genvar gi_ch_xrd;
-  generate for (gi_ch_xrd = 0; gi_ch_xrd < 1; gi_ch_xrd = gi_ch_xrd + 1) begin : gen_ch_xrd
-    (* DONT_TOUCH = "TRUE" *)
-    bit_synchronizer bit_synchronizer_txresetdone_inst (
-      .clk_in (drp_clk_100),
-      .i_in   (txresetdone_int[gi_ch_xrd]),
-      .o_out  (txresetdone_sync[gi_ch_xrd])
-    );
-    (* DONT_TOUCH = "TRUE" *)
-    bit_synchronizer bit_synchronizer_rxresetdone_inst (
-      .clk_in (drp_clk_100),
-      .i_in   (rxresetdone_int[gi_ch_xrd]),
-      .o_out  (rxresetdone_sync[gi_ch_xrd])
-    );
-  end
-  endgenerate
+  wire  txresetdone_sync;
+  wire  rxresetdone_sync;
+  
+  (* DONT_TOUCH = "TRUE" *)
+  bit_synchronizer bit_synchronizer_txresetdone_inst (
+    .clk_in (drp_clk_100),
+    .i_in   (txresetdone_int),
+    .o_out  (txresetdone_sync)
+  );
+  (* DONT_TOUCH = "TRUE" *)
+  bit_synchronizer bit_synchronizer_rxresetdone_inst (
+    .clk_in (drp_clk_100),
+    .i_in   (rxresetdone_int),
+    .o_out  (rxresetdone_sync)
+  );
   assign gtwiz_reset_txresetdone_int = &txresetdone_sync;
   assign gtwiz_reset_rxresetdone_int = &rxresetdone_sync;
 
@@ -238,15 +177,15 @@ module eth_xcvr_gth_full_wrapper (
   eth_xcvr_gth_full_example_gtwiz_reset gtwiz_reset_inst (
     .drp_clk_100                        (drp_clk_100),
     .gtwiz_reset_all_in                 (gtwiz_reset_all_in),
-    .gtwiz_reset_tx_pll_and_datapath_in (gtwiz_reset_tx_pll_and_datapath_in),
-    .gtwiz_reset_tx_datapath_in         (gtwiz_reset_tx_datapath_in),
-    .gtwiz_reset_rx_pll_and_datapath_in (gtwiz_reset_rx_pll_and_datapath_in),
+    .gtwiz_reset_tx_pll_and_datapath_in (1'b0),
+    .gtwiz_reset_tx_datapath_in         (1'b0),
+    .gtwiz_reset_rx_pll_and_datapath_in (1'b0),
     .gtwiz_reset_rx_datapath_in         (gtwiz_reset_rx_datapath_in),
     .gtwiz_reset_rx_cdr_stable_out      (gtwiz_reset_rx_cdr_stable_out),
     .gtwiz_reset_tx_done_out            (gtwiz_reset_tx_done_out),
     .gtwiz_reset_rx_done_out            (gtwiz_reset_rx_done_out),
-    .gtwiz_reset_userclk_tx_active_in   (gtwiz_reset_userclk_tx_active_int),
-    .gtwiz_reset_userclk_rx_active_in   (gtwiz_reset_userclk_rx_active_int),
+    .gtwiz_reset_userclk_tx_active_in   (gtwiz_userclk_tx_active_out),
+    .gtwiz_reset_userclk_rx_active_in   (gtwiz_userclk_rx_active_out),
     .gtpowergood_in                     (gtwiz_reset_gtpowergood_int),
     .txusrclk2_in                       (gtwiz_userclk_tx_usrclk2_out),
     .plllock_tx_in                      (gtwiz_reset_plllock_tx_int),
@@ -271,17 +210,17 @@ module eth_xcvr_gth_full_wrapper (
   // Drive the internal PLL reset inputs with the appropriate PLL reset signals produced by the reset controller. The
   // single reset controller instance generates independent transmit PLL reset and receive PLL reset outputs, which are
   // used across all such PLLs in the core.
-  wire [0:0] qpll0reset_int;
+  wire  qpll0reset_int;
 
   assign qpll0reset_int = {1{gtwiz_reset_pllreset_tx_int || gtwiz_reset_pllreset_rx_int}};
 
   // Fan out appropriate reset controller outputs to all transceiver channels
-  wire [0:0] txprogdivreset_int;
-  wire [0:0] gttxreset_int;
-  wire [0:0] txuserrdy_int;
-  wire [0:0] rxprogdivreset_int;
-  wire [0:0] gtrxreset_int;
-  wire [0:0] rxuserrdy_int;
+  wire  txprogdivreset_int;
+  wire  gttxreset_int;
+  wire  txuserrdy_int;
+  wire  rxprogdivreset_int;
+  wire  gtrxreset_int;
+  wire  rxuserrdy_int;
 
   assign txprogdivreset_int  = {1{gtwiz_reset_txprogdivreset_int}};
   assign gttxreset_int       = {1{gtwiz_reset_gttxreset_int}};
@@ -289,14 +228,14 @@ module eth_xcvr_gth_full_wrapper (
   assign rxprogdivreset_int  = {1{gtwiz_reset_rxprogdivreset_int}};
   assign gtrxreset_int       = {1{gtwiz_reset_gtrxreset_int}};
   assign rxuserrdy_int       = {1{gtwiz_reset_rxuserrdy_int}};
-  wire [0:0] qpll1reset_int;
+  wire  qpll1reset_int;
 
   // Required assignment to expose the QPLL1RESET port per user request
   assign qpll1reset_int = {1{1'b1}};
 
   // Required assignment to expose the GTPOWERGOOD port per user request
   assign gtpowergood_out = gtpowergood_int;
-  wire [0:0] qpll1lock_int;
+  wire  qpll1lock_int;
 
   // Required assignment to expose the QPLL1LOCK port per user request
   assign qpll1lock_out = qpll1lock_int;
@@ -321,81 +260,79 @@ module eth_xcvr_gth_full_wrapper (
    ,.gthtxn_out                              (gthtxn_out)
    ,.gthtxp_out                              (gthtxp_out)
    ,.gtwiz_userclk_tx_reset_in               (gtwiz_userclk_tx_reset_in)
-   ,.gtwiz_userclk_tx_srcclk_out             (gtwiz_userclk_tx_srcclk_out)
-   ,.gtwiz_userclk_tx_usrclk_out             (gtwiz_userclk_tx_usrclk_out)
+   ,.gtwiz_userclk_tx_srcclk_out             ()
+   ,.gtwiz_userclk_tx_usrclk_out             ()
    ,.gtwiz_userclk_tx_usrclk2_out            (gtwiz_userclk_tx_usrclk2_out)
    ,.gtwiz_userclk_tx_active_out             (gtwiz_userclk_tx_active_out)
    ,.gtwiz_userclk_rx_reset_in               (gtwiz_userclk_rx_reset_in)
-   ,.gtwiz_userclk_rx_srcclk_out             (gtwiz_userclk_rx_srcclk_out)
-   ,.gtwiz_userclk_rx_usrclk_out             (gtwiz_userclk_rx_usrclk_out)
    ,.gtwiz_userclk_rx_usrclk2_out            (gtwiz_userclk_rx_usrclk2_out)
    ,.gtwiz_userclk_rx_active_out             (gtwiz_userclk_rx_active_out)
    ,.gtwiz_reset_tx_done_in                  (gtwiz_reset_tx_done_out)
    ,.gtwiz_reset_rx_done_in                  (gtwiz_reset_rx_done_out)
    ,.gtwiz_userdata_tx_in                    (gtwiz_userdata_tx_in)
    ,.gtwiz_userdata_rx_out                   (gtwiz_userdata_rx_out)
-   ,.drpaddr_common_in                       (drpaddr_common_in)
-   ,.drpclk_common_in                        (drpclk_common_in)
-   ,.drpdi_common_in                         (drpdi_common_in)
-   ,.drpen_common_in                         (drpen_common_in)
-   ,.drpwe_common_in                         (drpwe_common_in)
+   ,.drpaddr_common_in                       (0)
+   ,.drpclk_common_in                        (0)
+   ,.drpdi_common_in                         (0)
+   ,.drpen_common_in                         (0)
+   ,.drpwe_common_in                         (0)
    ,.gtrefclk00_in                           (gtrefclk00_in)
-   ,.gtrefclk01_in                           (gtrefclk01_in)
-   ,.qpll0pd_in                              (qpll0pd_in)
+   ,.gtrefclk01_in                           (1'b0)
+   ,.qpll0pd_in                              (1'b0)
    ,.qpll0reset_in                           (qpll0reset_int)
-   ,.qpll1pd_in                              (qpll1pd_in)
+   ,.qpll1pd_in                              (1'b1)
    ,.qpll1reset_in                           (qpll1reset_int)
-   ,.qpllrsvd2_in                            (qpllrsvd2_in)
-   ,.qpllrsvd3_in                            (qpllrsvd3_in)
-   ,.drpdo_common_out                        (drpdo_common_out)
-   ,.drprdy_common_out                       (drprdy_common_out)
+   ,.qpllrsvd2_in                            (5'd0)
+   ,.qpllrsvd3_in                            (5'd0)
+   ,.drpdo_common_out                        ()
+   ,.drprdy_common_out                       ()
    ,.qpll0lock_out                           (qpll0lock_int)
    ,.qpll0outclk_out                         (qpll0outclk_out)
    ,.qpll0outrefclk_out                      (qpll0outrefclk_out)
    ,.qpll1lock_out                           (qpll1lock_int)
    ,.qpll1outclk_out                         (qpll1outclk_out)
    ,.qpll1outrefclk_out                      (qpll1outrefclk_out)
-   ,.drpaddr_in                              (drpaddr_in)
-   ,.drpclk_in                               (drpclk_in)
-   ,.drpdi_in                                (drpdi_in)
-   ,.drpen_in                                (drpen_in)
-   ,.drpwe_in                                (drpwe_in)
-   ,.eyescanreset_in                         (eyescanreset_in)
+   ,.drpaddr_in                              (9'd0)
+   ,.drpclk_in                               (1'b0)
+   ,.drpdi_in                                (16'd0)
+   ,.drpen_in                                (1'b0)
+   ,.drpwe_in                                (1'b0)
+   ,.eyescanreset_in                         (1'b0)
    ,.gtrxreset_in                            (gtrxreset_int)
    ,.gttxreset_in                            (gttxreset_int)
-   ,.loopback_in                             (loopback_in)
-   ,.rxcdrhold_in                            (rxcdrhold_in)
-   ,.rxdfelpmreset_in                        (rxdfelpmreset_in)
+   ,.loopback_in                             (3'b000)
+   ,.rxcdrhold_in                            (1'b0)
+   ,.rxdfelpmreset_in                        (1'b0)
    ,.rxgearboxslip_in                        (rxgearboxslip_in)
-   ,.rxlpmen_in                              (rxlpmen_in)
-   ,.rxpcsreset_in                           (rxpcsreset_in)
-   ,.rxpd_in                                 (rxpd_in)
-   ,.rxpllclksel_in                          (rxpllclksel_in)
-   ,.rxpmareset_in                           (rxpmareset_in)
-   ,.rxpolarity_in                           (rxpolarity_in)
-   ,.rxprbscntreset_in                       (rxprbscntreset_in)
-   ,.rxprbssel_in                            (rxprbssel_in)
+   ,.rxlpmen_in                              (1'b1)
+   ,.rxpcsreset_in                           (1'b0)
+   ,.rxpd_in                                 (2'b00)
+   ,.rxpllclksel_in                          (2'b11)
+   ,.rxpmareset_in                           (1'b0)
+   ,.rxpolarity_in                           (1'b0)
+   ,.rxprbscntreset_in                       (1'b0)
+   ,.rxprbssel_in                            (4'd0)
    ,.rxprogdivreset_in                       (rxprogdivreset_int)
-   ,.rxsysclksel_in                          (rxsysclksel_in)
+   ,.rxsysclksel_in                          (2'b10)
    ,.rxuserrdy_in                            (rxuserrdy_int)
-   ,.txdiffctrl_in                           (txdiffctrl_in)
-   ,.txelecidle_in                           (txelecidle_in)
+   ,.txdiffctrl_in                           (4'b1100)
+   ,.txelecidle_in                           (1'b0)
    ,.txheader_in                             (txheader_in)
-   ,.txinhibit_in                            (txinhibit_in)
-   ,.txmaincursor_in                         (txmaincursor_in)
-   ,.txpcsreset_in                           (txpcsreset_in)
-   ,.txpd_in                                 (txpd_in)
-   ,.txpdelecidlemode_in                     (txpdelecidlemode_in)
-   ,.txpllclksel_in                          (txpllclksel_in)
-   ,.txpmareset_in                           (txpmareset_in)
-   ,.txpolarity_in                           (txpolarity_in)
-   ,.txpostcursor_in                         (txpostcursor_in)
-   ,.txprbsforceerr_in                       (txprbsforceerr_in)
-   ,.txprbssel_in                            (txprbssel_in)
-   ,.txprecursor_in                          (txprecursor_in)
+   ,.txinhibit_in                            (1'b0)
+   ,.txmaincursor_in                         (7'b1000000)
+   ,.txpcsreset_in                           (1'b0)
+   ,.txpd_in                                 (2'b00)
+   ,.txpdelecidlemode_in                     (1'b0)
+   ,.txpllclksel_in                          (2'b11)
+   ,.txpmareset_in                           (1'b0)
+   ,.txpolarity_in                           (1'b1)
+   ,.txpostcursor_in                         (5'd0)
+   ,.txprbsforceerr_in                       (1'b0)
+   ,.txprbssel_in                            (4'd0)
+   ,.txprecursor_in                          (5'd0)
    ,.txprogdivreset_in                       (txprogdivreset_int)
    ,.txsequence_in                           (txsequence_in)
-   ,.txsysclksel_in                          (txsysclksel_in)
+   ,.txsysclksel_in                          (2'b10)
    ,.txuserrdy_in                            (txuserrdy_int)
    ,.dmonitorout_out                         (dmonitorout_out)
    ,.drpdo_out                               (drpdo_out)

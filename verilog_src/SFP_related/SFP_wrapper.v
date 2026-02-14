@@ -57,16 +57,8 @@ module SFP_wrapper #(
   // ===========================================================================
 
   // User clocking
-  wire [0:0] gtwiz_userclk_tx_reset_int;
-  wire [0:0] gtwiz_userclk_tx_srcclk_int;
-  wire [0:0] gtwiz_userclk_tx_usrclk_int;
   wire [0:0] gtwiz_userclk_tx_usrclk2_int;
-  wire [0:0] gtwiz_userclk_tx_active_int;
-  wire [0:0] gtwiz_userclk_rx_reset_int;
-  wire [0:0] gtwiz_userclk_rx_srcclk_int;
-  wire [0:0] gtwiz_userclk_rx_usrclk_int;
   wire [0:0] gtwiz_userclk_rx_usrclk2_int;
-  wire [0:0] gtwiz_userclk_rx_active_int;
 
   // Reset controller
   wire [0:0] gtwiz_reset_rx_cdr_stable_int;
@@ -295,81 +287,25 @@ module SFP_wrapper #(
    ,.gthrxp_in                               (i_gt_rx_p_0)
    ,.gthtxn_out                              (o_gt_tx_n_0)
    ,.gthtxp_out                              (o_gt_tx_p_0)
-   ,.gtwiz_userclk_tx_reset_in               (gtwiz_userclk_tx_reset_int)
-   ,.gtwiz_userclk_tx_srcclk_out             (gtwiz_userclk_tx_srcclk_int)
-   ,.gtwiz_userclk_tx_usrclk_out             (gtwiz_userclk_tx_usrclk_int)
    ,.gtwiz_userclk_tx_usrclk2_out            (gtwiz_userclk_tx_usrclk2_int)
-   ,.gtwiz_userclk_tx_active_out             (gtwiz_userclk_tx_active_int)
-   ,.gtwiz_userclk_rx_reset_in               (gtwiz_userclk_rx_reset_int)
-   ,.gtwiz_userclk_rx_srcclk_out             (gtwiz_userclk_rx_srcclk_int)
-   ,.gtwiz_userclk_rx_usrclk_out             (gtwiz_userclk_rx_usrclk_int)
    ,.gtwiz_userclk_rx_usrclk2_out            (gtwiz_userclk_rx_usrclk2_int)
-   ,.gtwiz_userclk_rx_active_out             (gtwiz_userclk_rx_active_int)
    ,.drp_clk_100              (i_ctrl_clk)
    ,.gtwiz_reset_all_in                      (hb_gtwiz_reset_all_int)
-   ,.gtwiz_reset_tx_pll_and_datapath_in      (1'b0)
-   ,.gtwiz_reset_tx_datapath_in              (1'b0)
-   ,.gtwiz_reset_rx_pll_and_datapath_in      (1'b0)
    ,.gtwiz_reset_rx_datapath_in              (hb_gtwiz_reset_rx_datapath_int)
    ,.gtwiz_reset_rx_cdr_stable_out           (gtwiz_reset_rx_cdr_stable_int)
    ,.gtwiz_reset_tx_done_out                 (gtwiz_reset_tx_done_int)
    ,.gtwiz_reset_rx_done_out                 (gtwiz_reset_rx_done_int)
    ,.gtwiz_userdata_tx_in                    (gtwiz_userdata_tx_int)
    ,.gtwiz_userdata_rx_out                   (gtwiz_userdata_rx_int)
-   ,.drpaddr_common_in                       (9'd0)
-   ,.drpclk_common_in                        (1'b0)
-   ,.drpdi_common_in                         (16'd0)
-   ,.drpen_common_in                         (1'b0)
-   ,.drpwe_common_in                         (1'b0)
    ,.gtrefclk00_in                           (sfp_mgt_refclk)
-   ,.gtrefclk01_in                           (1'b0)
-   ,.qpll0pd_in                              (1'b0)
-   ,.qpll1pd_in                              (1'b1)
-   ,.qpllrsvd2_in                            (5'd0)
-   ,.qpllrsvd3_in                            (5'd0)
-   ,.drpdo_common_out                        (drpdo_common_int)
-   ,.drprdy_common_out                       (drprdy_common_int)
    ,.qpll0outclk_out                         (qpll0outclk_int)
    ,.qpll0outrefclk_out                      (qpll0outrefclk_int)
    ,.qpll1lock_out                           (qpll1lock_int)
    ,.qpll1outclk_out                         (qpll1outclk_int)
    ,.qpll1outrefclk_out                      (qpll1outrefclk_int)
-   ,.drpaddr_in                              (9'd0)
-   ,.drpclk_in                               (1'b0)
-   ,.drpdi_in                                (16'd0)
-   ,.drpen_in                                (1'b0)
-   ,.drpwe_in                                (1'b0)
-   ,.eyescanreset_in                         (1'b0)
-   ,.loopback_in                             (3'b000)
-   ,.rxcdrhold_in                            (1'b0)
-   ,.rxdfelpmreset_in                        (1'b0)
    ,.rxgearboxslip_in                        (rxgearboxslip_int)
-   ,.rxlpmen_in                              (1'b1)      // LPM mode
-   ,.rxpcsreset_in                           (1'b0)
-   ,.rxpd_in                                 (2'b00)
-   ,.rxpllclksel_in                          (2'b11)
-   ,.rxpmareset_in                           (1'b0)
-   ,.rxpolarity_in                           (1'b0)      // RX NOT inverted
-   ,.rxprbscntreset_in                       (1'b0)
-   ,.rxprbssel_in                            (4'd0)
-   ,.rxsysclksel_in                          (2'b10)
-   ,.txdiffctrl_in                           (4'b1100)
-   ,.txelecidle_in                           (1'b0)
    ,.txheader_in                             (txheader_int)
-   ,.txinhibit_in                            (1'b0)
-   ,.txmaincursor_in                         (7'b1000000)
-   ,.txpcsreset_in                           (1'b0)
-   ,.txpd_in                                 (2'b00)
-   ,.txpdelecidlemode_in                     (1'b0)
-   ,.txpllclksel_in                          (2'b11)
-   ,.txpmareset_in                           (1'b0)
-   ,.txpolarity_in                           (1'b1)      // TX inverted (board)
-   ,.txpostcursor_in                         (5'd0)
-   ,.txprbsforceerr_in                       (1'b0)
-   ,.txprbssel_in                            (4'd0)
-   ,.txprecursor_in                          (5'd0)
    ,.txsequence_in                           (txsequence_int)
-   ,.txsysclksel_in                          (2'b10)
    ,.dmonitorout_out                         (dmonitorout_int)
    ,.drpdo_out                               (drpdo_int)
    ,.drprdy_out                              (drprdy_int)
