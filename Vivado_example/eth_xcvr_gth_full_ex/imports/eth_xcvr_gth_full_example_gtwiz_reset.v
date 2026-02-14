@@ -69,7 +69,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
 )(
 
   // User interface ports
-  input  wire gtwiz_reset_clk_freerun_in,
+  input  wire drp_clk_100,
   input  wire gtwiz_reset_all_in,
   input  wire gtwiz_reset_tx_pll_and_datapath_in,
   input  wire gtwiz_reset_tx_datapath_in,
@@ -119,8 +119,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the "reset all" input signal into the free-running clock domain
   wire gtwiz_reset_all_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_gtwiz_reset_all_inst (
-    .clk_in  (gtwiz_reset_clk_freerun_in),
+  rst_synchronizer reset_synchronizer_gtwiz_reset_all_inst (
+    .clk_in  (drp_clk_100),
     .rst_in  (gtwiz_reset_all_in),
     .rst_out (gtwiz_reset_all_sync)
   );
@@ -128,8 +128,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the transceiver power good indicator
   wire gtpowergood_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_gtpowergood_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_gtpowergood_inst (
+    .clk_in (drp_clk_100),
     .i_in   (gtpowergood_in),
     .o_out  (gtpowergood_sync)
   );
@@ -159,7 +159,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
 
   // Implement the "reset all" state machine control and its outputs as a single sequential process. The state machine
   // is reset by the synchronized gtwiz_reset_all_sync input.
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
     if (gtwiz_reset_all_sync) begin
       gtwiz_reset_tx_pll_and_datapath_int <= 1'b0;
       gtwiz_reset_rx_pll_and_datapath_int <= 1'b0;
@@ -241,7 +241,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
 
   // Generate a small "reset all" state machine reset timer, used to stall certain states to guarantee that their
   // synchronized input values are being used at the appropriate time
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
     if (sm_reset_all_timer_clr) begin
       sm_reset_all_timer_ctr <= 3'd0;
       sm_reset_all_timer_sat <= 1'b0;
@@ -270,8 +270,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
                               gtwiz_reset_tx_pll_and_datapath_int ||
                               gtwiz_reset_tx_datapath_in;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_gtwiz_reset_tx_any_inst (
-    .clk_in  (gtwiz_reset_clk_freerun_in),
+  rst_synchronizer reset_synchronizer_gtwiz_reset_tx_any_inst (
+    .clk_in  (drp_clk_100),
     .rst_in  (gtwiz_reset_tx_any),
     .rst_out (gtwiz_reset_tx_any_sync)
   );
@@ -279,8 +279,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the OR of the user input and internal TX PLL and data path reset signals
   wire gtwiz_reset_tx_pll_and_datapath_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_gtwiz_reset_tx_pll_and_datapath_inst (
-    .clk_in  (gtwiz_reset_clk_freerun_in),
+  rst_synchronizer reset_synchronizer_gtwiz_reset_tx_pll_and_datapath_inst (
+    .clk_in  (drp_clk_100),
     .rst_in  (gtwiz_reset_tx_pll_and_datapath_in || gtwiz_reset_tx_pll_and_datapath_int),
     .rst_out (gtwiz_reset_tx_pll_and_datapath_sync)
   );
@@ -288,8 +288,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Use another synchronizer to delay the above signal for purposes of its detection following reset
   wire gtwiz_reset_tx_pll_and_datapath_dly;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_gtwiz_reset_tx_pll_and_datapath_dly_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_gtwiz_reset_tx_pll_and_datapath_dly_inst (
+    .clk_in (drp_clk_100),
     .i_in   (gtwiz_reset_tx_pll_and_datapath_sync),
     .o_out  (gtwiz_reset_tx_pll_and_datapath_dly)
   );
@@ -297,8 +297,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the TX data path reset user input
   wire gtwiz_reset_tx_datapath_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_gtwiz_reset_tx_datapath_inst (
-    .clk_in  (gtwiz_reset_clk_freerun_in),
+  rst_synchronizer reset_synchronizer_gtwiz_reset_tx_datapath_inst (
+    .clk_in  (drp_clk_100),
     .rst_in  (gtwiz_reset_tx_datapath_in),
     .rst_out (gtwiz_reset_tx_datapath_sync)
   );
@@ -306,8 +306,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Use another synchronizer to delay the above signal for purposes of its detection following reset
   wire gtwiz_reset_tx_datapath_dly;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_gtwiz_reset_tx_datapath_dly_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_gtwiz_reset_tx_datapath_dly_inst (
+    .clk_in (drp_clk_100),
     .i_in   (gtwiz_reset_tx_datapath_sync),
     .o_out  (gtwiz_reset_tx_datapath_dly)
   );
@@ -315,8 +315,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the TX user clock active indicator
   wire gtwiz_reset_userclk_tx_active_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_gtwiz_reset_userclk_tx_active_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_gtwiz_reset_userclk_tx_active_inst (
+    .clk_in (drp_clk_100),
     .i_in   (gtwiz_reset_userclk_tx_active_in),
     .o_out  (gtwiz_reset_userclk_tx_active_sync)
   );
@@ -324,8 +324,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the TX PLL lock indicator
   wire plllock_tx_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_plllock_tx_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_plllock_tx_inst (
+    .clk_in (drp_clk_100),
     .i_in   (plllock_tx_in),
     .o_out  (plllock_tx_sync)
   );
@@ -354,7 +354,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   reg        [2:0] sm_reset_tx                = ST_RESET_TX_BRANCH;
 
   // Implementation of transmitter reset state machine synchronous process
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
 
     // The state machine is synchronously reset by the synchronized OR of all user input and internal TX reset signals
     if (gtwiz_reset_tx_any_sync) begin
@@ -452,7 +452,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
 
   // Generate a small TX state machine reset timer, used to stall certain states to guarantee that their synchronized
   // input values are being used at the appropriate time
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
     if (sm_reset_tx_timer_clr) begin
       sm_reset_tx_timer_ctr <= 3'd0;
       sm_reset_tx_timer_sat <= 1'b0;
@@ -467,7 +467,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
 
   // Generate an TX PLL reset timer, used to indicate when the specified minimum TX PLL reset duration has expired. This
   // is used by the TX state machine to proceed beyond the ST_RESET_TX_PLL wait state.
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
     if (sm_reset_tx_pll_timer_clr) begin
       sm_reset_tx_pll_timer_ctr <= 10'd0;
       sm_reset_tx_pll_timer_sat <= 1'b0;
@@ -482,8 +482,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
 
   // Hold the TX programmable divider in reset until the TX PLL has locked
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_txprogdivreset_inst (
-    .clk_in  (gtwiz_reset_clk_freerun_in),
+  rst_synchronizer reset_synchronizer_txprogdivreset_inst (
+    .clk_in  (drp_clk_100),
     .rst_in  (~plllock_tx_in),
     .rst_out (txprogdivreset_out)
   );
@@ -522,8 +522,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
                               gtwiz_reset_rx_datapath_in          ||
                               gtwiz_reset_rx_datapath_int;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_gtwiz_reset_rx_any_inst (
-    .clk_in  (gtwiz_reset_clk_freerun_in),
+  rst_synchronizer reset_synchronizer_gtwiz_reset_rx_any_inst (
+    .clk_in  (drp_clk_100),
     .rst_in  (gtwiz_reset_rx_any),
     .rst_out (gtwiz_reset_rx_any_sync)
   );
@@ -531,8 +531,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the OR of the user input and internal RX PLL and data path reset signals
   wire gtwiz_reset_rx_pll_and_datapath_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_gtwiz_reset_rx_pll_and_datapath_inst (
-    .clk_in  (gtwiz_reset_clk_freerun_in),
+  rst_synchronizer reset_synchronizer_gtwiz_reset_rx_pll_and_datapath_inst (
+    .clk_in  (drp_clk_100),
     .rst_in  (gtwiz_reset_rx_pll_and_datapath_in || gtwiz_reset_rx_pll_and_datapath_int),
     .rst_out (gtwiz_reset_rx_pll_and_datapath_sync)
   );
@@ -540,8 +540,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Use another synchronizer to delay the above signal for purposes of its detection following reset
   wire gtwiz_reset_rx_pll_and_datapath_dly;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_gtwiz_reset_rx_pll_and_datapath_dly_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_gtwiz_reset_rx_pll_and_datapath_dly_inst (
+    .clk_in (drp_clk_100),
     .i_in   (gtwiz_reset_rx_pll_and_datapath_sync),
     .o_out  (gtwiz_reset_rx_pll_and_datapath_dly)
   );
@@ -549,8 +549,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the RX data path reset user input
   wire gtwiz_reset_rx_datapath_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_gtwiz_reset_rx_datapath_inst (
-    .clk_in  (gtwiz_reset_clk_freerun_in),
+  rst_synchronizer reset_synchronizer_gtwiz_reset_rx_datapath_inst (
+    .clk_in  (drp_clk_100),
     .rst_in  (gtwiz_reset_rx_datapath_in || gtwiz_reset_rx_datapath_int),
     .rst_out (gtwiz_reset_rx_datapath_sync)
   );
@@ -558,8 +558,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Use another synchronizer to delay the above signal for purposes of its detection following reset
   wire gtwiz_reset_rx_datapath_dly;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_gtwiz_reset_rx_datapath_dly_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_gtwiz_reset_rx_datapath_dly_inst (
+    .clk_in (drp_clk_100),
     .i_in   (gtwiz_reset_rx_datapath_sync),
     .o_out  (gtwiz_reset_rx_datapath_dly)
   );
@@ -567,8 +567,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the RX user clock active indicator
   wire gtwiz_reset_userclk_rx_active_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_gtwiz_reset_userclk_rx_active_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_gtwiz_reset_userclk_rx_active_inst (
+    .clk_in (drp_clk_100),
     .i_in   (gtwiz_reset_userclk_rx_active_in),
     .o_out  (gtwiz_reset_userclk_rx_active_sync)
   );
@@ -576,8 +576,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the RX PLL lock indicator
   wire plllock_rx_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_plllock_rx_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_plllock_rx_inst (
+    .clk_in (drp_clk_100),
     .i_in   (plllock_rx_in),
     .o_out  (plllock_rx_sync)
   );
@@ -585,8 +585,8 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Synchronize the RX CDR lock indicator
   wire rxcdrlock_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_rxcdrlock_inst (
-    .clk_in (gtwiz_reset_clk_freerun_in),
+  bit_synchronizer bit_synchronizer_rxcdrlock_inst (
+    .clk_in (drp_clk_100),
     .i_in   (rxcdrlock_in),
     .o_out  (rxcdrlock_sync)
   );
@@ -622,7 +622,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   reg        [2:0] sm_reset_rx                = ST_RESET_RX_BRANCH;
 
   // Implementation of receiver reset state machine synchronous process
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
 
     // The state machine is synchronously reset by the synchronized OR of all user input and internal RX reset signals
     if (gtwiz_reset_rx_any_sync) begin
@@ -731,7 +731,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
 
   // Generate a small RX state machine reset timer, used to stall certain states to guarantee that their synchronized
   // input values are being used at the appropriate time
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
     if (sm_reset_rx_timer_clr) begin
       sm_reset_rx_timer_ctr <= 3'd0;
       sm_reset_rx_timer_sat <= 1'b0;
@@ -746,7 +746,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
 
   // Generate an RX PLL reset timer, used to indicate when the specified minimum RX PLL reset duration has expired. This
   // is used by the RX state machine to proceed beyond the ST_RESET_RX_PLL wait state.
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
     if (sm_reset_rx_pll_timer_clr) begin
       sm_reset_rx_pll_timer_ctr <= 10'd0;
       sm_reset_rx_pll_timer_sat <= 1'b0;
@@ -762,7 +762,7 @@ module eth_xcvr_gth_full_example_gtwiz_reset # (
   // Generate a CDR lock timeout timer, used to indicate when the specified maximum CDR locking time has expired. This
   // is used by the RX state machine to proceed beyond the ST_RESET_RX_WAIT_CDR wait state in the event that the
   // transceiver RXCDRLOCK output does not assert within that time period.
-  always @(posedge gtwiz_reset_clk_freerun_in) begin
+  always @(posedge drp_clk_100) begin
     if (sm_reset_rx_cdr_to_clr) begin
       sm_reset_rx_cdr_to_ctr <= 26'd0;
       sm_reset_rx_cdr_to_sat <= 1'b0;

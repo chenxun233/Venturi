@@ -343,7 +343,7 @@ module eth_xcvr_gth_full_example_top (
   // Synchronize PHY watchdog's rx_reset_req into freerun domain
   wire serdes_rx_reset_req_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_sync_rx_reset_req_inst (
+  bit_synchronizer bit_sync_rx_reset_req_inst (
     .clk_in (hb_gtwiz_reset_clk_freerun_buf_int),
     .i_in   (serdes_rx_reset_req),
     .o_out  (serdes_rx_reset_req_sync)
@@ -354,7 +354,7 @@ module eth_xcvr_gth_full_example_top (
   // Synchronize rx_status into freerun clock domain
   wire rx_status_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_sync_rx_status_inst (
+  bit_synchronizer bit_sync_rx_status_inst (
     .clk_in (hb_gtwiz_reset_clk_freerun_buf_int),
     .i_in   (rx_status),
     .o_out  (rx_status_sync)
@@ -388,39 +388,39 @@ module eth_xcvr_gth_full_example_top (
   wire gtwiz_reset_rx_cdr_stable_sync;
 
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_tx_done (
+  bit_synchronizer bs_tx_done (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(gtwiz_reset_tx_done_int[0]),
     .o_out(gtwiz_reset_tx_done_sync));
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_rx_done (
+  bit_synchronizer bs_rx_done (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(gtwiz_reset_rx_done_int[0]),
     .o_out(gtwiz_reset_rx_done_sync));
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_rxprgdiv (
+  bit_synchronizer bs_rxprgdiv (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(rxprgdivresetdone_int[0]),
     .o_out(rxprgdivresetdone_sync));
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_txprgdiv (
+  bit_synchronizer bs_txprgdiv (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(txprgdivresetdone_int[0]),
     .o_out(txprgdivresetdone_sync));
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_rxpma (
+  bit_synchronizer bs_rxpma (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(rxpmaresetdone_int[0]),
     .o_out(rxpmaresetdone_sync));
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_txpma (
+  bit_synchronizer bs_txpma (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(txpmaresetdone_int[0]),
     .o_out(txpmaresetdone_sync));
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_blocklock (
+  bit_synchronizer bs_blocklock (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(rx_block_lock),
     .o_out(rx_block_lock_sync));
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_rxstatus (
+  bit_synchronizer bs_rxstatus (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(rx_status),
     .o_out(rx_status_freerun_sync));
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bs_cdrstable (
+  bit_synchronizer bs_cdrstable (
     .clk_in(hb_gtwiz_reset_clk_freerun_buf_int), .i_in(gtwiz_reset_rx_cdr_stable_int[0]),
     .o_out(gtwiz_reset_rx_cdr_stable_sync));
 
@@ -472,7 +472,7 @@ module eth_xcvr_gth_full_example_top (
    ,.gtwiz_userclk_rx_usrclk_out             (gtwiz_userclk_rx_usrclk_int)
    ,.gtwiz_userclk_rx_usrclk2_out            (gtwiz_userclk_rx_usrclk2_int)
    ,.gtwiz_userclk_rx_active_out             (gtwiz_userclk_rx_active_int)
-   ,.gtwiz_reset_clk_freerun_in              ({1{hb_gtwiz_reset_clk_freerun_buf_int}})
+   ,.drp_clk_100              ({1{hb_gtwiz_reset_clk_freerun_buf_int}})
    ,.gtwiz_reset_all_in                      ({1{hb_gtwiz_reset_all_int}})
    ,.gtwiz_reset_tx_pll_and_datapath_in      (gtwiz_reset_tx_pll_and_datapath_int)
    ,.gtwiz_reset_tx_datapath_in              (gtwiz_reset_tx_datapath_int)

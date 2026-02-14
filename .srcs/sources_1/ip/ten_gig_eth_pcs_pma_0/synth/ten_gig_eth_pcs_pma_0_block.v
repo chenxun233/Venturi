@@ -268,7 +268,7 @@ module ten_gig_eth_pcs_pma_0_block
   wire [0 : 0] gthtxp_out;
   wire [0 : 0] gtpowergood_out;
   wire [0 : 0] gtwiz_reset_all_in;
-  wire [0 : 0] gtwiz_reset_clk_freerun_in;
+  wire [0 : 0] drp_clk_100;
   wire [0 : 0] gtwiz_reset_qpll0lock_in;
   wire [0 : 0] gtwiz_reset_qpll0reset_out;
   wire [0 : 0] gtwiz_reset_rx_cdr_stable_out;
@@ -955,7 +955,7 @@ ten_gig_eth_pcs_pma_0_ff_synchronizer_rst
   assign txn         = gthtxn_out;
   assign txp         = gthtxp_out;
   
-  assign gtwiz_reset_clk_freerun_in = dclk;
+  assign drp_clk_100 = dclk;
   assign gtwiz_reset_rx_datapath_in = gt0_gtrxreset_i;
   assign gtwiz_reset_rx_pll_and_datapath_in = 1'b0;
   assign gtwiz_reset_tx_datapath_in = gt0_gttxreset_i;
@@ -1065,7 +1065,7 @@ ten_gig_eth_pcs_pma_0_ff_synchronizer_rst
    .gthtxp_out(gthtxp_out),
    .gtpowergood_out(gtpowergood_out),
    .gtwiz_reset_all_in(gtwiz_reset_all_in),
-   .gtwiz_reset_clk_freerun_in(gtwiz_reset_clk_freerun_in),
+   .drp_clk_100(drp_clk_100),
    .gtwiz_reset_qpll0lock_in(gtwiz_reset_qpll0lock_in),
    .gtwiz_reset_qpll0reset_out(gtwiz_reset_qpll0reset_out),
    .gtwiz_reset_rx_cdr_stable_out(gtwiz_reset_rx_cdr_stable_out),

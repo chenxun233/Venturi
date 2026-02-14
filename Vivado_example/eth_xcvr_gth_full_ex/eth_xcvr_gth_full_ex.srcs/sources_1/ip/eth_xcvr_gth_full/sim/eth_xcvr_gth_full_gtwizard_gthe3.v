@@ -223,7 +223,7 @@ module eth_xcvr_gth_full_gtwizard_gthe3 #(
   output wire [(C_RX_BUFFER_BYPASS_INSTANCE_CTRL*(`eth_xcvr_gth_full_gtwizard_gthe3_N_CH-1)):0] gtwiz_buffbypass_rx_error_out,
 
   // Reset controller helper block ports
-  input  wire [(C_RESET_CONTROLLER_INSTANCE_CTRL*(`eth_xcvr_gth_full_gtwizard_gthe3_N_CH-1)):0] gtwiz_reset_clk_freerun_in,
+  input  wire [(C_RESET_CONTROLLER_INSTANCE_CTRL*(`eth_xcvr_gth_full_gtwizard_gthe3_N_CH-1)):0] drp_clk_100,
   input  wire [(C_RESET_CONTROLLER_INSTANCE_CTRL*(`eth_xcvr_gth_full_gtwizard_gthe3_N_CH-1)):0] gtwiz_reset_all_in,
   input  wire [(C_RESET_CONTROLLER_INSTANCE_CTRL*(`eth_xcvr_gth_full_gtwizard_gthe3_N_CH-1)):0] gtwiz_reset_tx_pll_and_datapath_in,
   input  wire [(C_RESET_CONTROLLER_INSTANCE_CTRL*(`eth_xcvr_gth_full_gtwizard_gthe3_N_CH-1)):0] gtwiz_reset_tx_datapath_in,
@@ -3039,7 +3039,7 @@ module eth_xcvr_gth_full_gtwizard_gthe3 #(
           genvar gi_ch_rxclk;
           for (gi_ch_rxclk = 0; gi_ch_rxclk < `eth_xcvr_gth_full_gtwizard_gthe3_N_CH; gi_ch_rxclk = gi_ch_rxclk + 1) begin : gen_ch_rxclk
             gtwizard_ultrascale_v1_7_5_bit_synchronizer bit_synchronizer_gtwiz_reset_userclk_rx_active_inst (
-              .clk_in (gtwiz_reset_clk_freerun_in),
+              .clk_in (drp_clk_100),
               .i_in   (gtwiz_userclk_rx_active_out[gi_ch_rxclk]),
               .o_out  (gtwiz_userclk_rx_active_sync[gi_ch_rxclk])
             );
@@ -3084,12 +3084,12 @@ module eth_xcvr_gth_full_gtwizard_gthe3 #(
         genvar gi_ch_xrd;
         for (gi_ch_xrd = 0; gi_ch_xrd < `eth_xcvr_gth_full_gtwizard_gthe3_N_CH; gi_ch_xrd = gi_ch_xrd + 1) begin : gen_ch_xrd
           gtwizard_ultrascale_v1_7_5_bit_synchronizer bit_synchronizer_txresetdone_inst (
-            .clk_in (gtwiz_reset_clk_freerun_in),
+            .clk_in (drp_clk_100),
             .i_in   (txresetdone_int[gi_ch_xrd]),
             .o_out  (txresetdone_sync[gi_ch_xrd])
           );
           gtwizard_ultrascale_v1_7_5_bit_synchronizer bit_synchronizer_rxresetdone_inst (
-            .clk_in (gtwiz_reset_clk_freerun_in),
+            .clk_in (drp_clk_100),
             .i_in   (rxresetdone_int[gi_ch_xrd]),
             .o_out  (rxresetdone_sync[gi_ch_xrd])
           );
@@ -3135,7 +3135,7 @@ module eth_xcvr_gth_full_gtwizard_gthe3 #(
           .P_RX_LINE_RATE            (C_RX_LINE_RATE),
           .P_CDR_TIMEOUT_FREERUN_CYC (P_CDR_TIMEOUT_FREERUN_CYC)
         ) gtwiz_reset_inst (
-          .gtwiz_reset_clk_freerun_in         (gtwiz_reset_clk_freerun_in),
+          .drp_clk_100         (drp_clk_100),
           .gtwiz_reset_all_in                 (gtwiz_reset_all_in),
           .gtwiz_reset_tx_pll_and_datapath_in (gtwiz_reset_tx_pll_and_datapath_in),
           .gtwiz_reset_tx_datapath_in         (gtwiz_reset_tx_datapath_in),
@@ -3387,7 +3387,7 @@ module eth_xcvr_gth_full_gtwizard_gthe3 #(
             .P_RX_LINE_RATE            (C_RX_LINE_RATE),
             .P_CDR_TIMEOUT_FREERUN_CYC (P_CDR_TIMEOUT_FREERUN_CYC)
           ) gtwiz_reset_inst (
-            .gtwiz_reset_clk_freerun_in         (gtwiz_reset_clk_freerun_in         [gi_hb_rst_ch]),
+            .drp_clk_100         (drp_clk_100         [gi_hb_rst_ch]),
             .gtwiz_reset_all_in                 (gtwiz_reset_all_in                 [gi_hb_rst_ch]),
             .gtwiz_reset_tx_pll_and_datapath_in (gtwiz_reset_tx_pll_and_datapath_in [gi_hb_rst_ch]),
             .gtwiz_reset_tx_datapath_in         (gtwiz_reset_tx_datapath_in         [gi_hb_rst_ch]),

@@ -85,7 +85,7 @@ module eth_xcvr_gth_full_example_init # (
   // The reset_all_in input should be driven by the master "reset all" example design input
   wire reset_all_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer reset_synchronizer_reset_all_inst (
+  rst_synchronizer reset_synchronizer_reset_all_inst (
     .clk_in  (clk_freerun_in),
     .rst_in  (reset_all_in),
     .rst_out (reset_all_sync)
@@ -97,7 +97,7 @@ module eth_xcvr_gth_full_example_init # (
   // logical AND of gtwiz_reset_tx_done_out with gtwiz_buffbypass_tx_done_out if the TX buffer is bypassed.
   wire tx_init_done_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_tx_init_done_inst (
+  bit_synchronizer bit_synchronizer_tx_init_done_inst (
     .clk_in (clk_freerun_in),
     .i_in   (tx_init_done_in),
     .o_out  (tx_init_done_sync)
@@ -109,7 +109,7 @@ module eth_xcvr_gth_full_example_init # (
   // logical AND of gtwiz_reset_rx_done_out with gtwiz_buffbypass_rx_done_out if the RX elastic buffer is bypassed.
   wire rx_init_done_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_rx_init_done_inst (
+  bit_synchronizer bit_synchronizer_rx_init_done_inst (
     .clk_in (clk_freerun_in),
     .i_in   (rx_init_done_in),
     .o_out  (rx_init_done_sync)
@@ -121,7 +121,7 @@ module eth_xcvr_gth_full_example_init # (
   // consecutive clock cycles of data reception.
   wire rx_data_good_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_rx_data_good_inst (
+  bit_synchronizer bit_synchronizer_rx_data_good_inst (
     .clk_in (clk_freerun_in),
     .i_in   (rx_data_good_in),
     .o_out  (rx_data_good_sync)

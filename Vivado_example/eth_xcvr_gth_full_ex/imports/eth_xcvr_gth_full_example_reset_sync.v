@@ -55,7 +55,7 @@
 // existing behavior and the effects of any modifications you may choose to make.
 // *********************************************************************************************************************
 
-module eth_xcvr_gth_full_example_reset_synchronizer # (
+module rst_synchronizer # (
 
   parameter FREQUENCY = 512
 

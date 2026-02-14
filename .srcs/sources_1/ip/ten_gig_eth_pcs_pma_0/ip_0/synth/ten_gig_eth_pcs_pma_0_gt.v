@@ -62,7 +62,7 @@ TA_ENCODING=0,C_TX_ENABLE=1,C_TX_INT_DATA_WIDTH=32,C_TX_LINE_RATE=10.3125,C_TX_M
 module ten_gig_eth_pcs_pma_0_gt (
   gtwiz_userclk_tx_active_in,
   gtwiz_userclk_rx_active_in,
-  gtwiz_reset_clk_freerun_in,
+  drp_clk_100,
   gtwiz_reset_all_in,
   gtwiz_reset_tx_pll_and_datapath_in,
   gtwiz_reset_tx_datapath_in,
@@ -155,7 +155,7 @@ module ten_gig_eth_pcs_pma_0_gt (
 
 input wire [0 : 0] gtwiz_userclk_tx_active_in;
 input wire [0 : 0] gtwiz_userclk_rx_active_in;
-input wire [0 : 0] gtwiz_reset_clk_freerun_in;
+input wire [0 : 0] drp_clk_100;
 input wire [0 : 0] gtwiz_reset_all_in;
 input wire [0 : 0] gtwiz_reset_tx_pll_and_datapath_in;
 input wire [0 : 0] gtwiz_reset_tx_datapath_in;
@@ -359,7 +359,7 @@ output wire [0 : 0] txprgdivresetdone_out;
     .gtwiz_buffbypass_rx_start_user_in(1'B0),
     .gtwiz_buffbypass_rx_done_out(),
     .gtwiz_buffbypass_rx_error_out(),
-    .gtwiz_reset_clk_freerun_in(gtwiz_reset_clk_freerun_in),
+    .drp_clk_100(drp_clk_100),
     .gtwiz_reset_all_in(gtwiz_reset_all_in),
     .gtwiz_reset_tx_pll_and_datapath_in(gtwiz_reset_tx_pll_and_datapath_in),
     .gtwiz_reset_tx_datapath_in(gtwiz_reset_tx_datapath_in),

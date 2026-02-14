@@ -74,7 +74,7 @@ module eth_xcvr_gth_full_example_stimulus_64b66b_async (
   wire example_stimulus_reset_sync;
 
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer example_stimulus_reset_synchronizer_inst (
+  rst_synchronizer example_stimulus_reset_synchronizer_inst (
     .clk_in  (gtwiz_userclk_tx_usrclk2_in),
     .rst_in  (example_stimulus_reset_int),
     .rst_out (example_stimulus_reset_sync)

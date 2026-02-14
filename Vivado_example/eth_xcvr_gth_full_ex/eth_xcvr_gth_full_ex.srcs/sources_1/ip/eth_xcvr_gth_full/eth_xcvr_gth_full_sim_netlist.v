@@ -637,7 +637,7 @@ module eth_xcvr_gth_full
         .gtwiz_gtye4_cpll_cal_cnt_tol_in({1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0}),
         .gtwiz_gtye4_cpll_cal_txoutclk_period_in({1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0}),
         .gtwiz_reset_all_in(1'b0),
-        .gtwiz_reset_clk_freerun_in(1'b0),
+        .drp_clk_100(1'b0),
         .gtwiz_reset_qpll0lock_in(1'b0),
         .gtwiz_reset_qpll0reset_out(NLW_inst_gtwiz_reset_qpll0reset_out_UNCONNECTED[0]),
         .gtwiz_reset_qpll1lock_in(1'b0),
@@ -4283,7 +4283,7 @@ module eth_xcvr_gth_full_eth_xcvr_gth_full_gtwizard_top
     gtwiz_buffbypass_rx_start_user_in,
     gtwiz_buffbypass_rx_done_out,
     gtwiz_buffbypass_rx_error_out,
-    gtwiz_reset_clk_freerun_in,
+    drp_clk_100,
     gtwiz_reset_all_in,
     gtwiz_reset_tx_pll_and_datapath_in,
     gtwiz_reset_tx_datapath_in,
@@ -4817,7 +4817,7 @@ module eth_xcvr_gth_full_eth_xcvr_gth_full_gtwizard_top
   input [0:0]gtwiz_buffbypass_rx_start_user_in;
   output [0:0]gtwiz_buffbypass_rx_done_out;
   output [0:0]gtwiz_buffbypass_rx_error_out;
-  input [0:0]gtwiz_reset_clk_freerun_in;
+  input [0:0]drp_clk_100;
   input [0:0]gtwiz_reset_all_in;
   input [0:0]gtwiz_reset_tx_pll_and_datapath_in;
   input [0:0]gtwiz_reset_tx_datapath_in;

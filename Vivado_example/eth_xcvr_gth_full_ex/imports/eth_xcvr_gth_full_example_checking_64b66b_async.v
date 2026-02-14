@@ -75,7 +75,7 @@ module eth_xcvr_gth_full_example_checking_64b66b_async (
   wire example_checking_reset_sync;
 
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_reset_synchronizer example_checking_reset_synchronizer_inst (
+  rst_synchronizer example_checking_reset_synchronizer_inst (
     .clk_in  (gtwiz_userclk_rx_usrclk2_in),
     .rst_in  (example_checking_reset_int),
     .rst_out (example_checking_reset_sync)

@@ -259,7 +259,7 @@ module SFP_wrapper #(
   // Synchronize PHY watchdog's rx_reset_req into freerun domain
   wire serdes_rx_reset_req_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_sync_rx_reset_req_inst (
+  bit_synchronizer bit_sync_rx_reset_req_inst (
     .clk_in (i_ctrl_clk),
     .i_in   (serdes_rx_reset_req),
     .o_out  (serdes_rx_reset_req_sync)
@@ -270,7 +270,7 @@ module SFP_wrapper #(
   // Synchronize rx_status into freerun clock domain
   wire rx_status_sync;
   (* DONT_TOUCH = "TRUE" *)
-  eth_xcvr_gth_full_example_bit_synchronizer bit_sync_rx_status_inst (
+  bit_synchronizer bit_sync_rx_status_inst (
     .clk_in (i_ctrl_clk),
     .i_in   (rx_status_w),
     .o_out  (rx_status_sync)
@@ -314,7 +314,7 @@ module SFP_wrapper #(
    ,.gtwiz_userclk_rx_usrclk_out             (gtwiz_userclk_rx_usrclk_int)
    ,.gtwiz_userclk_rx_usrclk2_out            (gtwiz_userclk_rx_usrclk2_int)
    ,.gtwiz_userclk_rx_active_out             (gtwiz_userclk_rx_active_int)
-   ,.gtwiz_reset_clk_freerun_in              (i_ctrl_clk)
+   ,.drp_clk_100              (i_ctrl_clk)
    ,.gtwiz_reset_all_in                      (hb_gtwiz_reset_all_int)
    ,.gtwiz_reset_tx_pll_and_datapath_in      (1'b0)
    ,.gtwiz_reset_tx_datapath_in              (1'b0)

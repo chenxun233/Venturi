@@ -55,7 +55,7 @@
 // existing behavior and the effects of any modifications you may choose to make.
 // *********************************************************************************************************************
 
-module eth_xcvr_gth_full_example_bit_synchronizer # (
+module bit_synchronizer # (
 
   parameter INITIALIZE = 5'b00000,
   parameter FREQUENCY  = 512

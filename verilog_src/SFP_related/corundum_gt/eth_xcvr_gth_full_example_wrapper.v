@@ -69,7 +69,7 @@ module eth_xcvr_gth_full_example_wrapper (
  ,output wire [0:0] gtwiz_userclk_rx_usrclk_out
  ,output wire [0:0] gtwiz_userclk_rx_usrclk2_out
  ,output wire [0:0] gtwiz_userclk_rx_active_out
- ,input  wire [0:0] gtwiz_reset_clk_freerun_in
+ ,input  wire [0:0] drp_clk_100
  ,input  wire [0:0] gtwiz_reset_all_in
  ,input  wire [0:0] gtwiz_reset_tx_pll_and_datapath_in
  ,input  wire [0:0] gtwiz_reset_tx_datapath_in
@@ -213,14 +213,14 @@ module eth_xcvr_gth_full_example_wrapper (
   genvar gi_ch_xrd;
   generate for (gi_ch_xrd = 0; gi_ch_xrd < 1; gi_ch_xrd = gi_ch_xrd + 1) begin : gen_ch_xrd
     (* DONT_TOUCH = "TRUE" *)
-    eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_txresetdone_inst (
-      .clk_in (gtwiz_reset_clk_freerun_in),
+    bit_synchronizer bit_synchronizer_txresetdone_inst (
+      .clk_in (drp_clk_100),
       .i_in   (txresetdone_int[gi_ch_xrd]),
       .o_out  (txresetdone_sync[gi_ch_xrd])
     );
     (* DONT_TOUCH = "TRUE" *)
-    eth_xcvr_gth_full_example_bit_synchronizer bit_synchronizer_rxresetdone_inst (
-      .clk_in (gtwiz_reset_clk_freerun_in),
+    bit_synchronizer bit_synchronizer_rxresetdone_inst (
+      .clk_in (drp_clk_100),
       .i_in   (rxresetdone_int[gi_ch_xrd]),
       .o_out  (rxresetdone_sync[gi_ch_xrd])
     );
@@ -240,7 +240,7 @@ module eth_xcvr_gth_full_example_wrapper (
 
   // Instantiate the single reset controller
   eth_xcvr_gth_full_example_gtwiz_reset gtwiz_reset_inst (
-    .gtwiz_reset_clk_freerun_in         (gtwiz_reset_clk_freerun_in),
+    .drp_clk_100         (drp_clk_100),
     .gtwiz_reset_all_in                 (gtwiz_reset_all_in),
     .gtwiz_reset_tx_pll_and_datapath_in (gtwiz_reset_tx_pll_and_datapath_in),
     .gtwiz_reset_tx_datapath_in         (gtwiz_reset_tx_datapath_in),

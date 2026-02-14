@@ -375,7 +375,7 @@ output wire [0 : 0] txresetdone_out;
     .gtwiz_buffbypass_rx_start_user_in(1'B0),
     .gtwiz_buffbypass_rx_done_out(),
     .gtwiz_buffbypass_rx_error_out(),
-    .gtwiz_reset_clk_freerun_in(1'B0),
+    .drp_clk_100(1'B0),
     .gtwiz_reset_all_in(1'B0),
     .gtwiz_reset_tx_pll_and_datapath_in(1'B0),
     .gtwiz_reset_tx_datapath_in(1'B0),
