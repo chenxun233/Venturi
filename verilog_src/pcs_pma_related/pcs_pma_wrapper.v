@@ -11,13 +11,13 @@
 //   eth_phy_10g                (XGMII <-> 64b/66b SERDES)
 // =============================================================================
 
-module SFP_wrapper #(
+module pcs_pma_wrapper #(
     parameter DATA_WIDTH = 64,
     parameter CTRL_WIDTH = DATA_WIDTH/8
 )(
     // Free-running clock and reset (100 MHz, active-high reset)
     input  wire                  i_drp_clk,
-    input  wire                  i_ctrl_rst,
+    input  wire                  i_rst_p,
 
     // GT reference clock (161.1328125 MHz differential)
     input  wire                  i_gt_refclk_p,
@@ -40,10 +40,6 @@ module SFP_wrapper #(
     output wire                  o_xgmii_tx_rst,
     output wire                  o_xgmii_rx_clk,
     output wire                  o_xgmii_rx_rst,
-
-    // Status
-    output wire                  o_rx_block_lock,
-    output wire                  o_rx_high_ber,
     output wire                  o_rx_status
 );
 
@@ -52,9 +48,7 @@ module SFP_wrapper #(
   // Internal signals
   // ===========================================================================
 
-  // User clocking
-  wire [0:0] gtwiz_userclk_tx_usrclk2_int;
-  wire [0:0] gtwiz_userclk_rx_usrclk2_int;
+
 
   // Reset controller
   wire [0:0] gtwiz_reset_tx_done_int;
@@ -96,38 +90,30 @@ module SFP_wrapper #(
   // 10GBASE-R PHY (Corundum eth_phy_10g)
   // ===========================================================================
 
-  wire phy_tx_clk = gtwiz_userclk_tx_usrclk2_int[0];
-  wire phy_rx_clk = gtwiz_userclk_rx_usrclk2_int[0];
+  wire phy_tx_clk ;
+  wire phy_rx_clk ;
 
   // TX reset: hold PHY in reset until GT TX is done
-  wire phy_tx_rst_raw;
-  sync_reset #(.N(4)) tx_reset_sync_inst (
-    .clk (phy_tx_clk),
-    .rst (~gtwiz_reset_tx_done_int[0]),
-    .out (phy_tx_rst_raw)
+  wire phy_tx_rst;
+  rst_synchronizer #(
+    .IN_ACTIVE_HIGH  (1),
+    .OUT_ACTIVE_HIGH (1)
+  ) tx_reset_sync_inst (
+    .i_clk   (phy_tx_clk),
+    .rst_in  (~gtwiz_reset_tx_done_int[0]),
+    .rst_out (phy_tx_rst)
   );
-  (* shreg_extract = "no" *) reg phy_tx_rst_r1 = 1'b1;
-  (* shreg_extract = "no" *) reg phy_tx_rst_r2 = 1'b1;
-  always @(posedge phy_tx_clk) begin
-    phy_tx_rst_r1 <= phy_tx_rst_raw;
-    phy_tx_rst_r2 <= phy_tx_rst_r1;
-  end
-  wire phy_tx_rst = phy_tx_rst_r2;
 
   // RX reset: hold PHY in reset until GT RX is done
-  wire phy_rx_rst_raw;
-  sync_reset #(.N(4)) rx_reset_sync_inst (
-    .clk (phy_rx_clk),
-    .rst (~gtwiz_reset_rx_done_int[0]),
-    .out (phy_rx_rst_raw)
+  wire phy_rx_rst;
+  rst_synchronizer #(
+    .IN_ACTIVE_HIGH  (1),
+    .OUT_ACTIVE_HIGH (1)
+  ) rx_reset_sync_inst (
+    .i_clk   (phy_rx_clk),
+    .rst_in  (~gtwiz_reset_rx_done_int[0]),
+    .rst_out (phy_rx_rst)
   );
-  (* shreg_extract = "no" *) reg phy_rx_rst_r1 = 1'b1;
-  (* shreg_extract = "no" *) reg phy_rx_rst_r2 = 1'b1;
-  always @(posedge phy_rx_clk) begin
-    phy_rx_rst_r1 <= phy_rx_rst_raw;
-    phy_rx_rst_r2 <= phy_rx_rst_r1;
-  end
-  wire phy_rx_rst = phy_rx_rst_r2;
 
   // SERDES wires
   wire [63:0] serdes_tx_data;
@@ -183,8 +169,8 @@ module SFP_wrapper #(
     .rx_error_count      (),
     .rx_bad_block        (),
     .rx_sequence_error   (),
-    .rx_block_lock       (rx_block_lock_w),
-    .rx_high_ber         (rx_high_ber_w),
+    .rx_block_lock       (),
+    .rx_high_ber         (),
     .rx_status           (rx_status_w),
 
     .cfg_tx_prbs31_enable(1'b0),
@@ -192,12 +178,10 @@ module SFP_wrapper #(
   );
 
   // Output clocks and resets
-  assign o_xgmii_tx_clk  = phy_tx_clk;
-  assign o_xgmii_tx_rst  = phy_tx_rst;
-  assign o_xgmii_rx_clk  = phy_rx_clk;
-  assign o_xgmii_rx_rst  = phy_rx_rst;
-  assign o_rx_block_lock  = rx_block_lock_w;
-  assign o_rx_high_ber    = rx_high_ber_w;
+  assign o_xgmii_tx_clk   = phy_tx_clk;
+  assign o_xgmii_tx_rst   = phy_tx_rst;
+  assign o_xgmii_rx_clk   = phy_rx_clk;
+  assign o_xgmii_rx_rst   = phy_rx_rst;
   assign o_rx_status      = rx_status_w;
 
 
@@ -226,25 +210,25 @@ module SFP_wrapper #(
   // ===========================================================================
 
   eth_xcvr_gth_full_wrapper example_wrapper_inst (
-    .i_gthrxn                               (i_gt_rx_n_0)
-   ,.i_gthrxp                               (i_gt_rx_p_0)
-   ,.o_gthtxn                               (o_gt_tx_n_0)
-   ,.o_gthtxp                               (o_gt_tx_p_0)
-   ,.o_gtwiz_userclk_tx_usrclk2             (gtwiz_userclk_tx_usrclk2_int)
-   ,.o_gtwiz_userclk_rx_usrclk2             (gtwiz_userclk_rx_usrclk2_int)
-   ,.i_drp_clk                              (i_drp_clk)
-   ,.i_reset_all                             (i_ctrl_rst)
-   ,.i_rx_data_good                          (rx_status_sync)
-   ,.i_rx_reset_req                          (serdes_rx_reset_req_sync)
-   ,.o_gtwiz_reset_tx_done                   (gtwiz_reset_tx_done_int)
-   ,.o_gtwiz_reset_rx_done                   (gtwiz_reset_rx_done_int)
-   ,.i_gtwiz_userdata_tx                     (gtwiz_userdata_tx_int)
-   ,.o_gtwiz_userdata_rx                     (gtwiz_userdata_rx_int)
-   ,.i_gtrefclk00                            (sfp_mgt_refclk)
-   ,.i_rxgearboxslip                         (rxgearboxslip_int)
-   ,.i_txheader                              (txheader_int)
-   ,.i_txsequence                            (txsequence_int)
-   ,.o_rxheader                              (rxheader_int)
+    .i_gthrxn                    (i_gt_rx_n_0)
+   ,.i_gthrxp                    (i_gt_rx_p_0)
+   ,.o_gthtxn                    (o_gt_tx_n_0)
+   ,.o_gthtxp                    (o_gt_tx_p_0)
+   ,.o_gtwiz_userclk_tx_usrclk2  (phy_tx_clk)
+   ,.o_gtwiz_userclk_rx_usrclk2  (phy_rx_clk)
+   ,.i_drp_clk                   (i_drp_clk)
+   ,.i_reset_all                 (i_rst_p)
+   ,.i_rx_data_good              (rx_status_sync)
+   ,.i_rx_reset_req              (serdes_rx_reset_req_sync)
+   ,.o_gtwiz_reset_tx_done       (gtwiz_reset_tx_done_int)
+   ,.o_gtwiz_reset_rx_done       (gtwiz_reset_rx_done_int)
+   ,.i_gtwiz_userdata_tx         (gtwiz_userdata_tx_int)
+   ,.o_gtwiz_userdata_rx         (gtwiz_userdata_rx_int)
+   ,.i_gtrefclk00                (sfp_mgt_refclk)
+   ,.i_rxgearboxslip             (rxgearboxslip_int)
+   ,.i_txheader                  (txheader_int)
+   ,.i_txsequence                (txsequence_int)
+   ,.o_rxheader                  (rxheader_int)
   );
 
 

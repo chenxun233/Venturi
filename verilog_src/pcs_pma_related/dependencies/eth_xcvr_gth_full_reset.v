@@ -57,7 +57,7 @@
 // modifications you may choose to make.
 // *********************************************************************************************************************
 
-module eth_xcvr_gth_full_example_gtwiz_reset # (
+module eth_xcvr_gth_full_reset # (
 
   parameter real    P_FREERUN_FREQUENCY       = 100,
   parameter integer P_USE_CPLL_CAL            = 0,

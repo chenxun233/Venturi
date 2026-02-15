@@ -95,16 +95,14 @@ module eth_xcvr_gth_full_wrapper (
 
 
   // Combine the power good, reset done, and CDR lock indicators across all channels, per data direction
-  wire  gtpowergood_int;
+  wire  gtpowergood;
   wire  rxcdrlock_int;
   wire  txresetdone_int;
   wire  rxresetdone_int;
-  wire gtwiz_reset_gtpowergood_int;
-  wire gtwiz_reset_rxcdrlock_int;
-  wire gtwiz_reset_txresetdone_int;
-  wire gtwiz_reset_rxresetdone_int;
+  wire  gtwiz_reset_rxcdrlock_int;
+  wire  gtwiz_reset_txresetdone_int;
+  wire  gtwiz_reset_rxresetdone_int;
 
-  assign gtwiz_reset_gtpowergood_int = &gtpowergood_int;
   assign gtwiz_reset_rxcdrlock_int   = &rxcdrlock_int;
 
   wire  txresetdone_sync;
@@ -137,7 +135,7 @@ module eth_xcvr_gth_full_wrapper (
   wire gtwiz_reset_rx_cdr_stable_int;
 
   // Instantiate the single reset controller
-  eth_xcvr_gth_full_example_gtwiz_reset gtwiz_reset_inst (
+  eth_xcvr_gth_full_reset gtwiz_reset_inst (
     .drp_clk_100                        (i_drp_clk),
     .gtwiz_reset_all_in                 (i_reset_all),
     .gtwiz_reset_tx_pll_and_datapath_in (1'b0),
@@ -149,7 +147,7 @@ module eth_xcvr_gth_full_wrapper (
     .gtwiz_reset_rx_done_out            (o_gtwiz_reset_rx_done),
     .gtwiz_reset_userclk_tx_active_in   (gtwiz_userclk_tx_active),
     .gtwiz_reset_userclk_rx_active_in   (gtwiz_userclk_rx_active),
-    .gtpowergood_in                     (gtwiz_reset_gtpowergood_int),
+    .gtpowergood_in                     (gtpowergood),
     .txusrclk2_in                       (o_gtwiz_userclk_tx_usrclk2),
     .plllock_tx_in                      (qpll0lock),
     .txresetdone_in                     (gtwiz_reset_txresetdone_int),
@@ -268,7 +266,7 @@ module eth_xcvr_gth_full_wrapper (
    ,.dmonitorout_out                         (dmonitorout_int)
    ,.drpdo_out                               (drpdo_int)
    ,.drprdy_out                              (drprdy_int)
-   ,.gtpowergood_out                         (gtpowergood_int)
+   ,.gtpowergood_out                         (gtpowergood)
    ,.rxcdrlock_out                           (rxcdrlock_int)
    ,.rxdatavalid_out                         (rxdatavalid_int)
    ,.rxheader_out                            (o_rxheader)

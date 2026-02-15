@@ -257,29 +257,25 @@ ila_xgmii_rx ila_xgmii_rx_inst (
     .probe2 (w_xgmii_rx_rst )   // [0:0]  XGMII RX reset
 );
 
-reset_sync #(
-    .I_ACTIVE_HIGH(0),
-    .O_ACTIVE_HIGH(1)
-)
-sfp_ctrl_reset_sync_inst (
-    .i_sync_clk                     (sys_clk_100),
-    .i_async_reset                  (i_pcie_rst_n),
-    .o_sync_reset                   (w_sys_rst)
+rst_synchronizer #(
+    .IN_ACTIVE_HIGH (0),
+    .OUT_ACTIVE_HIGH(1)
+) sfp_ctrl_reset_sync_inst (
+    .i_clk   (sys_clk_100),
+    .rst_in  (i_pcie_rst_n),
+    .rst_out (w_sys_rst)
 );
 
-wire w_sfp_rx_block_lock;
-wire w_sfp_rx_high_ber;
 wire w_sfp_rx_status;
 
-// In this standalone test design (no Corundum control path), force optics TX enabled.
 assign sfp_0_tx_disable = 1'b0;
 
-SFP_wrapper #(
+pcs_pma_wrapper #(
     .DATA_WIDTH(64)
 )
-orderbook_sfp_wrapper_inst (
+pcs_pma_wrapper_inst (
     .i_drp_clk                      (sys_clk_100        ),
-    .i_ctrl_rst                     (w_sys_rst          ),
+    .i_rst_p                        (w_sys_rst          ),
     .i_gt_refclk_p                  (i_gt_refclk_p      ),
     .i_gt_refclk_n                  (i_gt_refclk_n      ),
     .i_gt_rx_p_0                    (i_gt_rx_p_0        ),
@@ -294,8 +290,6 @@ orderbook_sfp_wrapper_inst (
     .o_xgmii_tx_rst                 (w_xgmii_tx_rst     ),
     .o_xgmii_rx_clk                 (w_xgmii_rx_clk     ),
     .o_xgmii_rx_rst                 (w_xgmii_rx_rst     ),
-    .o_rx_block_lock                (w_sfp_rx_block_lock ),
-    .o_rx_high_ber                  (w_sfp_rx_high_ber   ),
     .o_rx_status                    (w_sfp_rx_status     )
 );
 
