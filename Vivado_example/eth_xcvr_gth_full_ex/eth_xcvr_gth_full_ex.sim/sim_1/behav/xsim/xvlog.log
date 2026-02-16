@@ -1,0 +1,58 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/eth_xcvr_gth_full/sim/gtwizard_ultrascale_v1_7_gthe3_channel.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module gtwizard_ultrascale_v1_7_5_gthe3_channel
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/eth_xcvr_gth_full/sim/eth_xcvr_gth_full_gthe3_channel_wrapper.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_gthe3_channel_wrapper
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/eth_xcvr_gth_full/sim/gtwizard_ultrascale_v1_7_gthe3_common.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module gtwizard_ultrascale_v1_7_5_gthe3_common
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/eth_xcvr_gth_full/sim/eth_xcvr_gth_full_gthe3_common_wrapper.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_gthe3_common_wrapper
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/eth_xcvr_gth_full/sim/eth_xcvr_gth_full_gtwizard_gthe3.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_gtwizard_gthe3
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/eth_xcvr_gth_full/sim/eth_xcvr_gth_full_gtwizard_top.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_gtwizard_top
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/eth_xcvr_gth_full/sim/eth_xcvr_gth_full.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/ila_xgmii_rx/sim/ila_xgmii_rx.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module ila_xgmii_rx
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.srcs/sources_1/ip/ila_gt_debug/sim/ila_gt_debug.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module ila_gt_debug
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_phy_10g.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_phy_10g
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_phy_10g_rx.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_phy_10g_rx
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_phy_10g_rx_ber_mon.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_phy_10g_rx_ber_mon
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_phy_10g_rx_frame_sync.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_phy_10g_rx_frame_sync
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_phy_10g_rx_if.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_phy_10g_rx_if
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_phy_10g_rx_watchdog.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_phy_10g_rx_watchdog
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_phy_10g_tx.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_phy_10g_tx
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_phy_10g_tx_if.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_phy_10g_tx_if
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_bit_sync.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module bit_synchronizer
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_gtwiz_reset.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_example_gtwiz_reset
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_reset_inv_sync.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_example_reset_inv_synchronizer
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_reset_sync.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module rst_synchronizer
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_top.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_example_top
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_wrapper.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_wrapper
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/lfsr.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module lfsr
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/sync_reset.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module sync_reset
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/xgmii_baser_dec_64.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module xgmii_baser_dec_64
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/xgmii_baser_enc_64.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module xgmii_baser_enc_64
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_top_sim.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module eth_xcvr_gth_full_example_top_sim
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.sim/sim_1/behav/xsim/glbl.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module glbl

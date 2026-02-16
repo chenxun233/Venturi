@@ -1,0 +1,11 @@
+Vivado Simulator 2018.3
+Copyright 1986-1999, 2001-2018 Xilinx, Inc. All Rights Reserved.
+Running: /home/chenxun/Vivado/Vivado/2018.3/bin/unwrapped/lnx64.o/xelab -wto b5edf07a1b054252ade0fcb4038ddd7e --incr --debug typical --relax --mt 8 -L gtwizard_ultrascale_v1_7_5 -L xil_defaultlib -L unisims_ver -L unimacro_ver -L secureip -L xpm --snapshot eth_xcvr_gth_full_example_top_sim_behav xil_defaultlib.eth_xcvr_gth_full_example_top_sim xil_defaultlib.glbl -log elaborate.log 
+Using 8 slave threads.
+Starting static elaboration
+ERROR: [VRFC 10-3180] cannot find port 'link_down_latched_out' on this module [/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_top_sim.v:198]
+ERROR: [VRFC 10-3180] cannot find port 'link_status_out' on this module [/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_top_sim.v:197]
+ERROR: [VRFC 10-3180] cannot find port 'link_down_latched_reset_in' on this module [/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_top_sim.v:196]
+ERROR: [VRFC 10-3180] cannot find port 'hb_gtwiz_reset_clk_freerun_in' on this module [/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_top_sim.v:194]
+ERROR: [VRFC 10-2063] Module <eth_xcvr_gth_full_init> not found while processing module instance <example_init_inst> [/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/imports/eth_xcvr_gth_full_example_top.v:366]
+ERROR: [XSIM 43-3322] Static elaboration of top level Verilog design unit(s) in library work failed.

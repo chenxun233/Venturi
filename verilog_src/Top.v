@@ -245,17 +245,48 @@ wire    w_xgmii_rx_rst;
 wire [63:0]  w_xgmii_rxd      ;
 wire [7:0]   w_xgmii_rxc      ;
 
+// MAC RX: XGMII -> AXI Stream (frame delineation)
+wire [63:0]  w_axi_rx_data    ;
+wire         w_axi_rx_valid   ;
+wire [7:0]   w_axi_rx_keep    ;
+wire         w_axi_rx_last     ;
+wire         w_axi_rx_ready    ;
+assign w_axi_rx_ready = 1'b1;   // no back-pressure for now; tie to FIFO/consumer later
+
+MAC_layer_rx #(
+    .DATA_WIDTH (64),
+    .CTRL_WIDTH (8)
+) MAC_layer_rx_inst (
+    .i_xgmii_rx_clk   (w_xgmii_rx_clk   ),
+    .i_xgmii_rx_rst   (w_xgmii_rx_rst   ),
+    .i_xgmii_rxd      (w_xgmii_rxd      ),
+    .i_xgmii_rxc      (w_xgmii_rxc      ),
+    .i_rx_status      (w_sfp_rx_status  ),
+    .o_axi_rx_data    (w_axi_rx_data    ),
+    .o_axi_rx_valid   (w_axi_rx_valid   ),
+    .o_axi_rx_keep    (w_axi_rx_keep    ),
+    .o_axi_rx_last    (w_axi_rx_last    ),
+    .i_axi_rx_ready   (w_axi_rx_ready   )
+);
+
 // ILA for XGMII RX debug — clocked in the recovered RX clock domain
 // Create IP: ila_xgmii_rx
 //   probe0 : 64 bits  (w_xgmii_rxd)
 //   probe1 :  8 bits  (w_xgmii_rxc)
 //   probe2 :  1 bit   (w_xgmii_rx_rst)
-ila_xgmii_rx ila_xgmii_rx_inst (
+
+
+ila_rx ila_axi_rx_inst (
     .clk    (w_xgmii_rx_clk ),
-    .probe0 (w_xgmii_rxd    ),  // [63:0] XGMII RX data
-    .probe1 (w_xgmii_rxc    ),  // [7:0]  XGMII RX control
-    .probe2 (w_xgmii_rx_rst )   // [0:0]  XGMII RX reset
+    .probe0 (w_axi_rx_data  ), // [63:0]
+    .probe1 (w_axi_rx_valid ), // 
+    .probe2 (w_axi_rx_keep  ), // [7:0]
+    .probe3 (w_axi_rx_last  ),
+    .probe4 (w_xgmii_rxd    ),  // [63:0] XGMII RX data
+    .probe5 (w_xgmii_rxc    ),  // [7:0]  XGMII RX control
+    .probe6 (w_xgmii_rx_rst )   // [0:0]  XGMII RX reset
 );
+
 
 rst_synchronizer #(
     .IN_ACTIVE_HIGH (0),

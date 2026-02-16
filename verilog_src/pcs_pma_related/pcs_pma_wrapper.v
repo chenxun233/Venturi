@@ -15,39 +15,27 @@ module pcs_pma_wrapper #(
     parameter DATA_WIDTH = 64,
     parameter CTRL_WIDTH = DATA_WIDTH/8
 )(
-    // Free-running clock and reset (100 MHz, active-high reset)
+    // outside
     input  wire                  i_drp_clk,
     input  wire                  i_rst_p,
-
-    // GT reference clock (161.1328125 MHz differential)
     input  wire                  i_gt_refclk_p,
     input  wire                  i_gt_refclk_n,
-
-    // GT serial pins
     input  wire                  i_gt_rx_p_0,
     input  wire                  i_gt_rx_n_0,
     output wire                  o_gt_tx_p_0,
     output wire                  o_gt_tx_n_0,
 
-    // XGMII interface
+    // MAC interface
     input  wire [DATA_WIDTH-1:0] i_xgmii_txd,
     input  wire [CTRL_WIDTH-1:0] i_xgmii_txc,
     output wire [DATA_WIDTH-1:0] o_xgmii_rxd,
     output wire [CTRL_WIDTH-1:0] o_xgmii_rxc,
-
-    // XGMII clocks and resets (active-high resets)
     output wire                  o_xgmii_tx_clk,
-    output wire                  o_xgmii_tx_rst,
+    output wire                  o_xgmii_tx_rst,  // active high
     output wire                  o_xgmii_rx_clk,
-    output wire                  o_xgmii_rx_rst,
+    output wire                  o_xgmii_rx_rst,  // active high
     output wire                  o_rx_status
 );
-
-
-  // ===========================================================================
-  // Internal signals
-  // ===========================================================================
-
 
 
   // Reset controller
