@@ -9,117 +9,66 @@
       </db_ref>
    </db_ref_list>
    <zoom_setting>
-      <ZoomStartTime time="0fs"></ZoomStartTime>
-      <ZoomEndTime time="1024001fs"></ZoomEndTime>
+      <ZoomStartTime time="227986fs"></ZoomStartTime>
+      <ZoomEndTime time="232172fs"></ZoomEndTime>
       <Cursor1Time time="0fs"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
       <NameColumnWidth column_width="286"></NameColumnWidth>
-      <ValueColumnWidth column_width="116"></ValueColumnWidth>
+      <ValueColumnWidth column_width="112"></ValueColumnWidth>
    </column_width_setting>
-   <WVObjectSize size="13" />
+   <WVObjectSize size="7" />
    <wave_markers>
    </wave_markers>
-   <wvobject type="logic" fp_name="gtwiz_reset_tx_done_sync">
+   <wvobject type="array" fp_name="w_axi_rx_data">
       <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">gtwiz_reset_tx_done_sync</obj_property>
-      <obj_property name="ObjectShortName">gtwiz_reset_tx_done_sync</obj_property>
+      <obj_property name="ElementShortName">w_axi_rx_data[63:0]</obj_property>
+      <obj_property name="ObjectShortName">w_axi_rx_data[63:0]</obj_property>
       <obj_property name="Radix">HEXRADIX</obj_property>
       <obj_property name="LABELRADIX">true</obj_property>
       <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
    </wvobject>
-   <wvobject type="logic" fp_name="gtwiz_reset_rx_done_sync">
+   <wvobject type="array" fp_name="w_axi_rx_keep">
       <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">gtwiz_reset_rx_done_sync</obj_property>
-      <obj_property name="ObjectShortName">gtwiz_reset_rx_done_sync</obj_property>
+      <obj_property name="ElementShortName">w_axi_rx_keep[7:0]</obj_property>
+      <obj_property name="ObjectShortName">w_axi_rx_keep[7:0]</obj_property>
+      <obj_property name="Radix">BINARYRADIX</obj_property>
+      <obj_property name="LABELRADIX">true</obj_property>
+      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="w_axi_rx_last">
+      <obj_property name="DisplayName">FullPathName</obj_property>
+      <obj_property name="ElementShortName">w_axi_rx_last</obj_property>
+      <obj_property name="ObjectShortName">w_axi_rx_last</obj_property>
+      <obj_property name="LABELRADIX">true</obj_property>
+      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="w_axi_rx_valid">
+      <obj_property name="DisplayName">FullPathName</obj_property>
+      <obj_property name="ElementShortName">w_axi_rx_valid</obj_property>
+      <obj_property name="ObjectShortName">w_axi_rx_valid</obj_property>
+      <obj_property name="LABELRADIX">true</obj_property>
+      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
+   </wvobject>
+   <wvobject type="logic" fp_name="w_xgmii_rx_rst">
+      <obj_property name="DisplayName">FullPathName</obj_property>
+      <obj_property name="ElementShortName">w_xgmii_rx_rst</obj_property>
+      <obj_property name="ObjectShortName">w_xgmii_rx_rst</obj_property>
+      <obj_property name="LABELRADIX">true</obj_property>
+      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="w_xgmii_rxc">
+      <obj_property name="DisplayName">FullPathName</obj_property>
+      <obj_property name="ElementShortName">w_xgmii_rxc[7:0]</obj_property>
+      <obj_property name="ObjectShortName">w_xgmii_rxc[7:0]</obj_property>
       <obj_property name="Radix">HEXRADIX</obj_property>
       <obj_property name="LABELRADIX">true</obj_property>
       <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
    </wvobject>
-   <wvobject type="logic" fp_name="rxprgdivresetdone_sync">
+   <wvobject type="array" fp_name="w_xgmii_rxd">
       <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">rxprgdivresetdone_sync</obj_property>
-      <obj_property name="ObjectShortName">rxprgdivresetdone_sync</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="txprgdivresetdone_sync">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">txprgdivresetdone_sync</obj_property>
-      <obj_property name="ObjectShortName">txprgdivresetdone_sync</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="rxpmaresetdone_sync">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">rxpmaresetdone_sync</obj_property>
-      <obj_property name="ObjectShortName">rxpmaresetdone_sync</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="txpmaresetdone_sync">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">txpmaresetdone_sync</obj_property>
-      <obj_property name="ObjectShortName">txpmaresetdone_sync</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="rx_block_lock_sync">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">rx_block_lock_sync</obj_property>
-      <obj_property name="ObjectShortName">rx_block_lock_sync</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="rx_status_freerun_sync">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">rx_status_freerun_sync</obj_property>
-      <obj_property name="ObjectShortName">rx_status_freerun_sync</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="gtwiz_reset_rx_cdr_stable_sync">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">gtwiz_reset_rx_cdr_stable_sync</obj_property>
-      <obj_property name="ObjectShortName">gtwiz_reset_rx_cdr_stable_sync</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="gtpowergood_int">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">gtpowergood_int</obj_property>
-      <obj_property name="ObjectShortName">gtpowergood_int</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="init_done_int">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">init_done_int</obj_property>
-      <obj_property name="ObjectShortName">init_done_int</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="array" fp_name="init_retry_ctr_int">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">init_retry_ctr_int[3:0]</obj_property>
-      <obj_property name="ObjectShortName">init_retry_ctr_int[3:0]</obj_property>
-      <obj_property name="Radix">HEXRADIX</obj_property>
-      <obj_property name="LABELRADIX">true</obj_property>
-      <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>
-   </wvobject>
-   <wvobject type="logic" fp_name="hb_gtwiz_reset_all_int">
-      <obj_property name="DisplayName">FullPathName</obj_property>
-      <obj_property name="ElementShortName">hb_gtwiz_reset_all_int</obj_property>
-      <obj_property name="ObjectShortName">hb_gtwiz_reset_all_int</obj_property>
+      <obj_property name="ElementShortName">w_xgmii_rxd[63:0]</obj_property>
+      <obj_property name="ObjectShortName">w_xgmii_rxd[63:0]</obj_property>
       <obj_property name="Radix">HEXRADIX</obj_property>
       <obj_property name="LABELRADIX">true</obj_property>
       <obj_property name="WaveformStyle">STYLE_DIGITAL</obj_property>

@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    const char* pci_addr = "0000:06:00.0";
+    const char* pci_addr = "0000:05:00.0";
     const char* test_num = argv[1];
 
     printf("=== FPGA PCIe Hello World Test (v2) ===\n");
@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
     int test_num_int = std::atoi(test_num);
     switch (test_num_int) {
         case 1:
-            dev->test_scratch_register();
+            dev->test_register();
             break;
         case 2:
             dev->trigger_interrupt();

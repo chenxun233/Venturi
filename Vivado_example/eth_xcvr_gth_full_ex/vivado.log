@@ -544,3 +544,56 @@ wait_on_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL
 display_hw_ila_data [upload_hw_ila_data [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]]
 INFO: [Labtools 27-1966] The ILA core 'hw_ila_2' triggered at 2026-Feb-16 16:41:38
 INFO: [Labtools 27-3304] ILA Waveform data saved to file /home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.hw/backup/hw_ila_data_2.ila. Use Tcl command 'read_hw_ila_data' or Vivado File->Import->Import ILA Data menu item to import the previously saved data.
+run_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]
+ERROR: [Xicom 50-38] xicom: Unable to connect to debug core(s) on the target device. Check cable connectivity and that the target board is powered up then use the disconnect_hw_server and connect_hw_server to re-initialize the hardware target. Use open_hw_target to re-register the hardware device.
+ERROR: [Xicom 50-38] xicom: Unable to connect to debug core(s) on the target device. Check cable connectivity and that the target board is powered up then use the disconnect_hw_server and connect_hw_server to re-initialize the hardware target. Use open_hw_target to re-register the hardware device.
+ERROR: [Xicom 50-38] xicom: Unable to connect to debug core(s) on the target device. Check cable connectivity and that the target board is powered up then use the disconnect_hw_server and connect_hw_server to re-initialize the hardware target. Use open_hw_target to re-register the hardware device.
+ERROR: [Xicom 50-38] xicom: Unable to connect to debug core(s) on the target device. Check cable connectivity and that the target board is powered up then use the disconnect_hw_server and connect_hw_server to re-initialize the hardware target. Use open_hw_target to re-register the hardware device.
+ERROR: [Xicom 50-38] xicom: Unable to connect to debug core(s) on the target device. Check cable connectivity and that the target board is powered up then use the disconnect_hw_server and connect_hw_server to re-initialize the hardware target. Use open_hw_target to re-register the hardware device.
+ERROR: [Labtools 27-3176] hw_server failed during internal command.
+Resolution: Check that the hw_server is running and the hardware connectivity to the target
+refresh_hw_device [lindex [get_hw_devices xcku035_0] 0]
+INFO: [Labtools 27-2302] Device xcku035 (JTAG device index = 0) is programmed with a design that has 1 ILA core(s).
+WARNING: [Labtools 27-3413] Dropping logic core with cellname:'ila_xgmii_rx_inst' at location 'uuid_104AB64F73D15399A776650EEE12417B' from probes file, since it cannot be found on the programmed device.
+ERROR: [Labtools 27-3412] Mismatch between the design programmed into the device 'xcku035' (JTAG device index = '0'
+ and the probes file(s) '/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.runs/impl_1/eth_xcvr_gth_full_example_top.ltx'.
+ The hw_probe 'gtpowergood_int' in the probes file has port index '9'. This port location for the ILA core at location (uuid_B65D52E476D5562DB4292AFCA0F6D0A3), does not support a data probe.
+.
+Resolution: 
+1) Ensure that the clock signal connected to the debug core and/or debug hub is clean and free-running.
+2) Ensure that the clock connected to the debug core and/or debug hub meets all timing constraints.
+3) Ensure that the JTAG clock frequency is 2.5x times slower than the frequency of the clock connected to your debug hub.
+run_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_inst"}]
+ERROR: [Labtools 27-188] Use refresh_hw_device command, with a valid [debug_nets.ltx] file before running this command.
+set_property PROBES.FILE {/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.runs/impl_1/eth_xcvr_gth_full_example_top.ltx} [get_hw_devices xcku035_0]
+set_property FULL_PROBES.FILE {/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.runs/impl_1/eth_xcvr_gth_full_example_top.ltx} [get_hw_devices xcku035_0]
+set_property PROGRAM.FILE {/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.runs/impl_1/eth_xcvr_gth_full_example_top.bit} [get_hw_devices xcku035_0]
+program_hw_devices [get_hw_devices xcku035_0]
+INFO: [Labtools 27-3164] End of startup status: HIGH
+refresh_hw_device [lindex [get_hw_devices xcku035_0] 0]
+INFO: [Labtools 27-2302] Device xcku035 (JTAG device index = 0) is programmed with a design that has 2 ILA core(s).
+run_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]
+INFO: [Labtools 27-1964] The ILA core 'hw_ila_2' trigger was armed at 2026-Feb-17 01:01:51
+wait_on_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]
+display_hw_ila_data [upload_hw_ila_data [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_xgmii_rx_inst"}]]
+INFO: [Labtools 27-1966] The ILA core 'hw_ila_2' triggered at 2026-Feb-17 01:01:51
+INFO: [Labtools 27-3304] ILA Waveform data saved to file /home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.hw/backup/hw_ila_data_2.ila. Use Tcl command 'read_hw_ila_data' or Vivado File->Import->Import ILA Data menu item to import the previously saved data.
+set_property PROBES.FILE {/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/impl_1/top.ltx} [get_hw_devices xcku035_0]
+set_property FULL_PROBES.FILE {/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/impl_1/top.ltx} [get_hw_devices xcku035_0]
+set_property PROGRAM.FILE {/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/impl_1/top.bit} [get_hw_devices xcku035_0]
+program_hw_devices [get_hw_devices xcku035_0]
+INFO: [Labtools 27-3164] End of startup status: HIGH
+refresh_hw_device [lindex [get_hw_devices xcku035_0] 0]
+INFO: [Labtools 27-2302] Device xcku035 (JTAG device index = 0) is programmed with a design that has 1 ILA core(s).
+add_wave -into {hw_ila_data_1.wcfg} -radix hex { {w_axi_rx_data} {w_axi_rx_keep} {w_axi_rx_last} {w_axi_rx_valid} {w_xgmii_rx_rst} {w_xgmii_rxc} {w_xgmii_rxd} }
+set_property TRIGGER_COMPARE_VALUE eq1'b1 [get_hw_probes w_axi_rx_valid -of_objects [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_axi_rx_inst"}]]
+run_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_axi_rx_inst"}]
+INFO: [Labtools 27-1964] The ILA core 'hw_ila_1' trigger was armed at 2026-Feb-17 01:03:45
+wait_on_hw_ila [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_axi_rx_inst"}]
+display_hw_ila_data [upload_hw_ila_data [get_hw_ilas -of_objects [get_hw_devices xcku035_0] -filter {CELL_NAME=~"ila_axi_rx_inst"}]]
+INFO: [Labtools 27-1966] The ILA core 'hw_ila_1' triggered at 2026-Feb-17 01:03:45
+INFO: [Labtools 27-3304] ILA Waveform data saved to file /home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.hw/backup/hw_ila_data_1.ila. Use Tcl command 'read_hw_ila_data' or Vivado File->Import->Import ILA Data menu item to import the previously saved data.
+save_wave_config {/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.hw/hw_1/wave/hw_ila_data_1/hw_ila_data_1.wcfg}
+save_wave_config {/home/chenxun/Documents/Project/Venturi/Vivado_example/eth_xcvr_gth_full_ex/eth_xcvr_gth_full_ex.hw/hw_1/wave/hw_ila_data_2/hw_ila_data_2.wcfg}
+exit
+INFO: [Common 17-206] Exiting Vivado at Tue Feb 17 21:35:33 2026...

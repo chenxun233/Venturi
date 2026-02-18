@@ -53,7 +53,8 @@ void FPGADev::_initStatus(DevStatus *stats) {
 
 void FPGADev::write_reg64(uint32_t offset, uint64_t value) {
   if (m_basic_para.p_bar_addr[0] == nullptr) {
-    error("BAR0 not mapped!");
+    warn("BAR0 not mapped!");
+    printf("BAR0 is, %p\n", m_basic_para.p_bar_addr[0]);
     return;
   }
   __asm__ volatile("" ::: "memory");
@@ -99,59 +100,45 @@ uint32_t FPGADev::read_reg32(uint32_t offset) {
 // Test Functions
 //-----------------------------------------------------------------------------
 
-bool FPGADev::test_scratch_register() {
-  info("--- Test 3: Scratch Register ---");
+bool FPGADev::test_register() {
+  info("--- Test 1: Scratch Register ---");
 
-  const uint64_t test_values[] = {0x1111111111111111ULL, 0xFFFFFFFFFFFFFFFFULL,
-                                  0xAAAAAAAAAAAAAAAAULL, 0x5555555555555555ULL,
-                                  0x123456789ABCDEF0ULL};
+  const uint64_t test_values[] = {0x000001005E000001ULL, 0x00000000E9010203ULL,
+                                  0x00000000000004D2ULL}; // mac, ip, port
 
-  int passed = 0;
-  int total = sizeof(test_values) / sizeof(test_values[0]);
-
-  for (int i = 0; i < total; i++) {
-    uint64_t write_val = test_values[i];
-    write_reg64(REG_SCRATCH, write_val);
-    uint64_t read_val = read_reg64(REG_SCRATCH);
-
-    if (read_val == write_val) {
-      info("  Write: 0x%016lX, Read: 0x%016lX [PASS]", write_val, read_val);
-      passed++;
-    } else {
-      info("  Write: 0x%016lX, Read: 0x%016lX [FAIL]", write_val, read_val);
-    }
-  }
-
-  info("  Scratch test: %d/%d passed", passed, total);
-  return (passed == total);
+  write_reg64(REG_MAC, test_values[0]);
+  write_reg64(REG_IP, test_values[1]);
+  write_reg64(REG_PORT, test_values[2]);
+  write_reg64(REG_ETH_FIRE, 0x1); // Trigger "fire" to capture values into scratch reg
+  return true;
 }
 
 void FPGADev::trigger_interrupt() {
   info("--- Test 4: Trigger MSI Interrupt ---");
 
-  // Read status before
-  uint64_t status_before = read_reg64(REG_STATUS);
-  uint16_t count_before = (status_before >> 16) & 0xFFFF;
+  // // Read status before
+  // uint64_t status_before = read_reg64(REG_STATUS);
+  // uint16_t count_before = (status_before >> 16) & 0xFFFF;
 
-  // Trigger interrupt by writing to INT_CTRL
-  write_reg32(REG_INT_CTRL, 0x1);
+  // // Trigger interrupt by writing to INT_CTRL
+  // write_reg32(REG_INT_CTRL, 0x1);
 
-  // Small delay for interrupt to process
-  usleep(1000);
+  // // Small delay for interrupt to process
+  // usleep(1000);
 
-  // Read status after
-  uint64_t status_after = read_reg64(REG_STATUS);
-  uint16_t count_after = (status_after >> 16) & 0xFFFF;
+  // // Read status after
+  // uint64_t status_after = read_reg64(REG_STATUS);
+  // uint16_t count_after = (status_after >> 16) & 0xFFFF;
 
-  info("  Interrupt count before: %u", count_before);
-  info("  Interrupt count after:  %u", count_after);
+  // info("  Interrupt count before: %u", count_before);
+  // info("  Interrupt count after:  %u", count_after);
 
-  if (count_after > count_before) {
-    info("  [PASS] Interrupt counter incremented!");
-  } else {
-    warn("  [WARN] Interrupt counter did not increment (MSI may not be "
-         "enabled)");
-  }
+  // if (count_after > count_before) {
+  //   info("  [PASS] Interrupt counter incremented!");
+  // } else {
+  //   warn("  [WARN] Interrupt counter did not increment (MSI may not be "
+  //        "enabled)");
+  // }
 }
 
 //-----------------------------------------------------------------------------

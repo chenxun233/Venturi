@@ -48,7 +48,7 @@ input  wire         sfp_0_npres             // SFP0 Not-Present    (0 = module i
 );
 
 
-
+assign sfp_0_tx_disable = 1'b0;
 assign sfp_0_rs = 1'b0;
 
 // =========================================================================
@@ -174,36 +174,36 @@ pcie_wrapper #(
     .i_pci_exp_rxp              (pci_exp_rxp),
 
     // System Interface
-    .pcie_clk_50                  (pcie_clk_50),
-    .pcie_clk_100                (pcie_clk_100),
+    .pcie_clk_50                (pcie_clk_50),
+    .pcie_clk_100               (pcie_clk_100),
     .i_pcie_rst_n               (i_pcie_rst_n),        // Active-low (IP configured for ACTIVE LOW)
     .o_user_clk_250             (user_clk_250),
     .o_user_reset_p             (user_reset_p),      // Active-high
 
     // CQ Parser Outputs
-    .o_cq_valid                 (cq_valid),
-    .o_cq_type                  (cq_type),
-    .o_cq_reg_addr              (cq_reg_addr),
-    .o_cq_payload               (cq_payload),
-    .o_cq_bar_id                (cq_bar_id),
-    .o_cq_requester_id          (cq_requester_id),
-    .o_cq_tag                   (cq_tag),
-    .o_cq_tc                    (cq_tc),
-    .o_cq_lower_addr            (cq_lower_addr),
+    .o_cq_valid                 (cq_valid           ),
+    .o_cq_type                  (cq_type            ),
+    .o_cq_reg_addr              (cq_reg_addr        ),
+    .o_cq_payload               (cq_payload         ),
+    .o_cq_bar_id                (cq_bar_id          ),
+    .o_cq_requester_id          (cq_requester_id    ),
+    .o_cq_tag                   (cq_tag             ),
+    .o_cq_tc                    (cq_tc              ),
+    .o_cq_lower_addr            (cq_lower_addr      ),
     .o_cq_payload_dw_count      (cq_payload_dw_count),
-    .o_cq_last                  (cq_last),
+    .o_cq_last                  (cq_last            ),
 
     // CC Formatter Inputs
-    .o_cc_ready                 (cc_ready),
-    .i_cc_valid                 (cc_valid),
-    .i_cc_requester_id          (cc_requester_id),
-    .i_cc_tag                   (cc_tag),
-    .i_cc_tc                    (cc_tc),
-    .i_cc_lower_addr            (cc_lower_addr),
-    .i_cc_dword_count           (cc_dword_count),
-    .i_cc_status                (cc_status),
-    .i_cc_payload               (cc_payload),
-    .i_cc_last                  (cc_last),
+    .o_cc_ready                 (cc_ready           ),
+    .i_cc_valid                 (cc_valid           ),
+    .i_cc_requester_id          (cc_requester_id    ),
+    .i_cc_tag                   (cc_tag             ),
+    .i_cc_tc                    (cc_tc              ),
+    .i_cc_lower_addr            (cc_lower_addr      ),
+    .i_cc_dword_count           (cc_dword_count     ),
+    .i_cc_status                (cc_status          ),
+    .i_cc_payload               (cc_payload         ),
+    .i_cc_last                  (cc_last            ),
 
     // RQ Formatter Inputs
     .o_rq_ready                 (rq_ready),
@@ -269,44 +269,96 @@ MAC_layer_rx #(
     .i_axi_rx_ready   (w_axi_rx_ready   )
 );
 
-// ILA for XGMII RX debug — clocked in the recovered RX clock domain
-// Create IP: ila_xgmii_rx
-//   probe0 : 64 bits  (w_xgmii_rxd)
-//   probe1 :  8 bits  (w_xgmii_rxc)
-//   probe2 :  1 bit   (w_xgmii_rx_rst)
-
-
-ila_rx ila_axi_rx_inst (
-    .clk    (w_xgmii_rx_clk ),
-    .probe0 (w_axi_rx_data  ), // [63:0]
-    .probe1 (w_axi_rx_valid ), // 
-    .probe2 (w_axi_rx_keep  ), // [7:0]
-    .probe3 (w_axi_rx_last  ),
-    .probe4 (w_xgmii_rxd    ),  // [63:0] XGMII RX data
-    .probe5 (w_xgmii_rxc    ),  // [7:0]  XGMII RX control
-    .probe6 (w_xgmii_rx_rst )   // [0:0]  XGMII RX reset
+order_book_parser #(
+)
+order_book_parser_inst 
+(
+// mac layer rx interface
+.i_clk_156       (w_xgmii_rx_clk   ),
+.i_rst           (w_xgmii_rx_rst   ),
+.i_axi_rx_data   (w_axi_rx_data    ),
+.i_axi_rx_valid  (w_axi_rx_valid   ),
+.i_axi_rx_keep   (w_axi_rx_keep    ),
+.i_axi_rx_last   (w_axi_rx_last    ),
+.o_axi_rx_ready  (   ),
+.o_seq_num       (), 
+.o_msg_len       (),
+.o_msg_type      (), //A, D, X, U, E, F
+.o_stock_locate  (), // the stock ID
+.o_order_ref_num (), // order reference number
+.o_buy_sell      (), 
+.o_shares        (),
+.o_price         (),
+.i_ctl_dst_mac    (o_ctl_mac_addr     ),
+.i_ctl_dst_ip     (o_ctl_ip_addr      ),
+.i_ctl_dst_port   (o_ctl_port         ),
+.i_sync_fire      (o_sync_fire        )
 );
 
 
-rst_synchronizer #(
-    .IN_ACTIVE_HIGH (0),
-    .OUT_ACTIVE_HIGH(1)
-) sfp_ctrl_reset_sync_inst (
-    .i_clk   (sys_clk_100),
-    .rst_in  (i_pcie_rst_n),
-    .rst_out (w_sys_rst)
+
+wire [47:0]   o_ctl_mac_addr        ;
+wire [31:0]   o_ctl_ip_addr         ;
+wire [15:0]   o_ctl_port            ;
+wire          o_sync_fire           ;
+
+ila_0 control (
+	.clk(w_xgmii_rx_clk), // input wire clk
+	.probe0(o_ctl_mac_addr), // input wire [47:0]  probe0  
+	.probe1(o_ctl_ip_addr), // input wire [31:0]  probe1 
+	.probe2(o_ctl_port), // input wire [7:0]  probe2 
+	.probe3(o_sync_fire) // input wire [0:0]  probe3
 );
+
+
+control_plane #()
+control_plane_inst
+(
+// pcie_wrapper interface
+.i_user_clk_250         (user_clk_250       ),
+.i_user_reset_p         (user_reset_p       ), //active hig
+.i_cq_valid             (cq_valid           ),
+.i_cq_type              (cq_type            ),
+.i_cq_reg_addr          (cq_reg_addr        ),
+.i_cq_payload           (cq_payload         ),
+.i_cq_bar_id            (cq_bar_id          ),
+.i_cq_requester_id      (cq_requester_id    ),
+.i_cq_tag               (cq_tag             ),
+.i_cq_tc                (cq_tc              ),
+.i_cq_lower_addr        (cq_lower_addr      ),
+.i_cq_payload_dw_count  (cq_payload_dw_count),
+.i_cq_last              (cq_last            ),
+.i_cc_ready             (cc_ready           ),
+.o_cc_valid             (cc_valid           ),
+.o_cc_requester_id      (cc_requester_id    ),
+.o_cc_tag               (cc_tag             ),
+.o_cc_tc                (cc_tc              ),
+.o_cc_lower_addr        (cc_lower_addr      ),
+.o_cc_dword_count       (cc_dword_count     ),
+.o_cc_status            (cc_status          ),
+.o_cc_payload           (cc_payload         ),
+.o_cc_last              (cc_last            ),
+.i_clk_156              (w_xgmii_rx_clk     ),
+.o_sync_fire            (o_sync_fire        ),
+.o_ctl_mac_addr         (o_ctl_mac_addr     ),
+.o_ctl_ip_addr          (o_ctl_ip_addr      ),
+.o_ctl_port             (o_ctl_port         )
+);
+
+
+
+
 
 wire w_sfp_rx_status;
 
-assign sfp_0_tx_disable = 1'b0;
+
 
 pcs_pma_wrapper #(
     .DATA_WIDTH(64)
 )
 pcs_pma_wrapper_inst (
     .i_drp_clk                      (sys_clk_100        ),
-    .i_rst_p                        (w_sys_rst          ),
+    .i_rst_n                        (i_pcie_rst_n       ),
     .i_gt_refclk_p                  (i_gt_refclk_p      ),
     .i_gt_refclk_n                  (i_gt_refclk_n      ),
     .i_gt_rx_p_0                    (i_gt_rx_p_0        ),

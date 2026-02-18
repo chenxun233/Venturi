@@ -40,16 +40,17 @@ public:
     void write_reg32(uint32_t offset, uint32_t value);
     uint32_t read_reg32(uint32_t offset);
     // Test functions
-    bool test_scratch_register();
+    bool test_register();
     void trigger_interrupt();
     bool test_dma_write();
     bool test_dma_roundtrip();
 
     // Register offsets
-    static constexpr uint32_t REG_SCRATCH      = 0x00;
-    static constexpr uint32_t REG_ID           = 0x04;
-    static constexpr uint32_t REG_INT_CTRL     = 0x08;
-    static constexpr uint32_t REG_STATUS       = 0x0C;
+    static constexpr uint32_t REG_ETH_FIRE     = 0x00;
+    static constexpr uint32_t REG_MAC          = 0x04;
+    static constexpr uint32_t REG_IP           = 0x08;
+    static constexpr uint32_t REG_PORT         = 0x0C;
+
     static constexpr uint32_t REG_DMA_ADDR     = 0x10;  // 64-bit DMA target address
     static constexpr uint32_t REG_DMA_CTRL     = 0x18;
     static constexpr uint32_t REG_DMA_STATUS   = 0x1C;

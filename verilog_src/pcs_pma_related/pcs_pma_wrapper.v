@@ -17,7 +17,7 @@ module pcs_pma_wrapper #(
 )(
     // outside
     input  wire                  i_drp_clk,
-    input  wire                  i_rst_p,
+    input  wire                  i_rst_n, // active low
     input  wire                  i_gt_refclk_p,
     input  wire                  i_gt_refclk_n,
     input  wire                  i_gt_rx_p_0,
@@ -205,7 +205,7 @@ module pcs_pma_wrapper #(
    ,.o_gtwiz_userclk_tx_usrclk2  (phy_tx_clk)
    ,.o_gtwiz_userclk_rx_usrclk2  (phy_rx_clk)
    ,.i_drp_clk                   (i_drp_clk)
-   ,.i_reset_all                 (i_rst_p)
+   ,.i_reset_all                 (i_sync_rst_p)
    ,.i_rx_data_good              (rx_status_sync)
    ,.i_rx_reset_req              (serdes_rx_reset_req_sync)
    ,.o_gtwiz_reset_tx_done       (gtwiz_reset_tx_done_int)
@@ -219,5 +219,13 @@ module pcs_pma_wrapper #(
    ,.o_rxheader                  (rxheader_int)
   );
 
+rst_synchronizer #(
+    .IN_ACTIVE_HIGH (0),
+    .OUT_ACTIVE_HIGH(1)
+) sfp_ctrl_reset_sync_inst (
+    .i_clk   (i_drp_clk),
+    .rst_in  (i_rst_n),
+    .rst_out (i_sync_rst_p)
+);
 
 endmodule

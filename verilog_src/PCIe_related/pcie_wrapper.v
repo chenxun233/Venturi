@@ -83,6 +83,10 @@ module pcie_wrapper #(
     output wire [15:0]                  o_pcie_requester_id
 );
 
+    // To enable this debug hook, define PCIE_ILA_ENABLE and add an ILA IP/module
+    // named ila_pcie_0 with ports:
+    //   clk, probe0[47:0], probe1[31:0], probe2[15:0], probe3[0:0]
+
     // =========================================================================
     // Internal Wires - CQ Channel (from PCIe IP to CQ_parser)
     // =========================================================================
@@ -144,11 +148,28 @@ module pcie_wrapper #(
     wire [7:0]                      cfg_fc_cplh;
     wire [11:0]                     cfg_fc_cpld;
     wire [2:0]                      cfg_fc_sel;
+    wire [5:0]                      pcie_cq_np_req_count;
 
     // =========================================================================
     // Internal Wires - Status and Error
     // =========================================================================
-    wire                            cfg_rcb_status;
+    wire                            user_lnk_up;
+    wire                            cfg_phy_link_down;
+    wire [1:0]                      cfg_phy_link_status;
+    wire [3:0]                      cfg_negotiated_width;
+    wire [2:0]                      cfg_current_speed;
+    wire [11:0]                     cfg_function_power_state;
+    wire [1:0]                      cfg_link_power_state;
+    wire                            cfg_err_cor_out;
+    wire                            cfg_err_nonfatal_out;
+    wire                            cfg_err_fatal_out;
+    wire                            cfg_local_error;
+    wire [5:0]                      cfg_ltssm_state;
+    wire [3:0]                      cfg_rcb_status;
+    wire [1:0]                      cfg_obff_enable;
+    wire                            cfg_pl_status_change;
+    wire                            cfg_msg_received;
+    wire                            cfg_power_state_change_interrupt;
     wire                            status_error_cor;
     wire                            status_error_uncor;
 
@@ -165,6 +186,7 @@ module pcie_wrapper #(
     wire                            cfg_interrupt_msix_sent;
     wire                            cfg_interrupt_msix_fail;
     wire [3:0]                      cfg_interrupt_msi_function_number;
+    wire                            cfg_interrupt_sent;
     wire [15:0]                     cfg_function_status; // Bus[15:8], Dev[7:3], Func[2:0]
 
     // =========================================================================
@@ -172,6 +194,8 @@ module pcie_wrapper #(
     // =========================================================================
     wire [1:0]                      pcie_tfc_nph_av;
     wire [1:0]                      pcie_tfc_npd_av;
+    wire                            cfg_hot_reset_out;
+    wire                            phy_rdy_out;
 
     // =========================================================================
     // Tie-off unused configuration management signals
@@ -314,7 +338,7 @@ module pcie_wrapper #(
         // System Interface
         .sys_clk                   (pcie_clk_50),
         .sys_clk_gt                (pcie_clk_100),
-        .sys_reset                   (i_pcie_rst_n),
+        .sys_reset                 (i_pcie_rst_n),
         .pcie_perstn1_in            (1'b0),
         .pcie_perstn0_out           (),
         .pcie_perstn1_out           (),
@@ -322,6 +346,7 @@ module pcie_wrapper #(
         // User Clock and Reset
         .user_clk                   (o_user_clk_250),
         .user_reset                 (o_user_reset_p), //active high
+        .user_lnk_up                (user_lnk_up),
 
         // CQ Channel (Host → FPGA MMIO Requests)
         .m_axis_cq_tdata            (m_axis_cq_tdata),
@@ -364,20 +389,20 @@ module pcie_wrapper #(
         .pcie_tfc_nph_av            (pcie_tfc_nph_av),
         .pcie_tfc_npd_av            (pcie_tfc_npd_av),
         .pcie_cq_np_req             (1'b1),
-        .pcie_cq_np_req_count       (),
+        .pcie_cq_np_req_count       (pcie_cq_np_req_count),
 
         // Configuration Status
-        .cfg_phy_link_down          (),
-        .cfg_phy_link_status        (),
-        .cfg_negotiated_width       (),
-        .cfg_current_speed          (),
+        .cfg_phy_link_down          (cfg_phy_link_down),
+        .cfg_phy_link_status        (cfg_phy_link_status),
+        .cfg_negotiated_width       (cfg_negotiated_width),
+        .cfg_current_speed          (cfg_current_speed),
         .cfg_max_payload            (o_cfg_max_payload),
         .cfg_max_read_req           (o_cfg_max_read_req),
         .cfg_function_status        (cfg_function_status), // Capturing BDF
-        .cfg_function_power_state   (),
+        .cfg_function_power_state   (cfg_function_power_state),
         .cfg_vf_status              (),
         .cfg_vf_power_state         (),
-        .cfg_link_power_state       (),
+        .cfg_link_power_state       (cfg_link_power_state),
 
         // Configuration Management
         .cfg_mgmt_addr              (cfg_mgmt_addr),
@@ -390,23 +415,23 @@ module pcie_wrapper #(
         .cfg_mgmt_type1_cfg_reg_access (1'b0),
 
         // Error Reporting
-        .cfg_err_cor_out            (),
-        .cfg_err_nonfatal_out       (),
-        .cfg_err_fatal_out          (),
-        .cfg_local_error            (),
+        .cfg_err_cor_out            (cfg_err_cor_out),
+        .cfg_err_nonfatal_out       (cfg_err_nonfatal_out),
+        .cfg_err_fatal_out          (cfg_err_fatal_out),
+        .cfg_local_error            (cfg_local_error),
         .cfg_ltr_enable             (),
-        .cfg_ltssm_state            (),
+        .cfg_ltssm_state            (cfg_ltssm_state),
         .cfg_rcb_status             (cfg_rcb_status),
         .cfg_dpa_substate_change    (),
-        .cfg_obff_enable            (),
-        .cfg_pl_status_change       (),
+        .cfg_obff_enable            (cfg_obff_enable),
+        .cfg_pl_status_change       (cfg_pl_status_change),
         .cfg_tph_requester_enable   (),
         .cfg_tph_st_mode            (),
         .cfg_vf_tph_requester_enable (),
         .cfg_vf_tph_st_mode         (),
 
         // Message Interface
-        .cfg_msg_received           (),
+        .cfg_msg_received           (cfg_msg_received),
         .cfg_msg_received_data      (),
         .cfg_msg_received_type      (),
         .cfg_msg_transmit           (1'b0),
@@ -435,7 +460,7 @@ module pcie_wrapper #(
 
         // Power Management
         .cfg_power_state_change_ack (1'b1),
-        .cfg_power_state_change_interrupt (),
+        .cfg_power_state_change_interrupt (cfg_power_state_change_interrupt),
 
         // Error Injection
         .cfg_err_cor_in             (status_error_cor),
@@ -451,7 +476,7 @@ module pcie_wrapper #(
         // Legacy Interrupt
         .cfg_interrupt_int          (4'd0),
         .cfg_interrupt_pending      (4'd0),
-        .cfg_interrupt_sent         (),
+        .cfg_interrupt_sent         (cfg_interrupt_sent),
 
         // MSI-X Interrupt
         .cfg_interrupt_msix_enable  (cfg_interrupt_msix_enable),
@@ -466,7 +491,7 @@ module pcie_wrapper #(
         .cfg_interrupt_msi_function_number (cfg_interrupt_msi_function_number),
 
         // Hot Reset
-        .cfg_hot_reset_out          (),
+        .cfg_hot_reset_out          (cfg_hot_reset_out),
         .cfg_config_space_enable    (1'b1),
         .cfg_req_pm_transition_l23_ready (1'b0),
         .cfg_hot_reset_in           (1'b0),
@@ -484,9 +509,75 @@ module pcie_wrapper #(
         .int_qpll1lock_out          (),
         .int_qpll1outrefclk_out     (),
         .int_qpll1outclk_out        (),
-        .phy_rdy_out                ()
+        .phy_rdy_out                (phy_rdy_out)
     );
 
     assign o_pcie_requester_id = cfg_function_status;
+
+    wire [47:0] pcie_ila_probe0;
+    wire [31:0] pcie_ila_probe1;
+    wire [15:0] pcie_ila_probe2;
+    (* keep = "true", dont_touch = "true" *) wire pcie_ila_probe3;
+
+    assign pcie_ila_probe3 = cfg_pl_status_change;
+
+    assign pcie_ila_probe0 = {
+        cfg_function_status,         // [47:32]
+        cfg_ltssm_state,             // [31:26]
+        1'b0,                        // [25] moved to probe3 for direct trigger
+        cfg_hot_reset_out,           // [24]
+        phy_rdy_out,                 // [23]
+        user_lnk_up,                 // [22]
+        cfg_phy_link_down,           // [21]
+        cfg_phy_link_status,         // [20:19]
+        cfg_negotiated_width,        // [18:15]
+        cfg_current_speed,           // [14:12]
+        cfg_link_power_state,        // [11:10]
+        i_pcie_rst_n,                // [9]
+        o_user_reset_p,              // [8]
+        cfg_err_fatal_out,           // [7]
+        cfg_err_nonfatal_out,        // [6]
+        cfg_err_cor_out,             // [5]
+        cfg_local_error,             // [4]
+        cfg_interrupt_msix_fail,     // [3]
+        cfg_interrupt_msix_sent,     // [2]
+        cfg_interrupt_sent,          // [1]
+        m_axis_cq_tvalid             // [0]
+    };
+
+    assign pcie_ila_probe1 = {
+        4'd0,                        // [31:28]
+        pcie_tfc_npd_av,             // [27:26]
+        pcie_tfc_nph_av,             // [25:24]
+        pcie_cq_np_req_count,        // [23:18]
+        m_axis_rc_tlast,             // [17]
+        m_axis_rc_tready,            // [16]
+        m_axis_rc_tvalid,            // [15]
+        s_axis_rq_tlast,             // [14]
+        s_axis_rq_tready,            // [13:10]
+        s_axis_rq_tvalid,            // [9]
+        s_axis_cc_tlast,             // [8]
+        s_axis_cc_tready,            // [7:4]
+        s_axis_cc_tvalid,            // [3]
+        m_axis_cq_tlast,             // [2]
+        m_axis_cq_tready,            // [1]
+        m_axis_cq_tvalid             // [0]
+    };
+
+    assign pcie_ila_probe2 = {
+        cfg_function_power_state,    // [15:4]
+        cfg_obff_enable,             // [3:2]
+        cfg_msg_received,            // [1]
+        cfg_power_state_change_interrupt // [0]
+    };
+
+    ila_pcie_0 pcie_status_ila (
+        .clk    (o_user_clk_250),
+        .probe0 (pcie_ila_probe0),
+        .probe1 (pcie_ila_probe1),
+        .probe2 (pcie_ila_probe2),
+        .probe3 (pcie_ila_probe3)
+    );
+
 
 endmodule

@@ -1,6 +1,6 @@
 // MAC RX: XGMII -> AXI Stream (frame delineation, tdata/tkeep/tvalid/tlast).
 // it strips preamble/SFD, but does not check CRC, and keep crc.
-// 
+// it only involves two-cycle delay. One is for preamble/SFD stripping (valid_d1), the other is for data alignment in SOF_4 case (data_saver).
 `timescale 1ns / 1ps
 
 module MAC_layer_rx #(
@@ -39,23 +39,25 @@ module MAC_layer_rx #(
     endgenerate
 
 // ==== cur_state machine (placeholder: drive valid/keep/last) ===
-    reg [63:0]  i_xgmii_rxd_1        ; // one cycle delay for data alignment in SOF_1 case
-    reg [31:0]  data_saver           ; // one cycle delay for data alignment in SOF_4 case
-    reg         valid_1              ; // one cycle delay for valid signal
+    reg [63:0]  i_xgmii_rxd_1         ; // one cycle delay for data alignment in SOF_1 case
+    reg [31:0]  data_saver            ; // one cycle delay for data alignment in SOF_4 case
+    reg         valid_d1               ; // one cycle delay for valid signal
     localparam  IDLE        = 3'b001  ;
     localparam  SOF         = 3'b010  ;
     localparam  TERM        = 3'b100  ;
     reg [2:0]   cur_state             ;
-    reg [7:0]   eof_reg              ; // only valid when cur_state=TERM, used to save eof_location.
-    reg [1:0]   sof_reg             ; // only valid when cur_state=SOF_1/SOF_4, used to save sof_location.
+    reg [7:0]   eof_reg               ; // only valid when cur_state=TERM, used to save eof_location.
+    reg [1:0]   sof_reg               ; // only valid when cur_state=SOF_1/SOF_4, used to save sof_location.
     
     
 
 // one stage for i_xgmii_rxd
     always @(posedge i_xgmii_rx_clk) begin
-        if (i_xgmii_rx_rst || !i_rx_status) begin
+        // XGMII has no backpressure; when downstream is not ready, drop/flush current frame.
+        if (i_xgmii_rx_rst || !i_rx_status || !i_axi_rx_ready) begin
+            i_xgmii_rxd_1   <=  64'd0;
             data_saver      <=  32'd0;
-            valid_1         <=  1'b0;
+            valid_d1         <=  1'b0;
             cur_state       <=  IDLE;
             sof_reg         <=  2'd0;
             eof_reg         <=  8'd0;
@@ -70,23 +72,23 @@ module MAC_layer_rx #(
                     end 
                     else begin
                         cur_state           <=  IDLE;
-                        valid_1             <=  1'b0;
+                        valid_d1             <=  1'b0;
                     end
                 end
                 SOF: begin
-                    valid_1                 <=  1'b1;
+                    valid_d1                 <=  1'b1;
                     if (|eof_location) begin
                         cur_state           <=  TERM;
                         eof_reg             <=  eof_location; 
                     end 
                 end
                 TERM: begin
-                    valid_1         <=  1'b0;
+                    valid_d1         <=  1'b0;
                     cur_state       <=  IDLE;
                 end
                 default: begin
                     cur_state <= IDLE;
-                    valid_1         <=  1'b0;
+                    valid_d1         <=  1'b0;
                 end
             endcase
         end
@@ -105,7 +107,7 @@ module MAC_layer_rx #(
     always @* 
     case (cur_state)
         IDLE:   o_axi_rx_valid = 1'b0;
-        SOF:    o_axi_rx_valid = valid_1; // ditch preamble/SFD word
+        SOF:    o_axi_rx_valid = valid_d1; // ditch preamble/SFD word
         TERM:   case (sof_reg)
                     2'b01: 
                         if(| (eof_reg >> 1))   o_axi_rx_valid = 1'b1;
@@ -179,7 +181,7 @@ module MAC_layer_rx #(
                             8'b1000_0000: o_axi_rx_keep = 8'b1110_0000; //
                             default:      o_axi_rx_keep = 8'b0000_0000;
                         endcase
-                    default:o_axi_rx_keep = 8'b0000_0000; // otherwise, assume it's a single-word frame (e.g., no EOF).
+                    default:o_axi_rx_keep = 8'b0000_0000; 
                 endcase
         default:o_axi_rx_keep = 8'b0000_0000;
     endcase    
@@ -190,6 +192,4 @@ module MAC_layer_rx #(
             assign o_axi_rx_data[idx*8 +: 8] = data_before_rev[56 - idx*8 +: 8];
         end
     endgenerate
-
-
 endmodule

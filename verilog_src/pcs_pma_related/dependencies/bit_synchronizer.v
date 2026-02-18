@@ -21,7 +21,7 @@
 module bit_synchronizer #(
   parameter BIT_WIDTH = 1
 )(
-  input  wire [BIT_WIDTH-1:0] i_clk,
+  input  wire                 i_clk,
   input  wire [BIT_WIDTH-1:0] i_in,
   output wire [BIT_WIDTH-1:0] o_out
 
