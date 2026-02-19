@@ -251,7 +251,29 @@ wire         w_axi_rx_valid   ;
 wire [7:0]   w_axi_rx_keep    ;
 wire         w_axi_rx_last     ;
 wire         w_axi_rx_ready    ;
-assign w_axi_rx_ready = 1'b1;   // no back-pressure for now; tie to FIFO/consumer later
+
+// Control-plane outputs for parser settings
+wire [47:0]             o_ctl_mac_addr;
+wire [31:0]             o_ctl_ip_addr;
+wire [15:0]             o_ctl_port;
+wire                    o_ctl_promiscuous;
+wire [BAR0_SIZE-1:0]    o_ctl_reg;
+wire                    o_sync_fire;
+
+// Order book parser outputs
+wire                    w_ob_axi_rx_ready;
+wire                    w_ob_done;
+wire [63:0]             w_ob_seq_num;
+wire [15:0]             w_ob_msg_len;
+wire [7:0]              w_ob_msg_type;
+wire [15:0]             w_ob_stock_locate;
+wire [63:0]             w_ob_order_ref_num;
+wire [63:0]             w_ob_new_order_ref_num;
+wire [7:0]              w_ob_buy_sell;
+wire [31:0]             w_ob_shares;
+wire [31:0]             w_ob_price;
+
+assign w_axi_rx_ready = w_ob_axi_rx_ready;
 
 MAC_layer_rx #(
     .DATA_WIDTH (64),
@@ -274,40 +296,56 @@ order_book_parser #(
 order_book_parser_inst 
 (
 // mac layer rx interface
-.i_clk_156       (w_xgmii_rx_clk   ),
-.i_rst           (w_xgmii_rx_rst   ),
-.i_axi_rx_data   (w_axi_rx_data    ),
-.i_axi_rx_valid  (w_axi_rx_valid   ),
-.i_axi_rx_keep   (w_axi_rx_keep    ),
-.i_axi_rx_last   (w_axi_rx_last    ),
-.o_axi_rx_ready  (   ),
-.o_seq_num       (), 
-.o_msg_len       (),
-.o_msg_type      (), //A, D, X, U, E, F
-.o_stock_locate  (), // the stock ID
-.o_order_ref_num (), // order reference number
-.o_buy_sell      (), 
-.o_shares        (),
-.o_price         (),
-.i_ctl_dst_mac    (o_ctl_mac_addr     ),
-.i_ctl_dst_ip     (o_ctl_ip_addr      ),
-.i_ctl_dst_port   (o_ctl_port         ),
-.i_sync_fire      (o_sync_fire        )
+.i_clk_156          (w_xgmii_rx_clk   ),
+.i_rst              (w_xgmii_rx_rst   ),
+.i_axi_rx_data      (w_axi_rx_data    ),
+.i_axi_rx_valid     (w_axi_rx_valid   ),
+.i_axi_rx_keep      (w_axi_rx_keep    ),
+.i_axi_rx_last      (w_axi_rx_last    ),
+.o_axi_rx_ready     (w_ob_axi_rx_ready),
+.o_done             (w_ob_done),
+.o_seq_num          (w_ob_seq_num),
+.o_msg_type         (w_ob_msg_type), //A, D, X, U, E, F
+.o_stock_locate     (w_ob_stock_locate), // the stock ID
+.o_order_ref_num    (w_ob_order_ref_num), // order reference number
+.o_new_order_ref_num(w_ob_new_order_ref_num), // new order reference number (for replace)
+.o_buy_sell         (w_ob_buy_sell), 
+.o_shares           (w_ob_shares),
+.o_price            (w_ob_price),
+.i_ctl_dst_mac      (o_ctl_mac_addr     ),
+.i_ctl_dst_ip       (o_ctl_ip_addr      ),
+.i_ctl_dst_port     (o_ctl_port         ),
+.i_promiscuous      (o_ctl_promiscuous  ),
+.i_sync_fire        (o_sync_fire        ),
+.i_ctl_reg          (o_ctl_reg          )
 );
 
 
 
-wire [47:0]   o_ctl_mac_addr        ;
-wire [31:0]   o_ctl_ip_addr         ;
-wire [15:0]   o_ctl_port            ;
-wire          o_sync_fire           ;
+// Single ILA instance for both control-plane and parser debug signals.
+// No concatenation: each signal is connected to its own probe.
+// Configure ila_0 IP with 14 probes and matching widths.
+ila_0 debug_ila (
+	.clk    (w_xgmii_rx_clk          ),
+	.probe0 (o_ctl_mac_addr          ),
+	.probe1 (o_ctl_ip_addr           ),
+	.probe2 (o_ctl_port              ),
+	.probe3 (o_sync_fire             ),
+	.probe4 (w_ob_msg_type           ),
+	.probe5 (w_ob_buy_sell           ),
+	.probe6 (w_ob_stock_locate       ),
+	.probe7 (w_ob_price              ),
+	.probe8 (w_ob_done               ),
+	.probe9 (w_axi_rx_valid          ),
+	.probe10(w_ob_seq_num            ),
+    .probe11(w_ob_order_ref_num      ),
+    .probe12(w_ob_new_order_ref_num  ),
+    .probe13(w_ob_shares             ),
+    .probe14(order_book_parser_inst.msg_counter       ),
+    .probe15(w_axi_rx_data),
+    .probe16(w_axi_rx_keep),
+    .probe17(w_axi_rx_last)
 
-ila_0 control (
-	.clk(w_xgmii_rx_clk), // input wire clk
-	.probe0(o_ctl_mac_addr), // input wire [47:0]  probe0  
-	.probe1(o_ctl_ip_addr), // input wire [31:0]  probe1 
-	.probe2(o_ctl_port), // input wire [7:0]  probe2 
-	.probe3(o_sync_fire) // input wire [0:0]  probe3
 );
 
 
@@ -342,7 +380,9 @@ control_plane_inst
 .o_sync_fire            (o_sync_fire        ),
 .o_ctl_mac_addr         (o_ctl_mac_addr     ),
 .o_ctl_ip_addr          (o_ctl_ip_addr      ),
-.o_ctl_port             (o_ctl_port         )
+.o_ctl_port             (o_ctl_port         ),
+.o_ctl_promiscuous      (o_ctl_promiscuous  ),
+.o_ctl_reg              (o_ctl_reg          )
 );
 
 

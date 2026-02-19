@@ -514,70 +514,7 @@ module pcie_wrapper #(
 
     assign o_pcie_requester_id = cfg_function_status;
 
-    wire [47:0] pcie_ila_probe0;
-    wire [31:0] pcie_ila_probe1;
-    wire [15:0] pcie_ila_probe2;
-    (* keep = "true", dont_touch = "true" *) wire pcie_ila_probe3;
-
-    assign pcie_ila_probe3 = cfg_pl_status_change;
-
-    assign pcie_ila_probe0 = {
-        cfg_function_status,         // [47:32]
-        cfg_ltssm_state,             // [31:26]
-        1'b0,                        // [25] moved to probe3 for direct trigger
-        cfg_hot_reset_out,           // [24]
-        phy_rdy_out,                 // [23]
-        user_lnk_up,                 // [22]
-        cfg_phy_link_down,           // [21]
-        cfg_phy_link_status,         // [20:19]
-        cfg_negotiated_width,        // [18:15]
-        cfg_current_speed,           // [14:12]
-        cfg_link_power_state,        // [11:10]
-        i_pcie_rst_n,                // [9]
-        o_user_reset_p,              // [8]
-        cfg_err_fatal_out,           // [7]
-        cfg_err_nonfatal_out,        // [6]
-        cfg_err_cor_out,             // [5]
-        cfg_local_error,             // [4]
-        cfg_interrupt_msix_fail,     // [3]
-        cfg_interrupt_msix_sent,     // [2]
-        cfg_interrupt_sent,          // [1]
-        m_axis_cq_tvalid             // [0]
-    };
-
-    assign pcie_ila_probe1 = {
-        4'd0,                        // [31:28]
-        pcie_tfc_npd_av,             // [27:26]
-        pcie_tfc_nph_av,             // [25:24]
-        pcie_cq_np_req_count,        // [23:18]
-        m_axis_rc_tlast,             // [17]
-        m_axis_rc_tready,            // [16]
-        m_axis_rc_tvalid,            // [15]
-        s_axis_rq_tlast,             // [14]
-        s_axis_rq_tready,            // [13:10]
-        s_axis_rq_tvalid,            // [9]
-        s_axis_cc_tlast,             // [8]
-        s_axis_cc_tready,            // [7:4]
-        s_axis_cc_tvalid,            // [3]
-        m_axis_cq_tlast,             // [2]
-        m_axis_cq_tready,            // [1]
-        m_axis_cq_tvalid             // [0]
-    };
-
-    assign pcie_ila_probe2 = {
-        cfg_function_power_state,    // [15:4]
-        cfg_obff_enable,             // [3:2]
-        cfg_msg_received,            // [1]
-        cfg_power_state_change_interrupt // [0]
-    };
-
-    ila_pcie_0 pcie_status_ila (
-        .clk    (o_user_clk_250),
-        .probe0 (pcie_ila_probe0),
-        .probe1 (pcie_ila_probe1),
-        .probe2 (pcie_ila_probe2),
-        .probe3 (pcie_ila_probe3)
-    );
+   
 
 
 endmodule

@@ -27,42 +27,51 @@ output  wire [2:0]                  o_cc_status,
 output  wire [DATA_WIDTH/2-1:0]     o_cc_payload,
 output  wire                        o_cc_last,
 // ethernet_controller interface
-input   wire                        i_clk_156   ,
-output  wire                        o_sync_fire ,
-output  reg [47:0]                  o_ctl_mac_addr  ,
-output  reg [31:0]                  o_ctl_ip_addr   ,
-output  reg [15:0]                  o_ctl_port
+input   wire                        i_clk_156             ,
+output  wire                        o_sync_fire           ,
+output  reg [47:0]                  o_ctl_mac_addr        ,
+output  reg [31:0]                  o_ctl_ip_addr         ,
+output  reg [15:0]                  o_ctl_port            ,
+output  reg                         o_ctl_promiscuous     ,
+output  reg [BAR0_SIZE-1:0]         o_ctl_reg                
 );
 
 reg         [0:0]           async_fire    ;
 
-localparam  [BAR0_SIZE-1:0] REG_ETH_FIRE    = 16'h00; // address of mac_addr register
+localparam  [BAR0_SIZE-1:0] REG_ETH_FIRE    = 16'h00; // address of mac_addr register, write the reg address to trigger.
 localparam  [BAR0_SIZE-1:0] REG_MAC         = 16'h04; // update Ethernet settings (e.g., MAC/IP address) when write to this register
 localparam  [BAR0_SIZE-1:0] REG_IP          = 16'h08; // update IP address when write to this register
 localparam  [BAR0_SIZE-1:0] REG_PORT        = 16'h0C; // update port when write to this register
+localparam  [BAR0_SIZE-1:0] REG_PROMISCUOUS = 16'h10; // update promiscuous mode when write to this register
 
 
 // === cq===
 always @(posedge i_user_clk_250) begin
     if (i_user_reset_p) begin
-        o_ctl_mac_addr  <= 48'd0;
-        o_ctl_ip_addr   <= 32'd0;
-        o_ctl_port      <= 16'd0;
-        async_fire  <= 1'b0;
+        o_ctl_mac_addr      <= 48'd0;
+        o_ctl_ip_addr       <= 32'd0;
+        o_ctl_port          <= 16'd0;
+        o_ctl_promiscuous   <= 1'b0;
+        async_fire          <= 1'b0;
+        o_ctl_reg           <= {BAR0_SIZE{1'b0}};
     end else begin
         if (i_cq_valid && i_cq_type == 4'b0001) begin // process write requests
             case (i_cq_reg_addr)
                 REG_ETH_FIRE: begin
                     async_fire <= 1'b1;
+                    o_ctl_reg  <= i_cq_reg_addr[BAR0_SIZE-1:0];
                 end
                 REG_MAC: begin
-                    o_ctl_mac_addr <= i_cq_payload[47:0];
+                    o_ctl_mac_addr      <= i_cq_payload[47:0];
                 end
                 REG_IP: begin
-                    o_ctl_ip_addr <= i_cq_payload[31:0];
+                    o_ctl_ip_addr       <= i_cq_payload[31:0];
                 end
                 REG_PORT: begin
-                    o_ctl_port    <= i_cq_payload[15:0];
+                    o_ctl_port          <= i_cq_payload[15:0];
+                end
+                REG_PROMISCUOUS: begin
+                    o_ctl_promiscuous   <= i_cq_payload[0];
                 end
                 default: begin
                     // do nothing for other addresses
@@ -72,6 +81,7 @@ always @(posedge i_user_clk_250) begin
     end
     if (async_fire) begin
         async_fire <= 1'b0; // reset the fire signal after one cycle
+        o_ctl_reg  <= {BAR0_SIZE{1'b0}}; // reset the reg address after firing
     end
 end
 bit_synchronizer #(
