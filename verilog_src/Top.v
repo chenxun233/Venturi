@@ -363,10 +363,10 @@ ila_0 debug_ila (
     .probe16(w_axi_rx_keep),
     .probe17(w_axi_rx_last),
     .probe18(w_axi_rx_ingress_tick),
-    .probe19(order_book_parser_inst.buff[127:0]),
+    .probe19(order_book_parser_inst.cur_buff[127:0]),
     .probe20(order_book_parser_inst.buffed_bytes),
     .probe21(order_book_parser_inst.peeked),
-    .probe22(order_book_parser_inst.buff[255:128]),
+    .probe22(order_book_parser_inst.cur_buff[255:128]),
     .probe23(order_book_parser_inst.msg_count)
 
 );
