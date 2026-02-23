@@ -251,6 +251,8 @@ wire         w_axi_rx_valid   ;
 wire [7:0]   w_axi_rx_keep    ;
 wire         w_axi_rx_last     ;
 wire         w_axi_rx_ready    ;
+wire         w_axi_rx_frame_start;
+wire [63:0]  w_axi_rx_ingress_tick;
 
 // Control-plane outputs for parser settings
 wire [47:0]             o_ctl_mac_addr;
@@ -261,19 +263,21 @@ wire [BAR0_SIZE-1:0]    o_ctl_reg;
 wire                    o_sync_fire;
 
 // Order book parser outputs
-wire                    w_ob_axi_rx_ready;
-wire                    w_ob_done;
-wire [63:0]             w_ob_seq_num;
-wire [15:0]             w_ob_msg_len;
-wire [7:0]              w_ob_msg_type;
-wire [15:0]             w_ob_stock_locate;
-wire [63:0]             w_ob_order_ref_num;
-wire [63:0]             w_ob_new_order_ref_num;
-wire [7:0]              w_ob_buy_sell;
-wire [31:0]             w_ob_shares;
-wire [31:0]             w_ob_price;
+wire                    axi_rx_ready;
+wire                    done;
+wire [63:0]             seq_num;
+wire [63:0]             rx_ingress_tick;
+wire [47:0]             timestamp;
+wire [15:0]             msg_len;
+wire [7:0]              msg_type;
+wire [15:0]             stock_locate;
+wire [63:0]             order_ref_num;
+wire [63:0]             new_order_ref_num;
+wire [7:0]              buy_sell;
+wire [31:0]             shares;
+wire [31:0]             price;
 
-assign w_axi_rx_ready = w_ob_axi_rx_ready;
+assign w_axi_rx_ready = axi_rx_ready;
 
 MAC_layer_rx #(
     .DATA_WIDTH (64),
@@ -288,7 +292,17 @@ MAC_layer_rx #(
     .o_axi_rx_valid   (w_axi_rx_valid   ),
     .o_axi_rx_keep    (w_axi_rx_keep    ),
     .o_axi_rx_last    (w_axi_rx_last    ),
+    .o_frame_start    (w_axi_rx_frame_start),
     .i_axi_rx_ready   (w_axi_rx_ready   )
+);
+
+frame_timestamp #(
+    .COUNTER_WIDTH(64)
+) frame_timestamp_inst (
+    .i_clk            (w_xgmii_rx_clk),
+    .i_rst            (w_xgmii_rx_rst),
+    .i_event          (w_axi_rx_frame_start),
+    .o_event_timestamp(w_axi_rx_ingress_tick)
 );
 
 order_book_parser #(
@@ -302,16 +316,19 @@ order_book_parser_inst
 .i_axi_rx_valid     (w_axi_rx_valid   ),
 .i_axi_rx_keep      (w_axi_rx_keep    ),
 .i_axi_rx_last      (w_axi_rx_last    ),
-.o_axi_rx_ready     (w_ob_axi_rx_ready),
-.o_done             (w_ob_done),
-.o_seq_num          (w_ob_seq_num),
-.o_msg_type         (w_ob_msg_type), //A, D, X, U, E, F
-.o_stock_locate     (w_ob_stock_locate), // the stock ID
-.o_order_ref_num    (w_ob_order_ref_num), // order reference number
-.o_new_order_ref_num(w_ob_new_order_ref_num), // new order reference number (for replace)
-.o_buy_sell         (w_ob_buy_sell), 
-.o_shares           (w_ob_shares),
-.o_price            (w_ob_price),
+.i_axi_rx_ingress_tick(w_axi_rx_ingress_tick),
+.o_axi_rx_ready     (axi_rx_ready),
+.o_msg_valid        (msg_valid),
+.o_seq_num          (seq_num),
+.o_rx_ingress_tick  (rx_ingress_tick),
+.o_timestamp        (timestamp),
+.o_msg_type         (msg_type), //A, D, X, U, E, F
+.o_stock_locate     (stock_locate), // the stock ID
+.o_order_ref_num    (order_ref_num), // order reference number
+.o_new_order_ref_num(new_order_ref_num), // new order reference number (for replace)
+.o_buy_sell         (buy_sell), 
+.o_shares           (shares),
+.o_price            (price),
 .i_ctl_dst_mac      (o_ctl_mac_addr     ),
 .i_ctl_dst_ip       (o_ctl_ip_addr      ),
 .i_ctl_dst_port     (o_ctl_port         ),
@@ -331,20 +348,26 @@ ila_0 debug_ila (
 	.probe1 (o_ctl_ip_addr           ),
 	.probe2 (o_ctl_port              ),
 	.probe3 (o_sync_fire             ),
-	.probe4 (w_ob_msg_type           ),
-	.probe5 (w_ob_buy_sell           ),
-	.probe6 (w_ob_stock_locate       ),
-	.probe7 (w_ob_price              ),
-	.probe8 (w_ob_done               ),
+	.probe4 (msg_type           ),
+	.probe5 (buy_sell           ),
+	.probe6 (stock_locate       ),
+	.probe7 (price              ),
+	.probe8 (msg_valid               ),
 	.probe9 (w_axi_rx_valid          ),
-	.probe10(w_ob_seq_num            ),
-    .probe11(w_ob_order_ref_num      ),
-    .probe12(w_ob_new_order_ref_num  ),
-    .probe13(w_ob_shares             ),
-    .probe14(order_book_parser_inst.msg_counter       ),
+	.probe10(seq_num            ),
+    .probe11(order_ref_num      ),
+    .probe12(new_order_ref_num  ),
+    .probe13(shares             ),
+    .probe14(order_book_parser_inst.head_counter       ),
     .probe15(w_axi_rx_data),
     .probe16(w_axi_rx_keep),
-    .probe17(w_axi_rx_last)
+    .probe17(w_axi_rx_last),
+    .probe18(w_axi_rx_ingress_tick),
+    .probe19(order_book_parser_inst.buff[127:0]),
+    .probe20(order_book_parser_inst.buffed_bytes),
+    .probe21(order_book_parser_inst.peeked),
+    .probe22(order_book_parser_inst.buff[255:128]),
+    .probe23(order_book_parser_inst.msg_count)
 
 );
 

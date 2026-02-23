@@ -34,6 +34,7 @@ module tb_MAC_layer_rx;
     wire                    o_axi_rx_valid;
     wire [CTRL_WIDTH-1:0]   o_axi_rx_keep;
     wire                    o_axi_rx_last;
+    wire                    o_frame_start;
     reg                     i_axi_rx_ready;
 
     integer err_count;
@@ -51,6 +52,7 @@ module tb_MAC_layer_rx;
         .o_axi_rx_valid  (o_axi_rx_valid),
         .o_axi_rx_keep   (o_axi_rx_keep),
         .o_axi_rx_last   (o_axi_rx_last),
+        .o_frame_start   (o_frame_start),
         .i_axi_rx_ready  (i_axi_rx_ready)
     );
 
