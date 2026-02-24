@@ -42,7 +42,7 @@ module MAC_layer_rx #(
 // ==== cur_state machine (placeholder: drive valid/keep/last) ===
     reg [63:0]  i_xgmii_rxd_1         ; // one cycle delay for data alignment in SOF_1 case
     reg [31:0]  data_saver            ; // one cycle delay for data alignment in SOF_4 case
-    reg         valid_d1               ; // one cycle delay for valid signal
+    reg         valid_d1              ; // one cycle delay for valid signal
     localparam  IDLE        = 3'b001  ;
     localparam  SOF         = 3'b010  ;
     localparam  TERM        = 3'b100  ;

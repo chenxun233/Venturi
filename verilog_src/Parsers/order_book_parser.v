@@ -39,46 +39,6 @@ localparam DEFAULT_MAC_ADDR         = 48'h0100_5E00_0001;
 localparam DEFAULT_IP_ADDR          = 32'hE901_0203; // 233.1.2.3
 localparam DEFAULT_PORT             = 16'h04d2; // 1234
 localparam PROTOCAL                 = 8'h11; // UDP
-
-// === all in decimal ===
-// === Ethernet header fields ===   
-localparam DST_MAC_LEN              = 6 ;
-localparam SRC_MAC_LEN              = 6 ;
-localparam TYPE_LEN                 = 2 ;
-// === IP header fields     === 
-localparam VERSION_HEADER_LEN       = 1 ;
-localparam ToS_LEN                  = 1 ;
-localparam TOTAL_LEN_LEN            = 2 ; // From IP header to the end, min 20 (No UDP and PAYLOAD).
-localparam IDENTIFICATION_LEN       = 2 ;
-localparam FLAGS_FRAG_OFFSET_LEN    = 2 ;
-localparam TTL_LEN                  = 1 ;
-localparam PROTOCOL_LEN             = 1 ;
-localparam HEADER_CHECKSUM_LEN      = 2 ;
-localparam SRC_IP_LEN               = 4 ;
-localparam DST_IP_LEN               = 4 ;
-// === UDP header fields    === 
-localparam SRC_PORT_LEN             = 2 ;
-localparam DST_PORT_LEN             = 2 ;
-localparam LENGTH_LEN               = 2 ;
-localparam CHECKSUM_LEN             = 2 ;
-// === order book message header fields ===
-localparam SESSION_LEN              = 10;
-localparam SEQ_NUM_LEN              = 8 ;
-localparam MSG_COUNT_LEN            = 2 ;
-localparam MSG_LENTH_LEN            = 2 ;
-localparam MSG_TYPE_LEN             = 1 ;
-// === order book message body fields===
-localparam STOCK_LOCATE_LEN         = 2 ;
-localparam TRACKING_NUM_LEN         = 2 ;
-localparam TIMESTAMP_LEN            = 6 ;
-localparam ORDER_REF_NUM_LEN        = 8 ; // ORIGINAL, NEW
-localparam BUY_SELL_LEN             = 1 ;
-localparam SHARES_LEN               = 4 ;
-localparam STOCK_SYMBOL_LEN         = 8 ;
-localparam PRICE_LEN                = 4 ;
-localparam CANCEL_SHARE_LEN         = 4 ;
-localparam MATCH_NUM_LEN            = 8 ;
-localparam ATTRIBUTION_LEN          = 4 ;
 //======================================
 localparam TYPE_A                   = 8'h41;
 localparam TYPE_X                   = 8'h58;
@@ -149,45 +109,6 @@ always@(posedge i_clk_156 or posedge i_rst or posedge i_sync_fire) begin
         endcase
     end
 end
-//  ==== packet parsing logic ====
-// BEAT:
-// 0: DST_MAC [47:0] + SRC_MAC [47:32]
-// 1: SRC_MAC [31:0] + TYPE [15:0] + VERSION_HEADER [7:0] + ToS [7:0]
-// 2: TOTAL_LEN [15:0] + IDENTIFICATION [15:0] + FLAGS_FRAG_OFFSET [15:0] + TTL [7:0] + PROTOCOL [7:0] 
-// 3: HEADER_CHECKSUM [15:0] + SRC_IP [31:0] + DST_IP [31:16]
-// 4. DST_IP [15:0] + SRC_PORT [15:0] + DST_PORT [15:0] + LENGTH [15:0]
-// 5. CHECKSUM [15:0] + SESSION [79:32]
-// 6. SESSION [31:0] + SEQ_NUM [63:32]
-// 7. SEQ_NUM [31:0] + MSG_COUNT [15:0] + MSG_LENTH [15:0]
-// 8. MSG_TYPE [7:0] + STOCK_LOCATE [15:0] + TRACKING_NUM [15:0] + TIMESTAMP [47:24]
-// 9. TIMESTAMP [23:0] + ORDER_REF_NUM [63:24]
-
-// TYPE A
-// 10. ORDER_REF_NUM [23:0] + o_buy_sell [7:0] + o_shares [31:0]
-// 11. STOCK_SYMBOL_LEN []
-// 12. PRICE [31:0]
-
-// TYPE X
-// 10. ORDER_REF_NUM [23:0] + SHARE_LEN [31:0]
-
-// TYPE D
-// 10. ORDER_REF_NUM [23:0] + nothing
-
-// TYPE U
-// 10. ORDER_REF_NUM [23:0] + NEW_ORDER_REF_NUM [63:24]
-// 11. NEW_ORDER_REF_NUM [23:0] + shares [31:0] + price [31:24]
-// 12. price [23:0]
-
-// TYPE E
-// 10. ORDER_REF_NUM [23:0] + SHARES [31:0] + MATCH_NUM [63:56]
-// 11. MATCH_NUM [55:0]
-
-// TYPE F
-// 10. ORDER_REF_NUM [23:0] + o_buy_sell [7:0] + o_shares [31:0]
-// 11. STOCK_SYMBOL_LEN []
-// 12. PRICE [31:0] + ATTRIBUTION [31:0]
-
-
 // header parsing. These will not be output.
 always @(posedge i_clk_156 or posedge i_rst) begin
     if (i_rst) begin
