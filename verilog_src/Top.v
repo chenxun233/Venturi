@@ -365,9 +365,9 @@ ila_0 debug_ila (
     .probe18(w_axi_rx_ingress_tick),
     .probe19(order_book_parser_inst.cur_buff[127:0]),
     .probe20(order_book_parser_inst.buffed_bytes),
-    .probe21(order_book_parser_inst.peeked),
-    .probe22(order_book_parser_inst.cur_buff[255:128]),
-    .probe23(order_book_parser_inst.msg_count)
+    .probe21(order_book_parser_inst.cur_buff[255:128]),
+    .probe22(order_book_parser_inst.msg_count),
+    .probe23(order_book_parser_inst.state)
 
 );
 

@@ -16,7 +16,6 @@ output  wire                        o_axi_rx_ready          ,
 output  reg                         o_msg_valid             , // 1 when all the parts are parsed.
 output  reg [63:0]                  o_seq_num               , // sequence number
 output  reg [63:0]                  o_rx_ingress_tick       , // local monotonic RX ingress timestamp
-output  reg [47:0]                  o_exchange_ts           , // exchange-provided 6-byte timestamp
 output  reg [7:0]                   o_msg_type              , //A, D, X, U, E, F
 output  reg [15:0]                  o_stock_locate          , // the stock ID
 output  reg [63:0]                  o_order_ref_num         , // (old, for type u)order reference number
@@ -42,7 +41,6 @@ localparam DEFAULT_PORT             = 16'h04d2; // 1234
 localparam PROTOCAL                 = 8'h11; // UDP
 
 // === all in decimal ===
-localparam HEADER_BIT               = 4 ; // maximum message length in bytes
 // === Ethernet header fields ===   
 localparam DST_MAC_LEN              = 6 ;
 localparam SRC_MAC_LEN              = 6 ;
@@ -102,16 +100,19 @@ localparam TYPE_F                   = 8'h46;
 
 
 
-// === control regs ======
+// control registers
 reg [47:0]  preset_dst_mac_addr         ;
 reg [31:0]  preset_dst_ip_addr          ;
 reg [15:0]  preset_dst_port             ;
 reg         promiscuous                 ;
+// parsing helper registers
+reg [3:0]   head_counter                ;
+reg [511:0] buff                        ;// saves previous and current i_axi_rx_data for message parsing, especially for variable-length fields that may cross the boundary of two i_axi_rx_data.
+wire [511:0] cur_buff = {buff[447:0], i_axi_rx_data}; 
 
-// === parsing counters ===
-reg [HEADER_BIT-1:0] head_counter       ;
-reg [15:0]            byte_counter       ;
-
+reg [6:0]   buffed_bytes             ; //how many valid bytes are currently in your window
+wire [6:0]  valid_bytes = buffed_bytes < 7'd6 ? 7'd0 : buffed_bytes - 7'd6;
+// wire [6:0]  valid_bytes = buffed_bytes ;
 // header fields
 reg [47:0]  dst_mac_addr                ;
 reg [31:0]  dst_ip_addr                 ;
@@ -121,6 +122,8 @@ reg [15:0]  total_len                   ;
 reg [7:0]   protocol                    ;
 reg [79:0]  session                     ;
 reg [15:0]  msg_count                   ;
+reg         peeked                      ;
+
 
 
 
@@ -189,30 +192,6 @@ end
 // 11. STOCK_SYMBOL_LEN []
 // 12. PRICE [31:0] + ATTRIBUTION [31:0]
 
-// header counter 
-always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
-        head_counter <= 0;
-    end else if (i_axi_rx_last) begin
-        head_counter <= 0;
-    end else if (i_axi_rx_valid)begin
-        head_counter <= head_counter + 1;
-    end
-end
-
-// == message counter
-always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
-            byte_counter <= 1'b0;
-    end else if (i_axi_rx_valid) begin
-        if (head_counter <= 7) begin // 
-            byte_counter <= byte_counter + 16'd64;        // start to parse message body in the next cycle.
-        end
-    end
-end
-
-
-
 
 // header parsing. These will not be output.
 always @(posedge i_clk_156 or posedge i_rst) begin
@@ -225,174 +204,262 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         total_len           <= 0;
         protocol            <= 0;
         session             <= 0;
-        msg_count           <= 0;
         o_seq_num           <= 0;
-    end else if (i_axi_rx_valid) begin
+        head_counter        <= 0;
+    end else if (i_axi_rx_valid && !i_axi_rx_last) begin
             case (head_counter)
             0: begin
                 o_rx_ingress_tick   <= i_axi_rx_ingress_tick;
                 dst_mac_addr        <= i_axi_rx_data[63:24];
+                head_counter        <= head_counter + 1;
                 end
             1: begin
                 frame_type          <= i_axi_rx_data[31:16];
+                head_counter        <= head_counter + 1;
                 end
             2: begin
                 total_len           <= i_axi_rx_data[63:48];
                 protocol            <= i_axi_rx_data[7:0];
+                head_counter        <= head_counter + 1;
                 end
             3: begin
                 dst_ip_addr [31:16] <= i_axi_rx_data[15:0];
+                head_counter        <= head_counter + 1;
                 end
             4: begin
                dst_ip_addr [15:0]  <= i_axi_rx_data[63:48];
                dst_port            <= i_axi_rx_data[31:16];
+               head_counter        <= head_counter + 1;
                end
             5: begin
                 session[79:32]      <= i_axi_rx_data[47:0];
+                head_counter        <= head_counter + 1;
                 end
             6: begin
                 session[31:0]       <= i_axi_rx_data[63:32];
                 o_seq_num[63:32]    <= i_axi_rx_data[31:0];
+                head_counter        <= head_counter + 1;
                 end
             7: begin
                 o_seq_num[31:0]     <= i_axi_rx_data[63:32];
-                msg_count           <= i_axi_rx_data[31:16];
+                head_counter        <= head_counter+1;
                 end
             default : begin
-                // do nothing for message body, which will be parsed in the next always block.
+                head_counter        <= head_counter;
             end
             endcase
+    end else if (i_axi_rx_last) begin
+        head_counter <= 0;
     end
 end
 
 
-// message parsing.
+
+// wire have_type              = buffed_bytes >=16 ;
+// wire have_type              = buffed_bytes >=8 ;
+
 always @(posedge i_clk_156 or posedge i_rst) begin
     if (i_rst) begin
-        o_rx_ingress_tick   <= 64'd0;
-        o_exchange_ts       <= 48'd0;
-        o_msg_type          <= 8'd0;
-        o_stock_locate      <= 16'd0;
-        o_order_ref_num     <= 64'd0;
-        o_new_order_ref_num <= 64'd0;
-        o_buy_sell          <= 8'd0;
-        o_shares            <= 32'd0;
-        o_price             <= 32'd0;
-        body_counter        <= 0;
-    end else begin
-        if (byte_counter >=1) begin
-            case (body_counter)
-            0: begin
-                o_msg_type          <= i_axi_rx_data[63:56];
-                o_stock_locate      <= i_axi_rx_data[55:40];
-                o_exchange_ts[47:24] <= i_axi_rx_data[23:0];
-                body_counter       <= body_counter+1;
-                end
-            1: begin
-                o_exchange_ts[23:0] <= i_axi_rx_data[63:40];
-                o_order_ref_num[63:24] <= i_axi_rx_data[47:0];
-                body_counter       <= body_counter+1;
-                end
-            2: begin
-                o_order_ref_num[23:0]       <= i_axi_rx_data[63:40];
-                o_buy_sell                  <= i_axi_rx_data[39:32];
-                o_new_order_ref_num[63:24]  <= i_axi_rx_data[39:0];
+        o_msg_type          <= 0;
+        o_stock_locate      <= 0;
+        o_order_ref_num     <= 0;
+        o_new_order_ref_num <= 0;
+        o_buy_sell          <= 0;
+        o_shares            <= 0;
+        o_price             <= 0;
+        o_timestamp         <= 0;
+        o_msg_valid         <= 0;
+        buffed_bytes        <= 7'd8;
+        buff                <= 0;
+        msg_count           <= 0;
+    end else if ((head_counter == 7 || msg_count > 0)) begin // one cycle latency, for data_window to be prepared
+            if (head_counter == 7) begin
+                msg_count       <= i_axi_rx_data[31:16];
+            end
+            buff <= {buff[447:0], i_axi_rx_data};
+            if (!peeked && head_counter == 8) begin
+                // skip length field, 2 bytes, then take 1 byte for type
+                o_msg_type <= take_data(cur_buff, valid_bytes-2, 1) & 8'h7F; // the highest bit of msg type is always 0, can be used to check if the parsing is correct.
+                peeked <= 1;
+            end
+            if (o_msg_type != 0) begin
                 case (o_msg_type)
-                    TYPE_A, TYPE_F: begin
-                        o_shares            <= i_axi_rx_data[31:0];
-                        body_counter       <= body_counter+1;
+                    TYPE_A: begin
+                        if (valid_bytes >= msg_len_bytes(TYPE_A)) begin
+                            peeked          <= 0;
+                            o_msg_valid     <= 1;
+                            // skip length field,   2 bytes
+                            // skip type field,     1 byte
+                            o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
+                            // skip tracking num, 2 bytes
+                            o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                            o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
+                            o_buy_sell      <= take_data(cur_buff, valid_bytes-21, 1);
+                            o_shares        <= take_data(cur_buff, valid_bytes-22, 4);
+                            //skip stock symbol, 8 bytes
+                            o_price         <= take_data(cur_buff, valid_bytes-34, 4);
+                            buffed_bytes    <= buffed_bytes - msg_len_bytes(TYPE_A) + 8; // one more beat for the next message, so +8
+                            msg_count       <= msg_count - 1;
+                        end else begin
+                            o_msg_valid     <= 0;
+                            if (buffed_bytes <= 56) buffed_bytes <= buffed_bytes + 8;
+                            else                    buffed_bytes <= 64;
+                        end
                     end
                     TYPE_X: begin
-                        o_shares            <= i_axi_rx_data[39:8];
-                        body_counter        <= 0; 
-                    end
-                    TYPE_E: begin
-                        o_shares            <= i_axi_rx_data[39:8];
-                        body_counter       <= body_counter+1;
+                        if (valid_bytes >= msg_len_bytes(TYPE_X)) begin
+                            peeked          <= 0;
+                            o_msg_valid     <= 1;
+                            // skip length field, 2 bytes
+                            // skip type field,     1 byte
+                            o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
+                            // skip tracking num, 2 bytes
+                            o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                            o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
+                            o_shares        <= take_data(cur_buff, valid_bytes-21, 4);
+                            buffed_bytes <= buffed_bytes - msg_len_bytes(TYPE_X) + 8; // one more beat for the next message, so +8
+                            msg_count       <= msg_count - 1;
+                        end else begin
+                            o_msg_valid     <= 0;
+                            if (buffed_bytes <= 56) buffed_bytes <= buffed_bytes + 8;
+                            else                    buffed_bytes <= 64;
+                        end
                     end
                     TYPE_D: begin
-                        body_counter        <= 0; 
+                        if (valid_bytes >= msg_len_bytes(TYPE_D)) begin
+                            peeked          <= 0;
+                            o_msg_valid     <= 1;
+                            // skip length field, 2 bytes
+                            // skip type field,     1 byte
+                            o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
+                            // skip tracking num, 2 bytes
+                            o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                            o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
+                            buffed_bytes <= buffed_bytes - msg_len_bytes(TYPE_D) + 8; // one more beat for the next message, so +8
+                            msg_count       <= msg_count - 1;
+                        end else begin
+                            o_msg_valid     <= 0;
+                            if (buffed_bytes <= 56) buffed_bytes <= buffed_bytes + 8;
+                            else                    buffed_bytes <= 64;
+                        end
                     end
-                    default: begin
-                        body_counter       <= body_counter+1;
-                    end
-                endcase
-                end
-            3: begin
-                o_new_order_ref_num[23:0]  <= i_axi_rx_data[63:40];
-                case (o_msg_type)
                     TYPE_U: begin
-                        o_shares           <= i_axi_rx_data[39:8];
-                        o_price[31:24]     <= i_axi_rx_data[7:0];
-                        body_counter       <= body_counter+1;
+                        if (valid_bytes >= msg_len_bytes(TYPE_U)) begin
+                            peeked          <= 0;
+                            o_msg_valid     <= 1;
+                            // skip length field, 2 bytes
+                            // skip type field,     1 byte
+                            o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
+                            // skip tracking num, 2 bytes
+                            o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                            o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8); // original order ref num
+                            o_new_order_ref_num <= take_data(cur_buff, valid_bytes-21, 8);
+                            o_shares        <= take_data(cur_buff, valid_bytes-29, 4);
+                            o_price         <= take_data(cur_buff, valid_bytes-33, 4);
+                            buffed_bytes <= buffed_bytes - msg_len_bytes(TYPE_U) + 8; // one more beat for the next message, so +8
+                            msg_count       <= msg_count - 1;
+                        end else begin
+                            o_msg_valid     <= 0;
+                            if (buffed_bytes <= 56) buffed_bytes <= buffed_bytes + 8;
+                            else                    buffed_bytes <= 64;
+                        end
                     end
                     TYPE_E: begin
-                        body_counter        <= 0; 
+                        if (valid_bytes >= msg_len_bytes(TYPE_E)) begin
+                            peeked          <= 0;
+                            o_msg_valid     <= 1;
+                            // skip length field, 2 bytes
+                            // skip type field,     1 byte
+                            o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
+                            // skip tracking num, 2 bytes
+                            o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                            o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
+                            o_shares        <= take_data(cur_buff, valid_bytes-21, 4); // execution shares
+                            // skip match num, 8 bytes
+                            buffed_bytes <= buffed_bytes - msg_len_bytes(TYPE_E) + 8; // one more beat for the next message, so +8
+                            msg_count       <= msg_count - 1;
+                        end else begin
+                            o_msg_valid     <= 0;
+                            if (buffed_bytes <= 56) buffed_bytes <= buffed_bytes + 8;
+                            else                    buffed_bytes <= 64;
+                        end
                     end
-                    default: begin
-                        body_counter       <= body_counter+1;
+                    TYPE_F: begin
+                        if (valid_bytes >= msg_len_bytes(TYPE_F)) begin
+                            peeked          <= 0;
+                            o_msg_valid     <= 1;
+                            // skip length field, 2 bytes
+                            // skip type field,     1 byte
+                            o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
+                            // skip tracking num, 2 bytes
+                            o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                            o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
+                            o_buy_sell      <= take_data(cur_buff, valid_bytes-21, 1);
+                            o_shares        <= take_data(cur_buff, valid_bytes-22, 4);
+                            //skip stock symbol, 8 bytes
+                            o_price         <= take_data(cur_buff, valid_bytes-34, 4);
+                            // skip attribution, 4 bytes
+                            buffed_bytes <= buffed_bytes - msg_len_bytes(TYPE_F) + 8; // one more beat for the next message, so +8
+                            msg_count       <= msg_count - 1;
+                        end else begin
+                            o_msg_valid     <= 0;
+                            if (buffed_bytes <= 56) buffed_bytes <= buffed_bytes + 8;
+                            else                    buffed_bytes <= 64;
+                        end
                     end
+                    default:
+                        begin
+                            o_msg_valid     <= 0;
+                            if (buffed_bytes <= 56) buffed_bytes <= buffed_bytes + 8;
+                            else                    buffed_bytes <= 64;
+                        end
                 endcase
-                end
-            4: begin
-                body_counter        <= 0; 
-                case (o_msg_type)
-                    TYPE_A, TYPE_F: begin
-                        o_price             <= i_axi_rx_data[63:32];
-                    end
-                    TYPE_U: begin
-                        o_price[23:0]       <= i_axi_rx_data[63:40];
-                    end
-                    default: begin
-                       body_counter        <= 0; 
-                    end
-                endcase
-                end
-            default: begin
-                body_counter <= 0;
+            end else begin
+                if (buffed_bytes <= 56) buffed_bytes <= buffed_bytes + 8;
+                else                    buffed_bytes <= 64;
             end
-            endcase
-            // when done, reset the counter.
-            if (i_axi_rx_last) begin
-                body_counter <= 0;
-            end
-        end
-    end
-end
-
-
-// === o_msg_valid generation ===
-always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
-        o_msg_valid <= 1'b0;
     end else begin
-        // Default low; assert for one cycle when a full message has been parsed.
-        
-        if (promiscuous || (dst_mac_addr == preset_dst_mac_addr && dst_ip_addr == preset_dst_ip_addr && dst_port == preset_dst_port )) begin
-            case (o_msg_type)
-                TYPE_A, TYPE_U, TYPE_F: begin
-                    if (body_counter == 4) begin
-                        o_msg_valid <= 1'b1;
-                    end
-                end
-                TYPE_X, TYPE_D: begin
-                    if (body_counter == 2) begin
-                        o_msg_valid <= 1'b1;
-                    end
-                end
-                TYPE_E: begin
-                    if (body_counter == 3) begin
-                        o_msg_valid <= 1'b1;
-                    end
-                end
-                default: begin
-                    // keep default low
-                end
-            endcase
-        end
-        if (o_msg_valid) begin
-            o_msg_valid <= 1'b0;
-        end
+        buff            <= 0;
+        o_msg_valid     <= 0;
+        buffed_bytes    <= 7'd8;
+        o_msg_type      <= 0;
+        peeked          <= 0;
     end
 end
+
+
+
+
+
+// returns total length of the message in bytes. "Message Length" in the fields does not contain itself.
+// Thus, + 2 is appiled to each indicated length.
+function automatic [6:0] msg_len_bytes(input [7:0] t);
+  case (t)
+    TYPE_A: msg_len_bytes   = 7'd38;
+    TYPE_F: msg_len_bytes   = 7'd42;
+    TYPE_D: msg_len_bytes   = 7'd21;
+    TYPE_U: msg_len_bytes   = 7'd37;
+    TYPE_E: msg_len_bytes   = 7'd33;
+    TYPE_X: msg_len_bytes   = 7'd25;
+    default: msg_len_bytes  = 7'd0;
+  endcase
+endfunction
+
+function automatic [63:0] take_data(
+    input [511:0] buff,
+    input [6:0] available_bytes,
+    input [3:0] width_bytes
+);
+integer i;
+begin
+  take_data = 64'd0;
+  for (i = 0; i < 8; i = i + 1) begin
+    if (i < width_bytes) begin
+      // Walk source bytes from high to low index in buff, and keep field byte order.
+      take_data[(width_bytes-1-i)*8 +: 8] = buff[(available_bytes-1-i)*8 +: 8];
+    end
+  end
+end
+endfunction
+
 endmodule
