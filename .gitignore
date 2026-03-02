@@ -10,3 +10,5 @@ py_src/
 .venv/
 corundum/
 IP_core_example/
+Note/
+.Xil/

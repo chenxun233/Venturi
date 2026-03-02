@@ -33,16 +33,19 @@ output  reg [47:0]                  o_ctl_mac_addr        ,
 output  reg [31:0]                  o_ctl_ip_addr         ,
 output  reg [15:0]                  o_ctl_port            ,
 output  reg                         o_ctl_promiscuous     ,
+output  reg [31:0]                  o_ctl_lowest_price    ,
+output  reg [4:0]                   o_symbol_index        ,
 output  reg [BAR0_SIZE-1:0]         o_ctl_reg                
 );
 
 reg         [0:0]           async_fire    ;
 
-localparam  [BAR0_SIZE-1:0] REG_ETH_FIRE    = 16'h00; // address of mac_addr register, write the reg address to trigger.
-localparam  [BAR0_SIZE-1:0] REG_MAC         = 16'h04; // update Ethernet settings (e.g., MAC/IP address) when write to this register
-localparam  [BAR0_SIZE-1:0] REG_IP          = 16'h08; // update IP address when write to this register
-localparam  [BAR0_SIZE-1:0] REG_PORT        = 16'h0C; // update port when write to this register
-localparam  [BAR0_SIZE-1:0] REG_PROMISCUOUS = 16'h10; // update promiscuous mode when write to this register
+localparam  [BAR0_SIZE-1:0] REG_ETH_FIRE     = 16'h00; // address of mac_addr register, write the reg address to trigger.
+localparam  [BAR0_SIZE-1:0] REG_MAC          = 16'h04; // update Ethernet settings (e.g., MAC/IP address) when write to this register
+localparam  [BAR0_SIZE-1:0] REG_IP           = 16'h08; // update IP address when write to this register
+localparam  [BAR0_SIZE-1:0] REG_PORT         = 16'h0C; // update port when write to this register
+localparam  [BAR0_SIZE-1:0] REG_PROMISCUOUS  = 16'h10; // update promiscuous mode when write to this register
+localparam  [BAR0_SIZE-1:0] REG_LOWEST_PRICE = 16'h14; // reserved for future use
 
 
 // === cq===
@@ -58,8 +61,8 @@ always @(posedge i_user_clk_250) begin
         if (i_cq_valid && i_cq_type == 4'b0001) begin // process write requests
             case (i_cq_reg_addr)
                 REG_ETH_FIRE: begin
-                    async_fire <= 1'b1;
-                    o_ctl_reg  <= i_cq_reg_addr[BAR0_SIZE-1:0];
+                    async_fire          <= 1'b1;
+                    o_ctl_reg           <= i_cq_reg_addr[BAR0_SIZE-1:0];
                 end
                 REG_MAC: begin
                     o_ctl_mac_addr      <= i_cq_payload[47:0];

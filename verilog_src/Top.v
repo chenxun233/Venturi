@@ -163,6 +163,7 @@ wire [15:0]             pcie_requester_id;
 // =========================================================================
 // PCIe Interface Instantiation
 // =========================================================================
+
 pcie_wrapper #(
     .DATA_WIDTH                 (DATA_WIDTH),
     .BAR0_SIZE                  (BAR0_SIZE)
@@ -236,6 +237,7 @@ pcie_wrapper #(
     .o_pcie_requester_id        (pcie_requester_id)
 );
 
+
 wire    w_xgmii_clk;
 wire    w_sys_rst;
 wire    w_xgmii_tx_rst;
@@ -265,6 +267,7 @@ wire                    o_sync_fire;
 // Order book parser outputs
 wire                    axi_rx_ready;
 wire                    done;
+wire                    msg_valid;
 wire [63:0]             seq_num;
 wire [63:0]             rx_ingress_tick;
 wire [47:0]             timestamp;
@@ -337,39 +340,27 @@ order_book_parser_inst
 .i_ctl_reg          (o_ctl_reg          )
 );
 
-
-
-// Single ILA instance for both control-plane and parser debug signals.
-// No concatenation: each signal is connected to its own probe.
-// Configure ila_0 IP with 14 probes and matching widths.
-ila_0 debug_ila (
-	.clk    (w_xgmii_rx_clk          ),
-	.probe0 (o_ctl_mac_addr          ),
-	.probe1 (o_ctl_ip_addr           ),
-	.probe2 (o_ctl_port              ),
-	.probe3 (o_sync_fire             ),
-	.probe4 (msg_type           ),
-	.probe5 (buy_sell           ),
-	.probe6 (stock_locate       ),
-	.probe7 (price              ),
-	.probe8 (msg_valid               ),
-	.probe9 (w_axi_rx_valid          ),
-	.probe10(seq_num            ),
-    .probe11(order_ref_num      ),
-    .probe12(new_order_ref_num  ),
-    .probe13(shares             ),
-    .probe14(order_book_parser_inst.head_counter       ),
-    .probe15(w_axi_rx_data),
-    .probe16(w_axi_rx_keep),
-    .probe17(w_axi_rx_last),
-    .probe18(w_axi_rx_ingress_tick),
-    .probe19(order_book_parser_inst.cur_buff[127:0]),
-    .probe20(order_book_parser_inst.buffed_bytes),
-    .probe21(order_book_parser_inst.cur_buff[255:128]),
-    .probe22(order_book_parser_inst.msg_count),
-    .probe23(order_book_parser_inst.state)
-
+order_book_builder #(
+) order_book_builder_inst (
+    .i_clk_156          (w_xgmii_rx_clk     ),
+    .i_rst              (w_xgmii_rx_rst     ),
+    .i_msg_valid        (msg_valid          ),
+    .i_seq_num          (seq_num            ),
+    .i_rx_ingress_tick  (rx_ingress_tick    ),
+    .i_msg_type         (msg_type           ),
+    .i_stock_locate     (stock_locate       ),
+    .i_order_ref_num    (order_ref_num      ),
+    .i_new_order_ref_num(new_order_ref_num  ),
+    .i_buy_sell         (buy_sell           ),
+    .i_shares           (shares             ),
+    .i_price            (price              ),
+    .i_timestamp        (timestamp          ),
+    .i_ctl_fire         (o_sync_fire        )
 );
+
+
+
+
 
 
 control_plane #()

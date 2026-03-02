@@ -20,7 +20,7 @@ output  reg [7:0]                   o_msg_type              , //A, D, X, U, E, F
 output  reg [15:0]                  o_stock_locate          , // the stock ID
 output  reg [63:0]                  o_order_ref_num         , // (old, for type u)order reference number
 output  reg [63:0]                  o_new_order_ref_num     , // used for type U
-output  reg [7:0]                   o_buy_sell              , // 1 for buy, 2 for sell, 0 for others
+output  reg [7:0]                   o_buy_sell              , // 
 output  reg [31:0]                  o_shares                ,
 output  reg [31:0]                  o_price                 ,
 output  reg [47:0]                  o_timestamp             , // timestamp from the packet.
@@ -46,6 +46,7 @@ localparam TYPE_D                   = 8'h44;
 localparam TYPE_U                   = 8'h55;
 localparam TYPE_E                   = 8'h45;
 localparam TYPE_F                   = 8'h46;
+localparam TYPE_C                   = 8'h43;
 
 
 // TYPE A: add order:       STOCK_LOCATE_LEN + TRACKING_NUM_LEN + TIMESTAMP_LEN + ORDER_REF_NUM_LEN             + BUY_SELL_LEN + SHARES_LEN + STOCK_SYMBOL_LEN + PRICE_LEN
@@ -54,6 +55,7 @@ localparam TYPE_F                   = 8'h46;
 // TYPE U: order replace:   STOCK_LOCATE_LEN + TRACKING_NUM_LEN + TIMESTAMP_LEN + ORIGINAL_ORDER_REF_NUM_LEN    + NEW_ORDER_REF_NUM_LEN + SHARES_LEN + PRICE_LEN
 // TYPE E: execution:       STOCK_LOCATE_LEN + TRACKING_NUM_LEN + TIMESTAMP_LEN + ORDER_REF_NUM_LEN             + SHARES_LEN + MATCH_NUM_LEN
 // TYPE F:                : STOCK_LOCATE_LEN + TRACKING_NUM_LEN + TIMESTAMP_LEN + ORDER_REF_NUM_LEN             + BUY_SELL_LEN + SHARES_LEN + STOCK_SYMBOL_LEN + PRICE_LEN + ATTRIBUTION_LEN
+// TYPE C:
 
 
 // control registers
@@ -226,7 +228,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                 end else if (buffed_bytes >= 64) begin
                     state <= ERROR;
                 end else if (valid_bytes >= msg_len_bytes(o_msg_type)) begin
-                    prev_buff            <= {prev_buff[447:0], i_axi_rx_data};
+                    prev_buff       <= {prev_buff[447:0], i_axi_rx_data};
                     buffed_bytes    <= buffed_bytes - msg_len_bytes(o_msg_type) + 8; // one more beat for the next message, so +8
                     state           <= PEEKING_TYPE;
                     case (o_msg_type)
@@ -305,6 +307,21 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                 // skip attribution, 4 bytes
                                 msg_count       <= msg_count - 1;
                             end
+                        TYPE_C: begin
+                                o_msg_valid     <= 1;
+                                // skip length field, 2 bytes
+                                // skip type field,     1 byte
+                                o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
+                                // skip tracking num, 2 bytes
+                                o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                                o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
+                                o_shares        <= take_data(cur_buff, valid_bytes-21, 4);
+                                //skip match number, 8 bytes
+                                //skip Printable   , 1 byte 
+                                o_price         <= take_data(cur_buff, valid_bytes-34, 4);
+                                // skip attribution, 4 bytes
+                                msg_count       <= msg_count - 1;
+                            end
                         default:
                             state <= ERROR;
                     endcase
@@ -343,6 +360,7 @@ function automatic [6:0] msg_len_bytes(input [7:0] t);
     TYPE_U: msg_len_bytes   = 7'd37;
     TYPE_E: msg_len_bytes   = 7'd33;
     TYPE_X: msg_len_bytes   = 7'd25;
+    TYPE_C: msg_len_bytes   = 7'd38;
     default: msg_len_bytes  = 7'd0;
   endcase
 endfunction
