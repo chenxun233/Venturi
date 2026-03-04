@@ -27,9 +27,10 @@ wire side = (i_buy_sell == 8'h42) ? 1'b0 : 1'b1; // 'B' for buy -> 0, 'S' for se
 
 
 symbol_book #(
+    .SHARE_PER_PRICE_BIT(32), // number of bits to represent shares quantity at each price level
     .PRICE_ADDR_WIDTH(10),
     .BOOK_ADDR_WIDTH (12 ),
-    .LOWEST_PRICE    (32'd100_0000   ), // default lowest price (in 1/10000 dollars) for all stocks, can be updated by control plane.
+    .PRICE_BASE      (32'd0000_0000   ), // default lowest price (in 1/10000 dollars) for all stocks, can be updated by control plane.
     .STOCK_LOCATE    (16'h000d       )  // stock locate for this symbol book, assigned by control plane
 ) symbol_book_inst (
     .i_clk_156          (i_clk_156          ),

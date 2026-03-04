@@ -6,7 +6,7 @@ module tb_order_book_parser_builder;
     localparam CTRL_WIDTH  = 8;
     localparam BAR0_SIZE   = 16;
     localparam CLK_PERIOD  = 10;
-    localparam FRAME_BYTES = 296;
+    localparam FRAME_BYTES = 334;
     localparam NUM_ROUNDS  = 3;
 
     localparam [63:0] IDLE_WORD  = 64'h0707_0707_0707_0707;
@@ -99,13 +99,14 @@ module tb_order_book_parser_builder;
     task automatic drive_cycle;
         input        vld;
         input [63:0] dat;
+        input [7:0]  keep;
         input        lst;
         begin
             @(posedge i_clk_156);
             i_axi_rx_valid        <= vld;
             i_axi_rx_data         <= dat;
             i_axi_rx_last         <= lst;
-            i_axi_rx_keep         <= 8'hFF;
+            i_axi_rx_keep         <= keep;
             i_axi_rx_ingress_tick <= 64'h1;
         end
     endtask
@@ -117,6 +118,17 @@ module tb_order_book_parser_builder;
         begin
             for (i = 0; i < 16; i = i + 1) begin
                 frame_bytes[off+i] = line[127-(i*8) -: 8];
+            end
+        end
+    endtask
+
+    task automatic set2;
+        input integer off;
+        input [15:0] line;
+        integer i;
+        begin
+            for (i = 0; i < 2; i = i + 1) begin
+                frame_bytes[off+i] = line[15-(i*8) -: 8];
             end
         end
     endtask
@@ -139,48 +151,65 @@ module tb_order_book_parser_builder;
                 frame_bytes[i] = 8'h00;
             end
 
-            set16('h0000, 128'h01_00_5e_00_00_01_00_11_22_33_44_55_08_00_45_00);
-            set16('h0010, 128'h01_1a_00_01_00_00_40_11_cc_f3_c0_a8_01_32_e9_01);
-            set16('h0020, 128'h02_03_15_b3_04_d2_01_06_31_1c_4e_41_53_44_51_54);
-            set16('h0030, 128'h45_53_54_20_00_00_00_00_00_00_00_01_00_07_00_28);
-            set16('h0040, 128'h46_00_0d_00_00_1b_d6_53_cf_f0_bf_00_00_00_00_00);
-            set16('h0050, 128'h00_00_01_42_00_00_02_64_41_41_50_4c_20_20_20_20);
-            set16('h0060, 128'h00_23_5d_e8_54_53_53_4d_00_17_58_00_0d_00_00_1b);
-            set16('h0070, 128'h2e_c7_3b_cc_cf_00_00_00_00_00_00_00_01_00_00_00);
-            set16('h0080, 128'h96_00_24_43_00_0d_00_01_1f_1a_fd_1d_81_79_00_00);
-            set16('h0090, 128'h00_00_00_00_00_01_00_00_00_df_00_00_00_00_00_02);
-            set16('h00a0, 128'h8c_56_4e_00_2c_2a_40_00_1f_45_00_0d_00_02_0d_73);
-            set16('h00b0, 128'h25_a3_d0_68_00_00_00_00_00_00_00_01_00_00_00_16);
-            set16('h00c0, 128'h00_00_00_00_00_00_46_27_00_24_41_00_0d_00_00_0d);
-            set16('h00d0, 128'h18_c3_4e_77_da_00_00_00_00_00_00_00_02_53_00_00);
-            set16('h00e0, 128'h00_10_41_41_50_4c_20_20_20_20_00_2d_c2_d8_00_23);
-            set16('h00f0, 128'h55_00_0d_00_00_1e_96_69_a4_b6_a9_00_00_00_00_00);
-            set16('h0100, 128'h00_00_02_00_00_00_00_00_00_00_03_00_00_00_64_00);
-            set16('h0110, 128'h2c_36_5c_00_13_44_00_0d_00_00_0d_20_7f_24_3f_50);
-            set8 ('h0120,  64'h00_00_00_00_00_00_00_03);
+set16('h0000, 128'h01_00_5e_00_00_01_00_11_22_33_44_55_08_00_45_00);
+set16('h0010, 128'h01_40_00_01_00_00_40_11_cc_cd_c0_a8_01_32_e9_01);
+set16('h0020, 128'h02_03_15_b3_04_d2_01_2c_84_68_4e_41_53_44_51_54);
+set16('h0030, 128'h45_53_54_20_00_00_00_00_00_00_00_01_00_08_00_24);
+set16('h0040, 128'h41_00_0d_00_00_0d_18_c3_4e_77_da_00_00_00_00_00);
+set16('h0050, 128'h00_00_01_42_00_00_00_10_41_41_50_4c_20_20_20_20);
+set16('h0060, 128'h00_00_00_64_00_28_46_00_0d_00_00_1b_d6_53_cf_f0);
+set16('h0070, 128'hbf_00_00_00_00_00_00_00_02_42_00_00_02_64_41_41);
+set16('h0080, 128'h50_4c_20_20_20_20_00_00_00_c8_54_53_53_4d_00_17);
+set16('h0090, 128'h58_00_0d_00_00_1b_2e_c7_3b_cc_cf_00_00_00_00_00);
+set16('h00a0, 128'h00_00_02_00_00_00_96_00_24_43_00_0d_00_01_1f_1a);
+set16('h00b0, 128'hfd_1d_81_79_00_00_00_00_00_00_00_02_00_00_00_df);
+set16('h00c0, 128'h00_00_00_00_00_02_8c_56_4e_00_00_00_c8_00_1f_45);
+set16('h00d0, 128'h00_0d_00_02_0d_73_25_a3_d0_68_00_00_00_00_00_00);
+set16('h00e0, 128'h00_02_00_00_00_16_00_00_00_00_00_00_46_27_00_24);
+set16('h00f0, 128'h41_00_0d_00_00_0d_18_c3_4e_77_da_00_00_00_00_00);
+set16('h0100, 128'h00_00_03_42_00_00_00_10_41_41_50_4c_20_20_20_20);
+set16('h0110, 128'h00_00_01_2c_00_23_55_00_0d_00_00_1e_96_69_a4_b6);
+set16('h0120, 128'ha9_00_00_00_00_00_00_00_03_00_00_00_00_00_00_00);
+set16('h0130, 128'h04_00_00_00_64_00_00_01_90_00_13_44_00_0d_00_00);
+set8 ('h0140, 64'h0d_20_7f_24_3f_50_00_00);
+set2 ('h0148, 16'h00_00);
+set2 ('h014a, 16'h00_00);
+set2 ('h014c, 16'h00_04);
+
         end
     endtask
 
     task automatic send_snapshot_frame;
         integer idx;
         integer b;
+        integer bytes_this_beat;
         reg [63:0] beat;
+        reg [7:0]  keep;
         begin
-            drive_cycle(1'b0, IDLE_WORD, 1'b0);
-            drive_cycle(1'b0, START_WORD, 1'b0);
+            drive_cycle(1'b0, IDLE_WORD, 8'h00, 1'b0);
+            drive_cycle(1'b0, START_WORD, 8'h00, 1'b0);
 
             for (idx = 0; idx < FRAME_BYTES; idx = idx + 8) begin
                 beat = IDLE_WORD;
+                bytes_this_beat = FRAME_BYTES - idx;
+                if (bytes_this_beat > 8) begin
+                    bytes_this_beat = 8;
+                end
                 for (b = 0; b < 8; b = b + 1) begin
                     if ((idx + b) < FRAME_BYTES) begin
                         beat[63-(8*b) -: 8] = frame_bytes[idx+b];
                     end
                 end
-                drive_cycle(1'b1, beat, ((idx + 8) >= FRAME_BYTES));
+                if (bytes_this_beat == 8) begin
+                    keep = 8'hFF;
+                end else begin
+                    keep = (8'hFF << (8 - bytes_this_beat));
+                end
+                drive_cycle(1'b1, beat, keep, ((idx + 8) >= FRAME_BYTES));
             end
 
-            drive_cycle(1'b0, IDLE_WORD, 1'b0);
-            drive_cycle(1'b0, IDLE_WORD, 1'b0);
+            drive_cycle(1'b0, IDLE_WORD, 8'h00, 1'b0);
+            drive_cycle(1'b0, IDLE_WORD, 8'h00, 1'b0);
         end
     endtask
 

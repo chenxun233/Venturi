@@ -1,4 +1,4 @@
-module FIFO_controller #(
+module fifo_controller #(
     parameter STOCK_LOCATE = 16'h000d
 )
 (
@@ -8,14 +8,16 @@ module FIFO_controller #(
     input   wire [15:0]     i_stock_locate  ,
     // book side
     input  wire             i_not_empty     ,
-    input  wire             i_state         ,
+    input  wire             i_is_busy         ,
     // FIFO side
     output  wire            o_do_push       ,
     output  wire            o_do_pop
 );
-    
+
+localparam IDLE = 1'b0;
+
 assign o_do_push = i_msg_valid && (i_stock_locate == STOCK_LOCATE); 
-assign o_do_pop  = i_not_empty && (i_state == 2'b00); 
+assign o_do_pop  = i_not_empty && (i_is_busy == IDLE); 
 
 
 endmodule

@@ -1,4 +1,4 @@
-module symbol_book_FIFO #(
+module msg_fifo #(
     parameter DEPTH = 8,              // must be power-of-2 (2,4,8,16,32...)
     parameter DATA_W = 393
 )(
@@ -8,13 +8,13 @@ module symbol_book_FIFO #(
     // push side
     input  wire                 i_do_push,
     output wire                 o_push_ready,
-    input  wire [DATA_W-1:0]    i_push_data,
+    input  wire [DATA_W-1:0]    i_data,
 
     // pop side
     input  wire                 i_do_pop,
     output wire                 o_not_empty,
-    output reg                  o_pop_valid, // indicating the pop data is valid (not garbage due to empty)
-    output reg [DATA_W-1:0]     o_pop_data
+    output reg                  o_valid, // indicating the pop data is valid (not garbage due to empty)
+    output reg [DATA_W-1:0]     o_data
 );
 
     // ----------------------------
@@ -56,21 +56,21 @@ module symbol_book_FIFO #(
             wr_ptr      <= {ADDR{1'b0}};
             rd_ptr      <= {ADDR{1'b0}};
             count       <= {CNT_W{1'b0}};
-            o_pop_valid <= 1'b0;
+            o_valid <= 1'b0;
         end else begin
             // write
             if (do_push) begin
-                mem[wr_ptr] <= i_push_data;
+                mem[wr_ptr] <= i_data;
                 wr_ptr <= wr_ptr + 1;
             end
             // advance read pointer
             if (i_do_pop) begin
-                o_pop_data  <= mem[rd_ptr];
+                o_data  <= mem[rd_ptr];
                 rd_ptr      <= rd_ptr + 1;
-                o_pop_valid <= 1'b1;
+                o_valid <= 1'b1;
             end else begin
-                o_pop_data  <= o_pop_data;
-                o_pop_valid <= 1'b0;
+                o_data  <= o_data;
+                o_valid <= 1'b0;
             end
             // count
             case ({do_push, i_do_pop})
