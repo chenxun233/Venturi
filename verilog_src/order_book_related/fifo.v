@@ -1,4 +1,4 @@
-module msg_fifo #(
+module fifo #(
     parameter DEPTH = 8,              // must be power-of-2 (2,4,8,16,32...)
     parameter DATA_W = 393
 )(

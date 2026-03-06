@@ -22,8 +22,19 @@ module order_book_builder #(
     input   wire                        i_ctl_fire           // fire signal from control plane to trigger actions
 );
 
+localparam NULL = 2'd0;
+localparam BUY  = 2'd1;
+localparam SELL = 2'd2;
 
-wire side = (i_buy_sell == 8'h42) ? 1'b0 : 1'b1; // 'B' for buy -> 0, 'S' for sell -> 1
+reg [1:0] side;
+
+always @(*) begin
+    case (i_buy_sell)
+        8'h42:      side = BUY;  // 'B'
+        8'h53:      side = SELL; // 'S'
+        default:    side = NULL;
+    endcase
+end
 
 
 symbol_book #(

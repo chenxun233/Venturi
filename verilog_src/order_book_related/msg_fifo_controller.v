@@ -1,4 +1,4 @@
-module fifo_controller #(
+module msg_fifo_controller #(
     parameter STOCK_LOCATE = 16'h000d
 )
 (
