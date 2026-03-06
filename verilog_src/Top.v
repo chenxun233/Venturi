@@ -340,8 +340,8 @@ order_book_parser_inst
 .i_ctl_reg          (o_ctl_reg          )
 );
 
-order_book_builder #(
-) order_book_builder_inst (
+order_book_wrapper #(
+) order_book_wrapper_inst (
     .i_clk_156          (w_xgmii_rx_clk     ),
     .i_rst              (w_xgmii_rx_rst     ),
     .i_msg_valid        (msg_valid          ),

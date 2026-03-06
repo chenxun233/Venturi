@@ -37,39 +37,15 @@ localparam                  ASK                         = 2'b10;
 
 wire [PARSER_MSG_WIDTH-1:0]       parser_msg               = {i_msg_valid, i_rx_ingress_tick, i_msg_type, i_stock_locate, i_order_ref_num, i_new_order_ref_num, i_side, i_shares, i_price, i_timestamp};
 
-// ==== qty bram RMW controller ====
+wire [QTY_MSG_WIDTH-1:0]          qty_msg;
 
-reg [1:0]                   latch_qty_bid_ask;
-reg [PRICE_ADDR_WIDTH-1:0]  latch_qty_prc_idx; // price index for qty bram access, calculated from qty_price. Latch it because the calculation also takes one cycle.
-reg                         latch_qty_is_add;
-reg [QTY_BOOK_WIDTH-1:0]    latch_qty_d_shares;
-
-reg [1:0]                   qty_upd_state;
-reg [1:0]                   qty_op;
-reg [QTY_BOOK_WIDTH-1:0]    qty_i_data;
-wire [QTY_BOOK_WIDTH-1:0]   qty_bid_o_data;
-wire [QTY_BOOK_WIDTH-1:0]   qty_ask_o_data;
-
-wire [1:0]                  qty_bid_op        = (latch_qty_bid_ask == BID) ? qty_op : IDLE;
-wire [1:0]                  qty_ask_op        = (latch_qty_bid_ask == ASK) ? qty_op : IDLE;
-wire [QTY_BOOK_WIDTH-1:0]   qty_cur           = (latch_qty_bid_ask == ASK) ? qty_ask_o_data : qty_bid_o_data;
-wire [QTY_BOOK_WIDTH-1:0]   qty_new           = latch_qty_is_add ?
-                                                (qty_cur + latch_qty_d_shares) :
-                                                ((qty_cur > latch_qty_d_shares) ? (qty_cur - latch_qty_d_shares) : {QTY_BOOK_WIDTH{1'b0}});
-
-
-wire [QTY_MSG_WIDTH-1:0]    qty_msg;
-wire [1:0]                  qty_bid_ask     = qty_msg[QTY_MSG_WIDTH-1:QTY_MSG_WIDTH-2];
-wire [31:0]                 qty_price       = qty_msg[QTY_MSG_WIDTH-3:QTY_MSG_WIDTH-34];
-wire                        qty_is_add      = qty_msg[QTY_MSG_WIDTH-35];
-wire [31:0]                 qty_d_shares    = qty_msg[QTY_MSG_WIDTH-36:QTY_MSG_WIDTH-67];
 
 book_builder #(
-    .STOCK_LOCATE     (STOCK_LOCATE      ),
-    .BOOK_ADDR_WIDTH  (BOOK_ADDR_WIDTH  ),
-    .PARSER_MSG_WIDTH (PARSER_MSG_WIDTH ),
-    .ORDER_MSG_WIDTH  (ORDER_MSG_WIDTH  ),
-    .QTY_MSG_WIDTH    (QTY_MSG_WIDTH    )
+    .STOCK_LOCATE     (STOCK_LOCATE             ),
+    .BOOK_ADDR_WIDTH  (BOOK_ADDR_WIDTH          ),
+    .PARSER_MSG_WIDTH (PARSER_MSG_WIDTH         ),
+    .ORDER_MSG_WIDTH  (ORDER_MSG_WIDTH          ),
+    .QTY_MSG_WIDTH    (QTY_MSG_WIDTH            )
 ) book_builder_inst (
     .i_clk_156          (i_clk_156              ),
     .i_rst              (i_rst                  ),
@@ -78,98 +54,12 @@ book_builder #(
 );
 
 
-
-// ==== latch signals for qty update ====
-always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
-        latch_qty_bid_ask    <= IDLE;
-        latch_qty_prc_idx    <= {PRICE_ADDR_WIDTH{1'b0}};
-        latch_qty_is_add     <= 1'b0;
-        latch_qty_d_shares   <= {QTY_BOOK_WIDTH{1'b0}};
-    end else begin
-        if (qty_bid_ask != IDLE)  begin
-            latch_qty_bid_ask    <= qty_bid_ask;
-            latch_qty_prc_idx    <= cal_qty_book_addr(qty_price);
-            latch_qty_is_add     <= qty_is_add;
-            latch_qty_d_shares   <= qty_d_shares;
-        end
-    end
-end
-
-
-always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
-        qty_upd_state           <= IDLE;
-        qty_op                  <= IDLE;
-    end else begin
-        case (qty_upd_state)
-            IDLE: begin
-                if (qty_bid_ask != IDLE) begin
-                    qty_op          <= READ;
-                    qty_upd_state   <= FIRST_CYCLE; // wait for read data
-                end else begin
-                    qty_op          <= IDLE;
-                    qty_upd_state   <= IDLE;
-                    qty_i_data      <= {QTY_BOOK_WIDTH{1'b0}};
-                end
-            end
-            FIRST_CYCLE: begin
-                qty_upd_state       <= SECOND_CYCLE;
-            end
-            SECOND_CYCLE: begin
-                qty_op          <= WRITE;
-                qty_i_data      <= qty_new;
-                qty_upd_state   <= IDLE;
-            end
-            default: begin
-                qty_upd_state <= IDLE;
-                qty_i_data    <= {QTY_BOOK_WIDTH{1'b0}};
-                qty_op        <= IDLE;
-            end
-        endcase
-    end
-end
-
-bram #(
-    .ADDR_WIDTH         (PRICE_ADDR_WIDTH    ),
-    .DATA_WIDTH         (QTY_BOOK_WIDTH      )
-)
-bid_qty_bram_inst (
-    .i_clk              (i_clk_156          ),
+qty_builder qty_builder_inst (
+    .i_clk_156          (i_clk_156          ),
     .i_rst              (i_rst              ),
-    .i_addr             (latch_qty_prc_idx  ),
-    .i_op               (qty_bid_op         ),
-    .i_data             (qty_i_data         ),
-    .o_data             (qty_bid_o_data     )
+    .i_qty_msg          (qty_msg            )
 );
 
-bram #(
-    .ADDR_WIDTH         (PRICE_ADDR_WIDTH    ),
-    .DATA_WIDTH         (QTY_BOOK_WIDTH      )
-)
-ask_qty_bram_inst (
-    .i_clk              (i_clk_156          ),
-    .i_rst              (i_rst              ),
-    .i_addr             (latch_qty_prc_idx  ),
-    .i_op               (qty_ask_op         ),
-    .i_data             (qty_i_data         ),
-    .o_data             (qty_ask_o_data      )
-);
 
-function [PRICE_ADDR_WIDTH-1:0] cal_qty_book_addr (input [31:0] price);
-    reg [29:0] price_offset_u30;
-begin
-    if (price >= PRICE_BASE) begin
-        price_offset_u30 = (price - PRICE_BASE) >> 2;
-        if (price_offset_u30 < PRICE_DEPTH) begin
-            cal_qty_book_addr = price_offset_u30[PRICE_ADDR_WIDTH-1:0];
-        end else begin
-            cal_qty_book_addr = {PRICE_ADDR_WIDTH{1'b0}};
-        end
-    end else begin
-        cal_qty_book_addr = {PRICE_ADDR_WIDTH{1'b0}};
-    end
-end
-endfunction
 
 endmodule

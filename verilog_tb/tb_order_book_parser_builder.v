@@ -77,7 +77,7 @@ module tb_order_book_parser_builder;
         .i_ctl_reg            (i_ctl_reg)
     );
 
-    order_book_builder builder_dut (
+    order_book_wrapper builder_dut (
         .i_clk_156           (i_clk_156),
         .i_rst               (i_rst),
         .i_msg_valid         (o_msg_valid),

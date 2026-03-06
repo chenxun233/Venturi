@@ -1,4 +1,4 @@
-module order_book_builder #(
+module order_book_wrapper #(
     parameter STOCK_BITS       = 6,     // number of tracked stocks = 2^STOCK_BITS
     parameter PRICE_BITS       = 10,    // number of price levels per stock = 2^PRICE_BITS
     parameter SYMBOL_NUM       = 1,     // How many symbols to track.

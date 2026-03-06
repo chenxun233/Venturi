@@ -31,6 +31,7 @@ localparam TYPE_C                      = 8'h43;
 localparam IDLE                        = 2'b00;
 localparam FIRST_CYCLE                 = 2'b01;
 localparam SECOND_CYCLE                = 2'b10;
+localparam THIRD_CYCLE                 = 2'b11;
 localparam READ                        = 2'b01;
 localparam WRITE                       = 2'b10;
 localparam BID                         = 2'b01;
@@ -50,7 +51,7 @@ wire [31:0]   msg_shares         = ff_o_msg[111:80];
 wire [31:0]   msg_price          = ff_o_msg[79:48];
 
 assign ff_push = i_parser_msg[330] && (i_parser_msg[257:242] == STOCK_LOCATE);
-assign ff_pop  = ff_not_empty && (book_upd_state == IDLE);
+assign ff_pop  = ff_not_empty && (book_upd_state == IDLE) && !ff_o_valid;
 
 fifo #(
     .DEPTH          (8              ),
@@ -66,11 +67,6 @@ fifo #(
     .o_valid        (ff_o_valid     ),
     .o_data         (ff_o_msg       )
 );
-
-
-
-
-
 
 reg [1:0]                   book_upd_state;
 reg [1:0]                   book_op;
@@ -141,17 +137,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
             end
             FIRST_CYCLE: begin
                 case (msg_type)
-                    TYPE_U: begin
-                        book_op          <= WRITE;
-                        book_i_data      <= {1'b1, msg_side, msg_shares, msg_price};
-                        book_addr        <= cal_order_book_addr(msg_new_order_ref);
-                        book_upd_state   <= SECOND_CYCLE;
-                        qty_bid_ask     <= msg_side;
-                        qty_price       <= msg_price;
-                        qty_is_add      <= 1'b1;
-                        qty_d_shares    <= msg_shares;
-                    end
-                    TYPE_E,TYPE_C,TYPE_X,TYPE_D: begin
+                    TYPE_E,TYPE_C,TYPE_X,TYPE_D,TYPE_U: begin
                         book_op          <= READ;
                         book_addr        <= cal_order_book_addr(msg_order_ref_num);
                         book_upd_state   <= SECOND_CYCLE;
@@ -167,23 +153,40 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                 endcase
             end
             SECOND_CYCLE: begin
-                book_upd_state <= IDLE;
                 case (msg_type)
-                    TYPE_D,TYPE_U: begin
+                    TYPE_D: begin
                         if (book_o_valid) begin
                             book_op          <= WRITE;
                             book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
                             book_addr        <= cal_order_book_addr(msg_order_ref_num);
-                            qty_bid_ask     <= book_o_side;
-                            qty_price       <= book_o_price;
-                            qty_is_add      <= 1'b0;
-                            qty_d_shares    <= book_o_shares;
+                            qty_bid_ask      <= book_o_side;
+                            qty_price        <= book_o_price;
+                            qty_is_add       <= 1'b0;
+                            qty_d_shares     <= book_o_shares;
                         end else begin
                             book_op          <= IDLE;
                             book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
                             book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
                             qty_bid_ask      <= IDLE;
                         end
+                        book_upd_state <= IDLE;
+                    end
+                    TYPE_U:begin
+                        if (book_o_valid) begin // remove the old order
+                            book_op          <= WRITE;
+                            book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                            book_addr        <= cal_order_book_addr(msg_order_ref_num);
+                            qty_bid_ask      <= book_o_side;
+                            qty_price        <= book_o_price;
+                            qty_is_add       <= 1'b0;
+                            qty_d_shares     <= book_o_shares;
+                            book_upd_state   <= THIRD_CYCLE;
+                        end else begin
+                            book_op          <= IDLE;
+                            book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                            book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                            book_upd_state  <= IDLE;
+                        end                        
                     end
                     TYPE_E,TYPE_C,TYPE_X: begin
                         if (book_o_valid && (book_o_shares >= msg_shares)) begin
@@ -200,14 +203,33 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                             book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
                             qty_bid_ask      <= IDLE;
                         end
+                        book_upd_state <= IDLE;
                     end
                     default: begin
                         book_op          <= IDLE;
                         book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
                         book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
-                        qty_bid_ask     <= IDLE;
+                        qty_bid_ask      <= IDLE;
+                        book_upd_state  <= IDLE;
                     end
                 endcase
+            end
+            THIRD_CYCLE: begin
+                if (msg_type == TYPE_U) begin
+                    book_op          <= WRITE;
+                    book_i_data      <= {1'b1, book_o_side, msg_shares, msg_price}; // old side, new shares and new price
+                    book_addr        <= cal_order_book_addr(msg_new_order_ref);
+                    qty_bid_ask      <= book_o_side; // the old order side.
+                    qty_price        <= msg_price;  // new price
+                    qty_is_add       <= 1'b1;
+                    qty_d_shares     <= msg_shares; // new shares
+                end else begin
+                    book_op          <= IDLE;
+                    book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                    book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                    qty_bid_ask      <= IDLE;
+                end
+                book_upd_state   <= IDLE;
             end
             default: begin
                 book_upd_state <= IDLE;
