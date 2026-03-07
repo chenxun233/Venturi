@@ -11,10 +11,10 @@ module book_builder #(
 );
 
 
-reg [1:0]                   qty_bid_ask;
-reg  [31:0]                 qty_price;
-reg                         qty_is_add;
-reg  [31:0]                 qty_d_shares;
+reg [1:0]                               qty_bid_ask;
+reg  [31:0]                             qty_price;
+reg                                     qty_is_add;
+reg  [31:0]                             qty_d_shares;
 
 
 assign o_qty_msg = { qty_bid_ask, qty_price, qty_is_add, qty_d_shares};

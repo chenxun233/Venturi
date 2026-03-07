@@ -14,7 +14,7 @@ module bid_tree #(
     output reg                         o_done,       // pulse when update reaches root
 
     // Best bid output (root)
-    output wire                        o_best_valid,
+    output wire                         o_best_valid,
     output wire [QTY_PRICE_LVL_BIT-1:0] o_best_idx
 );
 

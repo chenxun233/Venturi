@@ -1,13 +1,22 @@
 module qty_builder #(
-    parameter QTY_MSG_BIT       = 2+32+1+32, // {bid_ask, price, is_add, d_shares}
+    parameter QTY_MSG_BIT       = 2+32+1+32, // {o_bid_ask, price, is_add, d_shares}
     parameter QTY_PRICE_LVL_BIT = 10,        // trace 2^QTY_PRICE_LVL_BIT price levels
     parameter QTY_SHARE_BIT     = 32,        // number of bits to represent shares quantity at each price level
     parameter PRICE_BASE        = 32'd0
 )(
     input   wire                          i_clk_156,
     input   wire                          i_rst,               // active high
-    input   wire [QTY_MSG_BIT-1:0]        i_qty_msg
+    input   wire [QTY_MSG_BIT-1:0]        i_qty_msg,
+    output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_price_idx,
+    output  reg                           o_price_changed,
+    output  reg  [1:0]                    o_bid_ask // 1 for bid, 2 for ask, 0 is idle.
 );
+// o_price_idx indicating the price idx whose share changed between empty and non-empty.
+// o_price_changed is a pulse indicating any price idx change, used to trigger bid_tree update.
+
+
+
+
 
 reg [1:0]                                qty_upd_state;
 reg [1:0]                                qty_op;
@@ -114,6 +123,12 @@ always @(posedge i_clk_156 or posedge i_rst) begin
     end
 end
 
+
+
+
+
+
+
 bram #(
     .ADDR_WIDTH     (QTY_PRICE_LVL_BIT),
     .DATA_WIDTH     (QTY_SHARE_BIT)
@@ -138,7 +153,28 @@ bram #(
     .o_data         (qty_ask_o_shares)
 );
 
-
+always @(posedge i_clk_156 or posedge i_rst) begin
+    if (i_rst) begin
+        o_price_idx          <= IDLE;
+        o_price_changed        <= IDLE;
+        o_bid_ask              <= IDLE;
+    end else if (qty_upd_state == SECOND_CYCLE) begin
+        if ((qty_cur == 0 && qty_new > 0)|| (qty_cur > 0 && qty_new == 0)) begin
+            // empty -> non-empty
+            o_price_idx      <= qty_addr;
+            o_price_changed  <= 1'b1;
+            o_bid_ask        <= latch_qty_bid_ask;
+        end else begin
+            o_price_idx      <= 0;
+            o_price_changed  <= 1'b0;
+            o_bid_ask          <= 0;
+        end
+    end else begin
+        o_price_idx          <= 0;
+        o_price_changed      <= 1'b0;
+        o_bid_ask              <= 0;
+    end
+end
 
 
 function [QTY_PRICE_LVL_BIT-1:0] cal_qty_book_addr;
