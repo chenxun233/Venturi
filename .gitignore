@@ -5,11 +5,10 @@ cpp_src/build/
 .cache/
 ._.DS_Store
 build/
-py_src/
 .venv/
 corundum/
 IP_core_example/
 Note/
 .Xil/
-openspec1/
-.vscode1/
+openspec/
+.vscode/
