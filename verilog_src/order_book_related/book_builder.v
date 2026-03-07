@@ -1,11 +1,11 @@
 module book_builder #(
-    parameter STOCK_LOCATE          = 16'h000d,
     parameter BOOK_LEVEL_BIT      = 12,
     parameter PARSER_MSG_BIT      = 1+64+8+16+64+64+2+32+32+48,
     parameter QTY_MSG_BIT         = 2+32+1+32 // {bid_ask, price, is_add, d_shares}
 ) (
     input   wire                        i_clk_156,
     input   wire                        i_rst,               // active high
+    input   wire                        i_stock_valid, // indicating if the input stock is the right one.
     input   wire [PARSER_MSG_BIT-1:0]   i_parser_msg,
     output  wire [QTY_MSG_BIT-1:0]      o_qty_msg
 );
@@ -49,7 +49,7 @@ wire [1:0]    msg_side           = ff_o_msg[113:112];
 wire [31:0]   msg_shares         = ff_o_msg[111:80];
 wire [31:0]   msg_price          = ff_o_msg[79:48];
 
-assign ff_push = i_parser_msg[330] && (i_parser_msg[257:242] == STOCK_LOCATE);
+assign ff_push = i_parser_msg[330] && i_stock_valid;
 assign ff_pop  = ff_not_empty && (book_upd_state == IDLE) && !ff_o_valid;
 
 fifo #(

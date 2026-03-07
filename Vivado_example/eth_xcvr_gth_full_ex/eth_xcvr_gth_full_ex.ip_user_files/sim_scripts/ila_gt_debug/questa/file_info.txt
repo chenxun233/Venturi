@@ -1,5 +1,0 @@
-xpm_cdc.sv,systemverilog,xil_defaultlib,../../../../../../../../Vivado/Vivado/2018.3/data/ip/xpm/xpm_cdc/hdl/xpm_cdc.sv,incdir="../../../../eth_xcvr_gth_full_ex.srcs/sources_1/ip/ila_gt_debug/hdl/verilog"
-xpm_memory.sv,systemverilog,xil_defaultlib,../../../../../../../../Vivado/Vivado/2018.3/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv,incdir="../../../../eth_xcvr_gth_full_ex.srcs/sources_1/ip/ila_gt_debug/hdl/verilog"
-xpm_VCOMP.vhd,vhdl,xpm,../../../../../../../../Vivado/Vivado/2018.3/data/ip/xpm/xpm_VCOMP.vhd,incdir="../../../../eth_xcvr_gth_full_ex.srcs/sources_1/ip/ila_gt_debug/hdl/verilog"
-ila_gt_debug.v,verilog,xil_defaultlib,../../../../eth_xcvr_gth_full_ex.srcs/sources_1/ip/ila_gt_debug/sim/ila_gt_debug.v,incdir="../../../../eth_xcvr_gth_full_ex.srcs/sources_1/ip/ila_gt_debug/hdl/verilog"
-glbl.v,Verilog,xil_defaultlib,glbl.v

@@ -36,25 +36,26 @@ wire [PARSER_MSG_BIT-1:0]       parser_msg               = {i_msg_valid, i_rx_in
 
 wire [QTY_MSG_BIT-1:0]          qty_msg;
 
+wire stock_valid = (i_stock_locate == STOCK_LOCATE);
 
 book_builder #(
-    .STOCK_LOCATE     (STOCK_LOCATE             ),
-    .BOOK_LEVEL_BIT  (BOOK_LEVEL_BIT          ),
-    .PARSER_MSG_BIT (PARSER_MSG_BIT         ),
-    .QTY_MSG_BIT    (QTY_MSG_BIT            )
+    .BOOK_LEVEL_BIT     (BOOK_LEVEL_BIT         ),
+    .PARSER_MSG_BIT     (PARSER_MSG_BIT         ),
+    .QTY_MSG_BIT        (QTY_MSG_BIT            )
 ) book_builder_inst (
     .i_clk_156          (i_clk_156              ),
     .i_rst              (i_rst                  ),
     .i_parser_msg       (parser_msg             ),
+    .i_stock_valid      (stock_valid            ),
     .o_qty_msg          (qty_msg                )
 );
 
 
 qty_builder #(
-    .QTY_MSG_BIT     (QTY_MSG_BIT          ),
-    .QTY_PRICE_LVL_BIT      (QTY_PRICE_LVL_BIT       ),
-    .QTY_SHARE_BIT    (QTY_SHARE_BIT         ),
-    .PRICE_BASE        (PRICE_BASE             )
+    .QTY_MSG_BIT        (QTY_MSG_BIT          ),
+    .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    ),
+    .QTY_SHARE_BIT      (QTY_SHARE_BIT        ),
+    .PRICE_BASE         (PRICE_BASE           )
 )
 qty_builder_inst (
     .i_clk_156          (i_clk_156          ),
