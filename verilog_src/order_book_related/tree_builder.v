@@ -3,13 +3,9 @@ module bid_tree #(
 )(
     input  wire                        i_clk,
     input  wire                        i_rst,        // active high
-
-    // Leaf update: set leaf_valid for leaf_idx (0..2^LEVELS-1)
-    input  wire                        i_upd_valid,
-    output wire                        o_upd_ready,
-    input  wire [QTY_PRICE_LVL_BIT-1:0] i_leaf_idx,
-    input  wire                        i_leaf_valid,
-
+    input wire [QTY_PRICE_LVL_BIT-1:0] o_price_idx,
+    input wire                         o_price_changed,
+    input wire                         o_bid_ask,
     output reg                         o_busy,
     output reg                         o_done,       // pulse when update reaches root
 
@@ -26,11 +22,11 @@ module bid_tree #(
     // Only nodes [0..(1<<lv)-1] are meaningful at level lv.
     // level 0 = root, level LEVELS = leaves.
     // --------------------------------------------------------------------
-    reg                         t_valid [0:LEVELS][0:LEAF_COUNT-1];
-    reg [QTY_PRICE_LVL_BIT-1:0]  t_idx   [0:LEVELS][0:LEAF_COUNT-1];
+    reg                          bid_t_valid [0:LEVELS][0:LEAF_COUNT-1];
+    reg [QTY_PRICE_LVL_BIT-1:0]  bid_t_idx   [0:LEVELS][0:LEAF_COUNT-1];
 
-    assign o_best_valid = t_valid[0][0];
-    assign o_best_idx   = t_idx[0][0];
+    assign o_best_bid_valid = bid_t_valid[0][0];
+    assign o_best_bid_idx   = bid_t_idx[0][0];
 
     // Ready when not busy
     assign o_upd_ready  = ~o_busy;

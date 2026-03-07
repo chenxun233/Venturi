@@ -35,9 +35,10 @@ localparam                  ASK                         = 2'b10;
 wire [PARSER_MSG_BIT-1:0]       parser_msg               = {i_msg_valid, i_rx_ingress_tick, i_msg_type, i_stock_locate, i_order_ref_num, i_new_order_ref_num, i_side, i_shares, i_price, i_timestamp};
 
 wire [QTY_MSG_BIT-1:0]          qty_msg;
-wire [QTY_PRICE_LVL_BIT-1:0]    price_idx;
-wire                            price_changed;
-wire [1:0]                      bid_ask; // 1 for bid, 2 for ask, 0 is idle.
+wire [QTY_PRICE_LVL_BIT-1:0]    ask_price_idx;
+wire                            ask_price_changed;
+wire [QTY_PRICE_LVL_BIT-1:0]    bid_price_idx;
+wire                            bid_price_changed;
 
 wire stock_valid = (i_stock_locate == STOCK_LOCATE);
 
@@ -54,20 +55,35 @@ book_builder #(
 );
 
 
-qty_builder #(
+ask_qty_builder #(
     .QTY_MSG_BIT        (QTY_MSG_BIT          ),
     .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    ),
     .QTY_SHARE_BIT      (QTY_SHARE_BIT        ),
     .PRICE_BASE         (PRICE_BASE           )
 )
-qty_builder_inst (
+ask_qty_builder_inst (
     .i_clk_156          (i_clk_156          ),
     .i_rst              (i_rst              ),
     .i_qty_msg          (qty_msg            ),
-    .o_price_idx        (price_idx          ),
-    .o_price_changed    (price_changed      ),
-    .o_bid_ask          (bid_ask            )
+    .o_ask_price_idx     (ask_price_idx      ),
+    .o_ask_price_changed (ask_price_changed  )
 );
+
+
+bid_qty_builder #(
+    .QTY_MSG_BIT        (QTY_MSG_BIT          ),
+    .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    ),
+    .QTY_SHARE_BIT      (QTY_SHARE_BIT        ),
+    .PRICE_BASE         (PRICE_BASE           )
+)
+bid_qty_builder_inst (
+    .i_clk_156          (i_clk_156          ),
+    .i_rst              (i_rst              ),
+    .i_qty_msg          (qty_msg            ),
+    .o_bid_price_idx     (bid_price_idx          ),
+    .o_bid_price_changed (bid_price_changed      )
+);
+
 
 
 
