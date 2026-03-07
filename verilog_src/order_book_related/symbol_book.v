@@ -1,10 +1,10 @@
 // order book per symbol.
 module symbol_book #(
-    parameter SHARE_PER_PRICE_BIT   = 32,      // number of bits to represent shares quantity at each price level
-    parameter PRICE_ADDR_WIDTH      = 10,      // trace 2^PRICE_ADDR_WIDTH price levels
-    parameter BOOK_ADDR_WIDTH       = 12,      // trace 2^BOOK_ADDR_WIDTH orders in the order table
-    parameter PRICE_BASE            = 32'd2317700, // 231.77 in dollars. In binary, the last two bits are always 00, can drop
-    parameter STOCK_LOCATE          = 16'h000d  // stock locate for this symbol book, can be updated by control plane.
+    parameter QTY_SHARE_BIT         = 32,           // number of bits to represent shares quantity at each price level
+    parameter QTY_PRICE_LVL_BIT     = 10,           // trace 2^QTY_PRICE_LVL_BIT price levels
+    parameter BOOK_LEVEL_BIT         = 12,           // trace 2^BOOK_LEVEL_BIT orders in the order table
+    parameter PRICE_BASE            = 32'd0,        // 
+    parameter STOCK_LOCATE          = 16'h000d      // stock locate for this symbol book, can be updated by control plane.
 ) (
     // order book parser interface
     input   wire                        i_clk_156,
@@ -21,11 +21,8 @@ module symbol_book #(
     input   wire [47:0]                 i_timestamp
 );
 
-localparam                  ORDER_MSG_WIDTH             = 8+64+64+2+32+32; // {msg_type, order_ref_num, new_order_ref_num, side, price, shares}
-localparam                  PARSER_MSG_WIDTH            = 1+64+8+16+64+64+2+32+32+48;
-localparam                  QTY_MSG_WIDTH               = 2+32+1+32; // {bid_ask, price, is_add, d_shares}
-localparam                  QTY_BOOK_WIDTH              = SHARE_PER_PRICE_BIT;
-localparam                  PRICE_DEPTH                 = 1 << PRICE_ADDR_WIDTH;
+localparam                  PARSER_MSG_BIT            = 1+64+8+16+64+64+2+32+32+48;
+localparam                  QTY_MSG_BIT               = 2+32+1+32; // {bid_ask, price, is_add, d_shares} 
 
 localparam                  IDLE                        = 2'b00;
 localparam                  FIRST_CYCLE                 = 2'b01;
@@ -35,17 +32,16 @@ localparam                  WRITE                       = 2'b10;
 localparam                  BID                         = 2'b01;
 localparam                  ASK                         = 2'b10;
 
-wire [PARSER_MSG_WIDTH-1:0]       parser_msg               = {i_msg_valid, i_rx_ingress_tick, i_msg_type, i_stock_locate, i_order_ref_num, i_new_order_ref_num, i_side, i_shares, i_price, i_timestamp};
+wire [PARSER_MSG_BIT-1:0]       parser_msg               = {i_msg_valid, i_rx_ingress_tick, i_msg_type, i_stock_locate, i_order_ref_num, i_new_order_ref_num, i_side, i_shares, i_price, i_timestamp};
 
-wire [QTY_MSG_WIDTH-1:0]          qty_msg;
+wire [QTY_MSG_BIT-1:0]          qty_msg;
 
 
 book_builder #(
     .STOCK_LOCATE     (STOCK_LOCATE             ),
-    .BOOK_ADDR_WIDTH  (BOOK_ADDR_WIDTH          ),
-    .PARSER_MSG_WIDTH (PARSER_MSG_WIDTH         ),
-    .ORDER_MSG_WIDTH  (ORDER_MSG_WIDTH          ),
-    .QTY_MSG_WIDTH    (QTY_MSG_WIDTH            )
+    .BOOK_LEVEL_BIT  (BOOK_LEVEL_BIT          ),
+    .PARSER_MSG_BIT (PARSER_MSG_BIT         ),
+    .QTY_MSG_BIT    (QTY_MSG_BIT            )
 ) book_builder_inst (
     .i_clk_156          (i_clk_156              ),
     .i_rst              (i_rst                  ),
@@ -54,7 +50,13 @@ book_builder #(
 );
 
 
-qty_builder qty_builder_inst (
+qty_builder #(
+    .QTY_MSG_BIT     (QTY_MSG_BIT          ),
+    .QTY_PRICE_LVL_BIT      (QTY_PRICE_LVL_BIT       ),
+    .QTY_SHARE_BIT    (QTY_SHARE_BIT         ),
+    .PRICE_BASE        (PRICE_BASE             )
+)
+qty_builder_inst (
     .i_clk_156          (i_clk_156          ),
     .i_rst              (i_rst              ),
     .i_qty_msg          (qty_msg            )

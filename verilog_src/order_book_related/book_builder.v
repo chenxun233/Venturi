@@ -1,14 +1,13 @@
 module book_builder #(
     parameter STOCK_LOCATE          = 16'h000d,
-    parameter BOOK_ADDR_WIDTH       = 12,
-    parameter PARSER_MSG_WIDTH      = 1+64+8+16+64+64+2+32+32+48,
-    parameter ORDER_MSG_WIDTH       = 8+64+64+2+32+32,
-    parameter QTY_MSG_WIDTH         = 2+32+1+32 // {bid_ask, price, is_add, d_shares}
+    parameter BOOK_LEVEL_BIT      = 12,
+    parameter PARSER_MSG_BIT      = 1+64+8+16+64+64+2+32+32+48,
+    parameter QTY_MSG_BIT         = 2+32+1+32 // {bid_ask, price, is_add, d_shares}
 ) (
     input   wire                        i_clk_156,
     input   wire                        i_rst,               // active high
-    input   wire [PARSER_MSG_WIDTH-1:0] i_parser_msg,
-    output  wire [QTY_MSG_WIDTH-1:0]    o_qty_msg
+    input   wire [PARSER_MSG_BIT-1:0]   i_parser_msg,
+    output  wire [QTY_MSG_BIT-1:0]      o_qty_msg
 );
 
 
@@ -37,7 +36,7 @@ localparam WRITE                       = 2'b10;
 localparam BID                         = 2'b01;
 localparam ASK                         = 2'b10;
 
-wire [PARSER_MSG_WIDTH-1:0] ff_o_msg;
+wire [PARSER_MSG_BIT-1:0] ff_o_msg;
 wire                        ff_o_valid;
 wire                        ff_push;
 wire                        ff_pop;
@@ -55,7 +54,7 @@ assign ff_pop  = ff_not_empty && (book_upd_state == IDLE) && !ff_o_valid;
 
 fifo #(
     .DEPTH          (8              ),
-    .DATA_W         (PARSER_MSG_WIDTH)
+    .DATA_W         (PARSER_MSG_BIT)
 ) msg_fifo_inst (
     .i_clk          (i_clk_156      ),
     .i_rst          (i_rst          ),
@@ -70,7 +69,7 @@ fifo #(
 
 reg [1:0]                   book_upd_state;
 reg [1:0]                   book_op;
-reg [BOOK_ADDR_WIDTH-1:0]   book_addr;
+reg [BOOK_LEVEL_BIT-1:0]   book_addr;
 reg [ORDER_BOOK_WIDTH-1:0]  book_i_data;
 wire [ORDER_BOOK_WIDTH-1:0] book_o_data;
 
@@ -85,7 +84,7 @@ wire [31:0]                 book_o_shares     = book_o_data[63:32];
 wire [31:0]                 book_o_price      = book_o_data[31:0];
 
 bram #(
-    .ADDR_WIDTH      (BOOK_ADDR_WIDTH    ),
+    .ADDR_WIDTH      (BOOK_LEVEL_BIT    ),
     .DATA_WIDTH      (ORDER_BOOK_WIDTH   )
 ) order_book_inst (
     .i_clk           (i_clk_156         ),
@@ -101,7 +100,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
         book_upd_state   <= IDLE;
         book_op          <= IDLE;
-        book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+        book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
         qty_bid_ask      <= IDLE;
         qty_price        <= 32'd0;
         qty_is_add       <= 1'b0;
@@ -129,7 +128,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                     default: begin
                         book_op          <= IDLE;
                         book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
-                        book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                        book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                         book_upd_state   <= IDLE;
                         qty_bid_ask      <= IDLE;   
                     end
@@ -146,7 +145,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                     default: begin
                         book_op          <= IDLE;
                         book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
-                        book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                        book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                         book_upd_state   <= IDLE;
                         qty_bid_ask      <= IDLE;
                     end
@@ -166,7 +165,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                         end else begin
                             book_op          <= IDLE;
                             book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
-                            book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                            book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                             qty_bid_ask      <= IDLE;
                         end
                         book_upd_state <= IDLE;
@@ -184,7 +183,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                         end else begin
                             book_op          <= IDLE;
                             book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
-                            book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                            book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                             book_upd_state  <= IDLE;
                         end                        
                     end
@@ -200,7 +199,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                         end else begin
                             book_op          <= IDLE;
                             book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
-                            book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                            book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                             qty_bid_ask      <= IDLE;
                         end
                         book_upd_state <= IDLE;
@@ -208,7 +207,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                     default: begin
                         book_op          <= IDLE;
                         book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
-                        book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                        book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                         qty_bid_ask      <= IDLE;
                         book_upd_state  <= IDLE;
                     end
@@ -226,7 +225,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                 end else begin
                     book_op          <= IDLE;
                     book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
-                    book_addr        <= {BOOK_ADDR_WIDTH{1'b0}};
+                    book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                     qty_bid_ask      <= IDLE;
                 end
                 book_upd_state   <= IDLE;
@@ -235,25 +234,25 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                 book_upd_state <= IDLE;
                 book_op        <= IDLE;
                 book_i_data    <= {ORDER_BOOK_WIDTH{1'b0}};
-                book_addr      <= {BOOK_ADDR_WIDTH{1'b0}};
+                book_addr      <= {BOOK_LEVEL_BIT{1'b0}};
                 qty_bid_ask   <= IDLE;
             end
         endcase
     end else begin
         book_op        <= IDLE;
         book_i_data    <= {ORDER_BOOK_WIDTH{1'b0}};
-        book_addr      <= {BOOK_ADDR_WIDTH{1'b0}};
+        book_addr      <= {BOOK_LEVEL_BIT{1'b0}};
         qty_bid_ask   <= IDLE;
     end
 end
 
-function [BOOK_ADDR_WIDTH-1:0] cal_order_book_addr (input [63:0] order_ref_num);
+function [BOOK_LEVEL_BIT-1:0] cal_order_book_addr (input [63:0] order_ref_num);
     integer i;
     integer j;
 begin
     cal_order_book_addr = 0;
-    for (i = 0; i < BOOK_ADDR_WIDTH; i = i + 1) begin
-        for (j = 0; j < 64; j = j + BOOK_ADDR_WIDTH) begin
+    for (i = 0; i < BOOK_LEVEL_BIT; i = i + 1) begin
+        for (j = 0; j < 64; j = j + BOOK_LEVEL_BIT) begin
             if (i + j < 64) begin
                 cal_order_book_addr[i] = cal_order_book_addr[i] ^ order_ref_num[i+j];
             end

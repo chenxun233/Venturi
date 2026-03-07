@@ -286,8 +286,6 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         msg_count       <= msg_count - 1;
                                         o_msg_type      <= TYPE_D;
                                         // other untouched fields:
-
-
                                     end 
                                 TYPE_U: begin
                                         o_msg_valid     <= 1;
