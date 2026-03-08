@@ -3,11 +3,11 @@ module bid_tree_builder #(
 )(
     input  wire                         i_clk,
     input  wire                         i_rst,        // active high
-    input  wire [QTY_PRICE_LVL_BIT-1:0] i_bid_price_idx,
-    input  wire [1:0]                   i_bid_price_change,
+    input  wire [QTY_PRICE_LVL_BIT-1:0] i_tree_price_idx,
+    input  wire [1:0]                   i_tree_price_change,
 
-    output wire                         o_bid_best_valid,
-    output wire [QTY_PRICE_LVL_BIT-1:0] o_bid_best_idx
+    output wire                         o_tree_best_valid,
+    output wire [QTY_PRICE_LVL_BIT-1:0] o_tree_best_idx
 );
     localparam IDLE       = 2'b00;
     localparam EMPTY      = 2'b01;
@@ -46,8 +46,8 @@ module bid_tree_builder #(
                 mid_bid_t_idx[idx]   <= {QTY_PRICE_LVL_BIT{1'b0}};
             end
         end else begin
-            if (i_bid_price_change != IDLE) begin
-                last_bid_t_valid[i_bid_price_idx] <= (i_bid_price_change == NON_EMPTY);
+            if (i_tree_price_change != IDLE) begin
+                last_bid_t_valid[i_tree_price_idx] <= (i_tree_price_change == NON_EMPTY);
             end
 
             for (idx = 0; idx < MID_COUNT; idx = idx + 1) begin
@@ -118,11 +118,11 @@ module bid_tree_builder #(
         end
 
         if (MID_LEVEL == 0) begin : gen_root_from_mid
-            assign o_bid_best_valid = mid_bid_t_valid[0];
-            assign o_bid_best_idx   = mid_bid_t_idx[0];
+            assign o_tree_best_valid = mid_bid_t_valid[0];
+            assign o_tree_best_idx   = mid_bid_t_idx[0];
         end else begin : gen_root_from_lower
-            assign o_bid_best_valid = root_to_midbid_t_valid[0][0];
-            assign o_bid_best_idx   = root_to_midbid_t_idx[0][0];
+            assign o_tree_best_valid = root_to_midbid_t_valid[0][0];
+            assign o_tree_best_idx   = root_to_midbid_t_idx[0][0];
         end
     endgenerate
 

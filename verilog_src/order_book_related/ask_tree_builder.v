@@ -3,11 +3,11 @@ module ask_tree_builder #(
 )(
     input  wire                         i_clk,
     input  wire                         i_rst,        // active high
-    input  wire [QTY_PRICE_LVL_BIT-1:0] i_ask_price_idx,
-    input  wire [1:0]                   i_ask_price_change,
+    input  wire [QTY_PRICE_LVL_BIT-1:0] i_tree_price_idx,
+    input  wire [1:0]                   i_tree_price_change,
 
-    output wire                         o_ask_best_valid,
-    output wire [QTY_PRICE_LVL_BIT-1:0] o_ask_best_idx
+    output wire                         o_tree_best_valid,
+    output wire [QTY_PRICE_LVL_BIT-1:0] o_tree_best_idx
 );
     localparam IDLE            = 2'b00;
     localparam NON_EMPTY       = 2'b10;
@@ -44,8 +44,8 @@ module ask_tree_builder #(
                 mid_ask_t_idx[idx]   <= {QTY_PRICE_LVL_BIT{1'b0}};
             end
         end else begin
-            if (i_ask_price_change != IDLE) begin
-                bottom_ask_t_valid[i_ask_price_idx] <= (i_ask_price_change == NON_EMPTY);
+            if (i_tree_price_change != IDLE) begin
+                bottom_ask_t_valid[i_tree_price_idx] <= (i_tree_price_change == NON_EMPTY);
             end
 
             for (idx = 0; idx < MID_COUNT; idx = idx + 1) begin
@@ -116,11 +116,11 @@ module ask_tree_builder #(
         end
 
         if (MID_LEVEL == 0) begin : gen_top_from_mid
-            assign o_ask_best_valid = mid_ask_t_valid[0];
-            assign o_ask_best_idx   = mid_ask_t_idx[0];
+            assign o_tree_best_valid = mid_ask_t_valid[0];
+            assign o_tree_best_idx   = mid_ask_t_idx[0];
         end else begin : gen_top_from_lower
-            assign o_ask_best_valid = top_to_mid_ask_t_valid[0][0];
-            assign o_ask_best_idx   = top_to_mid_ask_t_idx[0][0];
+            assign o_tree_best_valid = top_to_mid_ask_t_valid[0][0];
+            assign o_tree_best_idx   = top_to_mid_ask_t_idx[0][0];
         end
     endgenerate
 

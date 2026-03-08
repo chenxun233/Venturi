@@ -35,14 +35,16 @@ localparam                  ASK                         = 2'b10;
 wire [PARSER_MSG_BIT-1:0]       parser_msg               = {i_msg_valid, i_rx_ingress_tick, i_msg_type, i_stock_locate, i_order_ref_num, i_new_order_ref_num, i_side, i_shares, i_price, i_timestamp};
 
 wire [QTY_MSG_BIT-1:0]          qty_msg;
-wire [QTY_PRICE_LVL_BIT-1:0]    ask_price_idx;
-wire [1:0]                      ask_price_change;
 wire                            ask_best_valid;
 wire [QTY_PRICE_LVL_BIT-1:0]    ask_best_idx;
-wire [QTY_PRICE_LVL_BIT-1:0]    bid_price_idx;
-wire [1:0]                      bid_price_change;
+wire                            ask_best_valid_aligned;
+wire [QTY_PRICE_LVL_BIT-1:0]    ask_best_idx_aligned;
+wire [QTY_SHARE_BIT-1:0]        ask_best_shares;
 wire                            bid_best_valid;
 wire [QTY_PRICE_LVL_BIT-1:0]    bid_best_idx;
+wire                            bid_best_valid_aligned;
+wire [QTY_PRICE_LVL_BIT-1:0]    bid_best_idx_aligned;
+wire [QTY_SHARE_BIT-1:0]        bid_best_shares;
 
 wire stock_valid = (i_stock_locate == STOCK_LOCATE);
 
@@ -59,57 +61,40 @@ book_builder #(
 );
 
 
-ask_qty_builder #(
+ask_wrapper #(
     .QTY_MSG_BIT        (QTY_MSG_BIT          ),
     .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    ),
     .QTY_SHARE_BIT      (QTY_SHARE_BIT        ),
     .PRICE_BASE         (PRICE_BASE           )
 )
-ask_qty_builder_inst (
+ask_wrapper_inst (
     .i_clk_156          (i_clk_156          ),
     .i_rst              (i_rst              ),
     .i_qty_msg          (qty_msg            ),
-    .o_ask_price_idx     (ask_price_idx      ),
-    .o_ask_price_change  (ask_price_change  )
+    .o_best_valid       (ask_best_valid     ),
+    .o_best_idx         (ask_best_idx       ),
+    .o_best_valid_aligned (ask_best_valid_aligned),
+    .o_best_idx_aligned (ask_best_idx_aligned),
+    .o_best_shares      (ask_best_shares    )
 );
 
 
-bid_qty_builder #(
+bid_wrapper #(
     .QTY_MSG_BIT        (QTY_MSG_BIT          ),
     .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    ),
     .QTY_SHARE_BIT      (QTY_SHARE_BIT        ),
     .PRICE_BASE         (PRICE_BASE           )
 )
-bid_qty_builder_inst (
-    .i_clk_156          (i_clk_156          ),
-    .i_rst              (i_rst              ),
-    .i_qty_msg          (qty_msg            ),
-    .o_bid_price_idx     (bid_price_idx         ),
-    .o_bid_price_change  (bid_price_change     )
+bid_wrapper_inst (
+    .i_clk_156           (i_clk_156          ),
+    .i_rst               (i_rst              ),
+    .i_qty_msg           (qty_msg            ),
+    .o_best_valid        (bid_best_valid     ),
+    .o_best_idx          (bid_best_idx       ),
+    .o_best_valid_aligned (bid_best_valid_aligned),
+    .o_best_idx_aligned   (bid_best_idx_aligned),
+    .o_best_shares        (bid_best_shares    )
 );
-
-ask_tree_builder #(
-    .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    )
-) ask_tree_builder_inst (
-    .i_clk              (i_clk_156          ),
-    .i_rst              (i_rst              ),
-    .i_ask_price_idx    (ask_price_idx      ),
-    .i_ask_price_change (ask_price_change  ),
-    .o_ask_best_valid   (ask_best_valid     ),
-    .o_ask_best_idx     (ask_best_idx       )
-);
-
-bid_tree_builder #(
-    .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    )
-) bid_tree_builder_inst (
-    .i_clk              (i_clk_156          ),
-    .i_rst              (i_rst              ),
-    .i_bid_price_idx    (bid_price_idx      ),
-    .i_bid_price_change (bid_price_change  ),
-    .o_bid_best_valid   (bid_best_valid     ),
-    .o_bid_best_idx     (bid_best_idx       )
-);
-
 
 
 
