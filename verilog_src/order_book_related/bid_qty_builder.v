@@ -8,10 +8,10 @@ module bid_qty_builder #(
     input   wire                          i_rst,               // active high
     input   wire [QTY_MSG_BIT-1:0]        i_qty_msg,
     output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_bid_price_idx,
-    output  reg                           o_bid_price_changed
+    output  reg  [1:0]                    o_bid_price_change
 );
 // o_price_idx indicating the price idx whose share changed between empty and non-empty.
-// o_price_changed is a pulse indicating any price idx change, used to trigger bid_tree update.
+// o_price_change is a pulse indicating any price idx change, used to trigger bid_tree update.
 
 
 reg [1:0]                                qty_upd_state;
@@ -23,6 +23,8 @@ localparam FIRST_CYCLE                   = 2'b01;
 localparam SECOND_CYCLE                  = 2'b10;
 localparam READ                          = 2'b01;
 localparam WRITE                         = 2'b10;
+localparam EMPTY                         = 2'b01;
+localparam NON_EMPTY                     = 2'b10;
 localparam BID                           = 2'b01;
 localparam PRICE_DEPTH                   = 1 << QTY_PRICE_LVL_BIT;
 wire [1:0]                  qty_bid_ask         = i_qty_msg[QTY_MSG_BIT-1:QTY_MSG_BIT-2];
@@ -133,19 +135,23 @@ bram #(
 always @(posedge i_clk_156 or posedge i_rst) begin
     if (i_rst) begin
         o_bid_price_idx          <= IDLE;
-        o_bid_price_changed        <= IDLE;
+        o_bid_price_change       <= IDLE;
     end else if (qty_upd_state == SECOND_CYCLE) begin
-        if ((qty_cur == 0 && qty_new > 0)|| (qty_cur > 0 && qty_new == 0)) begin
+        if (qty_cur == 0 && qty_new > 0) begin
             // empty -> non-empty
             o_bid_price_idx      <= qty_addr;
-            o_bid_price_changed  <= 1'b1;
+            o_bid_price_change   <= NON_EMPTY;
+        end else if (qty_cur > 0 && qty_new == 0) begin
+            // non-empty -> empty
+            o_bid_price_idx      <= qty_addr;
+            o_bid_price_change   <= EMPTY;
         end else begin
             o_bid_price_idx      <= 0;
-            o_bid_price_changed  <= 1'b0;
+            o_bid_price_change   <= IDLE;
         end
     end else begin
         o_bid_price_idx          <= 0;
-        o_bid_price_changed      <= 1'b0;
+        o_bid_price_change       <= IDLE;
     end
 end
 
