@@ -282,6 +282,15 @@ wire [31:0]             price;
 
 assign w_axi_rx_ready = axi_rx_ready;
 
+
+wire         ask_best_valid ;
+wire [31:0]  ask_best_price ;
+wire [31:0]  ask_best_shares;
+wire         bid_best_valid ;
+wire [31:0]  bid_best_price ;
+wire [31:0]  bid_best_shares;
+
+
 MAC_layer_rx #(
     .DATA_WIDTH (64),
     .CTRL_WIDTH (8)
@@ -340,8 +349,8 @@ order_book_parser_inst
 .i_ctl_reg          (o_ctl_reg          )
 );
 
-order_book_wrapper #(
-) order_book_wrapper_inst (
+order_book_builder #(
+) order_book_builder_inst (
     .i_clk_156          (w_xgmii_rx_clk     ),
     .i_rst              (w_xgmii_rx_rst     ),
     .i_msg_valid        (msg_valid          ),
@@ -355,7 +364,12 @@ order_book_wrapper #(
     .i_shares           (shares             ),
     .i_price            (price              ),
     .i_timestamp        (timestamp          ),
-    .i_ctl_fire         (o_sync_fire        )
+    .o_ask_best_valid   (ask_best_valid   ),
+    .o_ask_best_price   (ask_best_price   ),
+    .o_ask_best_shares  (ask_best_shares  ),
+    .o_bid_best_valid   (bid_best_valid   ),
+    .o_bid_best_price   (bid_best_price   ),
+    .o_bid_best_shares  (bid_best_shares  )
 );
 
 
@@ -427,7 +441,7 @@ pcs_pma_wrapper_inst (
     .o_xgmii_tx_rst                 (w_xgmii_tx_rst     ),
     .o_xgmii_rx_clk                 (w_xgmii_rx_clk     ),
     .o_xgmii_rx_rst                 (w_xgmii_rx_rst     ),
-    .o_rx_status                    (w_sfp_rx_status     )
+    .o_rx_status                    (w_sfp_rx_status    )
 );
 
 

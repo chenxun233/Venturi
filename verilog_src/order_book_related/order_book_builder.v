@@ -1,4 +1,4 @@
-module order_book_wrapper #(
+module order_book_builder #(
     parameter STOCK_BITS       = 6,     // number of tracked stocks = 2^STOCK_BITS
     parameter PRICE_BITS       = 10,    // number of price levels per stock = 2^PRICE_BITS
     parameter SYMBOL_NUM       = 1,     // How many symbols to track.
@@ -17,9 +17,13 @@ module order_book_wrapper #(
     input   wire [7:0]                  i_buy_sell,          // 'B' or 'S' for A/F
     input   wire [31:0]                 i_shares,
     input   wire [31:0]                 i_price,
-    input   wire [47:0]                 i_timestamp,
-    // control plane interface
-    input   wire                        i_ctl_fire           // fire signal from control plane to trigger actions
+    input   wire [47:0]                 i_timestamp     ,
+    output wire                         o_ask_best_valid  ,
+    output wire [31:0]                  o_ask_best_price  ,
+    output wire [31:0]                  o_ask_best_shares ,
+    output wire                         o_bid_best_valid  ,
+    output wire [31:0]                  o_bid_best_price  ,
+    output wire [31:0]                  o_bid_best_shares 
 );
 
 localparam NULL = 2'd0;
@@ -35,6 +39,7 @@ always @(*) begin
         default:    side = NULL;
     endcase
 end
+
 
 
 symbol_book #(
@@ -55,7 +60,15 @@ symbol_book #(
     .i_side             (side               ),
     .i_shares           (i_shares           ),
     .i_price            (i_price            ),
-    .i_timestamp        (i_timestamp        )
+    .i_timestamp        (i_timestamp        ),
+    .o_ask_best_valid   (o_ask_best_valid     ),
+    .o_ask_best_price   (o_ask_best_price     ),
+    .o_ask_best_shares  (o_ask_best_shares    ),
+    .o_bid_best_valid   (o_bid_best_valid     ),
+    .o_bid_best_price   (o_bid_best_price     ),
+    .o_bid_best_shares  (o_bid_best_shares    )
 );
+
+
 
 endmodule

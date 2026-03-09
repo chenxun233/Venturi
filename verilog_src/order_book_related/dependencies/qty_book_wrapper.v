@@ -1,4 +1,4 @@
-module qty_level_wrapper #(
+module qty_book_wrapper #(
     parameter QTY_MSG_BIT       = 2+32+1+32,
     parameter QTY_PRICE_LVL_BIT = 10,
     parameter QTY_SHARE_BIT     = 32,
@@ -10,16 +10,13 @@ module qty_level_wrapper #(
     input  wire [QTY_MSG_BIT-1:0]        i_qty_msg,
 
     output wire                          o_best_valid_aligned,
-    output wire  [QTY_PRICE_LVL_BIT-1:0] o_best_idx_aligned,
-    output reg  [QTY_SHARE_BIT-1:0]      o_best_shares
+    output wire [31:0]                   o_best_price_aligned,
+    output wire [QTY_SHARE_BIT-1:0]      o_best_shares
 );
 
-reg best_valid_aligned;
-reg  [QTY_PRICE_LVL_BIT-1:0]  best_idx_aligned;
 wire [QTY_PRICE_LVL_BIT-1:0]  best_idx;
 wire                          best_valid;
-assign o_best_valid_aligned = best_valid_aligned && (o_best_shares > 0);
-assign o_best_idx_aligned = o_best_valid_aligned ? best_idx_aligned : {QTY_PRICE_LVL_BIT{1'b0}};
+wire [31:0]                   best_price = PRICE_BASE + ({24'd0, best_idx} << 2);
 
 localparam IDLE  = 2'b00;
 localparam READ  = 2'b01;
@@ -35,8 +32,6 @@ wire [QTY_PRICE_LVL_BIT-1:0] bram_addr_b = best_idx;
 wire [1:0]                   bram_op_b = best_valid ? READ : IDLE;
 wire [QTY_SHARE_BIT-1:0]     bram_i_data_b = {QTY_SHARE_BIT{1'b0}};
 wire [QTY_SHARE_BIT-1:0]     bram_o_data_b;
-reg                          best_valid_d1;
-reg [QTY_PRICE_LVL_BIT-1:0]  best_idx_d1;
 
 qty_builder #(
     .QTY_MSG_BIT       (QTY_MSG_BIT),
@@ -68,21 +63,22 @@ tree_builder #(
     .o_tree_best_idx    (best_idx)
 );
 
-always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
-        best_valid_d1       <= 1'b0;
-        best_idx_d1         <= {QTY_PRICE_LVL_BIT{1'b0}};
-        best_valid_aligned <= 1'b0;
-        best_idx_aligned   <= {QTY_PRICE_LVL_BIT{1'b0}};
-        o_best_shares        <= {QTY_SHARE_BIT{1'b0}};
-    end else begin
-        best_valid_aligned   <= best_valid_d1;
-        best_idx_aligned     <= best_idx_d1;
-        o_best_shares        <= bram_o_data_b;
-        best_valid_d1       <= best_valid ;
-        best_idx_d1         <= best_idx;
-    end
-end
+aligner #(
+    .QTY_SHARE_BIT (QTY_SHARE_BIT)
+) aligner_inst (
+    .i_clk_156             (i_clk_156),
+    .i_rst                 (i_rst),
+    .i_best_valid          (best_valid),
+    .i_best_price          (best_price),
+    .i_best_shares         (bram_o_data_b),
+    .o_best_valid_aligned  (o_best_valid_aligned),
+    .o_best_price_aligned  (o_best_price_aligned),
+    .o_best_shares         (o_best_shares)
+);
+
+// wire [QTY_SHARE_BIT-1:0] temp_bram_o_data_b;
+
+// assign bram_o_data_b = best_valid ? temp_bram_o_data_b : {QTY_SHARE_BIT{1'b0}};
 
 bram_dp #(
     .ADDR_WIDTH (QTY_PRICE_LVL_BIT),

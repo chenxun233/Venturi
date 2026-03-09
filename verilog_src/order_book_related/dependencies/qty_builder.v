@@ -121,11 +121,8 @@ always @(posedge i_clk_156 or posedge i_rst) begin
     end
 end
 
-always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
-        o_tree_price_idx         <= IDLE;
-        o_tree_price_change      <= IDLE;
-    end else if (qty_upd_state == SECOND_CYCLE) begin
+always @(*) begin
+    if (qty_upd_state == SECOND_CYCLE) begin
         if ((qty_cur == 0 && qty_new > 0)) begin
             // empty -> non-empty
             o_tree_price_idx     <= qty_addr;

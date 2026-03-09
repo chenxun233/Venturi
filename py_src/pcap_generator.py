@@ -253,6 +253,9 @@ class MoldUDP64Frame:
 
 # Structured manual payload templates.
 # Edit these message fields directly instead of editing large hex strings.
+
+by_or_sell = "B"  # "B" for buy, "S" for sell
+
 MANUAL_MESSAGE_FRAMES = [
     MoldUDP64Frame(
         session="NASDQTEST",
@@ -263,7 +266,7 @@ MANUAL_MESSAGE_FRAMES = [
                 tracking_number=0,
                 timestamp=14400007075802,
                 order_reference_number=1,
-                buy_sell_indicator="B",
+                buy_sell_indicator=by_or_sell,
                 shares=10,
                 stock="AAPL",
                 price="000.01",
@@ -273,19 +276,19 @@ MANUAL_MESSAGE_FRAMES = [
                 tracking_number=0,
                 timestamp=30607343087807,
                 order_reference_number=2,
-                buy_sell_indicator="B",
+                buy_sell_indicator=by_or_sell,
                 shares=500,
                 stock="AAPL",
                 price="000.02",
                 attribution="TSSM",
             ),
-            # TYPE_X(
-            #     stock_locate=13,
-            #     tracking_number=0,
-            #     timestamp=29887725030607,
-            #     order_reference_number=1,
-            #     canceled_shares=10,
-            # ),
+            TYPE_X(
+                stock_locate=13,
+                tracking_number=0,
+                timestamp=29887725030607,
+                order_reference_number=1,
+                canceled_shares=10,
+            ),
             TYPE_X(
                 stock_locate=13,
                 tracking_number=0,
@@ -316,7 +319,7 @@ MANUAL_MESSAGE_FRAMES = [
                 tracking_number=0,
                 timestamp=14400007075802,
                 order_reference_number=3,
-                buy_sell_indicator="B",
+                buy_sell_indicator=by_or_sell,
                 shares=20,
                 stock="AAPL",
                 price="000.03",

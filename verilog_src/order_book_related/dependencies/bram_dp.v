@@ -52,9 +52,13 @@ always @(posedge i_clk) begin
     end else begin
         if (do_read_a) begin
             o_data_a <= bram[i_addr_a];
+        end else begin
+            o_data_a <= {DATA_WIDTH{1'b0}};
         end
         if (do_read_b) begin
             o_data_b <= bram[i_addr_b];
+        end else begin
+            o_data_b <= {DATA_WIDTH{1'b0}};
         end
     end
 end
