@@ -1,18 +1,25 @@
-module ask_wrapper #(
+module qty_level_wrapper #(
     parameter QTY_MSG_BIT       = 2+32+1+32,
     parameter QTY_PRICE_LVL_BIT = 10,
     parameter QTY_SHARE_BIT     = 32,
-    parameter PRICE_BASE        = 32'd0
+    parameter PRICE_BASE        = 32'd0,
+    parameter BID_OR_ASK        = 2'b01 // 01 for ask, 10 for bid
 ) (
     input  wire                          i_clk_156,
     input  wire                          i_rst,
     input  wire [QTY_MSG_BIT-1:0]        i_qty_msg,
     output wire                          o_best_valid,
     output wire [QTY_PRICE_LVL_BIT-1:0]  o_best_idx,
-    output reg                           o_best_valid_aligned,
-    output reg  [QTY_PRICE_LVL_BIT-1:0]  o_best_idx_aligned,
+    output wire                          o_best_valid_aligned,
+    output wire  [QTY_PRICE_LVL_BIT-1:0] o_best_idx_aligned,
     output reg  [QTY_SHARE_BIT-1:0]      o_best_shares
 );
+
+reg best_valid_aligned;
+reg  [QTY_PRICE_LVL_BIT-1:0]  best_idx_aligned;
+
+assign o_best_valid_aligned = best_valid_aligned && (o_best_shares > 0);
+assign o_best_idx_aligned = o_best_valid_aligned ? best_idx_aligned : {QTY_PRICE_LVL_BIT{1'b0}};
 
 localparam IDLE  = 2'b00;
 localparam READ  = 2'b01;
@@ -31,26 +38,28 @@ wire [QTY_SHARE_BIT-1:0]     bram_o_data_b;
 reg                          best_valid_d1;
 reg [QTY_PRICE_LVL_BIT-1:0]  best_idx_d1;
 
-ask_qty_builder #(
+qty_builder #(
     .QTY_MSG_BIT       (QTY_MSG_BIT),
     .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
     .QTY_SHARE_BIT     (QTY_SHARE_BIT),
-    .PRICE_BASE        (PRICE_BASE)
-) ask_qty_builder_inst (
+    .PRICE_BASE        (PRICE_BASE),
+    .BID_OR_ASK        (BID_OR_ASK)
+) bid_qty_builder_inst (
     .i_clk_156          (i_clk_156),
     .i_rst              (i_rst),
     .i_qty_msg          (i_qty_msg),
     .i_bram_o_data      (bram_o_data_a),
     .o_tree_price_idx   (tree_price_idx),
     .o_tree_price_change(tree_price_change),
-    .o_bram_addr        (bram_addr_a),
-    .o_bram_op          (bram_op_a),
-    .o_bram_i_data      (bram_i_data_a)
+    .o_bram_addr        (bram_addr_a      ),
+    .o_bram_op          (bram_op_a      ),
+    .o_bram_i_data      (bram_i_data_a  )
 );
 
-ask_tree_builder #(
-    .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT)
-) ask_tree_builder_inst (
+tree_builder #(
+    .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
+    .BID_OR_ASK        (BID_OR_ASK)
+) bid_tree_builder_inst (
     .i_clk              (i_clk_156),
     .i_rst              (i_rst),
     .i_tree_price_idx   (tree_price_idx),
@@ -61,24 +70,24 @@ ask_tree_builder #(
 
 always @(posedge i_clk_156 or posedge i_rst) begin
     if (i_rst) begin
-        best_valid_d1        <= 1'b0;
-        best_idx_d1          <= {QTY_PRICE_LVL_BIT{1'b0}};
-        o_best_valid_aligned <= 1'b0;
-        o_best_idx_aligned   <= {QTY_PRICE_LVL_BIT{1'b0}};
+        best_valid_d1       <= 1'b0;
+        best_idx_d1         <= {QTY_PRICE_LVL_BIT{1'b0}};
+        best_valid_aligned <= 1'b0;
+        best_idx_aligned   <= {QTY_PRICE_LVL_BIT{1'b0}};
         o_best_shares        <= {QTY_SHARE_BIT{1'b0}};
     end else begin
-        o_best_valid_aligned <= best_valid_d1;
-        o_best_idx_aligned   <= best_idx_d1;
+        best_valid_aligned   <= best_valid_d1;
+        best_idx_aligned     <= best_idx_d1;
         o_best_shares        <= bram_o_data_b;
-        best_valid_d1        <= o_best_valid;
-        best_idx_d1          <= o_best_idx;
+        best_valid_d1       <= o_best_valid ;
+        best_idx_d1         <= o_best_idx;
     end
 end
 
 bram_dp #(
     .ADDR_WIDTH (QTY_PRICE_LVL_BIT),
     .DATA_WIDTH (QTY_SHARE_BIT)
-) ask_bram_inst (
+) bid_bram_inst (
     .i_clk    (i_clk_156),
     .i_rst    (i_rst),
     .i_addr_a (bram_addr_a),
@@ -90,8 +99,6 @@ bram_dp #(
     .i_data_b (bram_i_data_b),
     .o_data_b (bram_o_data_b)
 );
-
-
 
 
 endmodule

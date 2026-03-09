@@ -61,39 +61,41 @@ book_builder #(
 );
 
 
-ask_wrapper #(
-    .QTY_MSG_BIT        (QTY_MSG_BIT          ),
-    .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    ),
-    .QTY_SHARE_BIT      (QTY_SHARE_BIT        ),
-    .PRICE_BASE         (PRICE_BASE           )
+qty_level_wrapper #(
+    .QTY_MSG_BIT            (QTY_MSG_BIT          ),
+    .QTY_PRICE_LVL_BIT      (QTY_PRICE_LVL_BIT    ),
+    .QTY_SHARE_BIT          (QTY_SHARE_BIT        ),
+    .PRICE_BASE             (PRICE_BASE           ),
+    .BID_OR_ASK             (2'b10) //  01 for bid, 10 for ask
 )
 ask_wrapper_inst (
-    .i_clk_156          (i_clk_156          ),
-    .i_rst              (i_rst              ),
-    .i_qty_msg          (qty_msg            ),
-    .o_best_valid       (ask_best_valid     ),
-    .o_best_idx         (ask_best_idx       ),
-    .o_best_valid_aligned (ask_best_valid_aligned),
-    .o_best_idx_aligned (ask_best_idx_aligned),
-    .o_best_shares      (ask_best_shares    )
+    .i_clk_156              (i_clk_156          ),
+    .i_rst                  (i_rst              ),
+    .i_qty_msg              (qty_msg            ),
+    .o_best_valid           (ask_best_valid     ),
+    .o_best_idx             (ask_best_idx       ),
+    .o_best_valid_aligned   (ask_best_valid_aligned),
+    .o_best_idx_aligned     (ask_best_idx_aligned),
+    .o_best_shares          (ask_best_shares    )
 );
 
 
-bid_wrapper #(
-    .QTY_MSG_BIT        (QTY_MSG_BIT          ),
-    .QTY_PRICE_LVL_BIT  (QTY_PRICE_LVL_BIT    ),
-    .QTY_SHARE_BIT      (QTY_SHARE_BIT        ),
-    .PRICE_BASE         (PRICE_BASE           )
+qty_level_wrapper #(
+    .QTY_MSG_BIT            (QTY_MSG_BIT          ),
+    .QTY_PRICE_LVL_BIT      (QTY_PRICE_LVL_BIT    ),
+    .QTY_SHARE_BIT          (QTY_SHARE_BIT        ),
+    .PRICE_BASE             (PRICE_BASE           ),
+    .BID_OR_ASK             (2'b01) //  01 for bid, 10 for ask
 )
 bid_wrapper_inst (
-    .i_clk_156           (i_clk_156          ),
-    .i_rst               (i_rst              ),
-    .i_qty_msg           (qty_msg            ),
-    .o_best_valid        (bid_best_valid     ),
-    .o_best_idx          (bid_best_idx       ),
-    .o_best_valid_aligned (bid_best_valid_aligned),
-    .o_best_idx_aligned   (bid_best_idx_aligned),
-    .o_best_shares        (bid_best_shares    )
+    .i_clk_156              (i_clk_156          ),
+    .i_rst                  (i_rst              ),
+    .i_qty_msg              (qty_msg            ),
+    .o_best_valid           (bid_best_valid     ),
+    .o_best_idx             (bid_best_idx       ),
+    .o_best_valid_aligned   (bid_best_valid_aligned),
+    .o_best_idx_aligned     (bid_best_idx_aligned),
+    .o_best_shares          (bid_best_shares    )
 );
 
 

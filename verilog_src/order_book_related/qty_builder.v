@@ -1,8 +1,9 @@
-module ask_qty_builder #(
+module qty_builder #(
     parameter QTY_MSG_BIT       = 2+32+1+32, // {side, price, is_add, d_shares}
     parameter QTY_PRICE_LVL_BIT = 10,        // trace 2^QTY_PRICE_LVL_BIT price levels
     parameter QTY_SHARE_BIT     = 32,        // number of bits to represent shares quantity at each price level
-    parameter PRICE_BASE        = 32'd0
+    parameter PRICE_BASE        = 32'd0,
+    parameter BID_OR_ASK        = 2'b01         // 01 for bid, 10 for ask
 )(
     input   wire                          i_clk_156,
     input   wire                          i_rst,               // active high
@@ -30,12 +31,11 @@ localparam READ                          = 2'b01;
 localparam WRITE                         = 2'b10;
 localparam EMPTY                         = 2'b01;
 localparam NON_EMPTY                     = 2'b10;
-localparam BOOK_SIDE                     = 2'b10;
 localparam PRICE_DEPTH                   = 1 << QTY_PRICE_LVL_BIT;
 
 wire [1:0]                  i_qty_side          = i_qty_msg[QTY_MSG_BIT-1:QTY_MSG_BIT-2];
 
-wire                        ff_push             = i_qty_side == BOOK_SIDE;
+wire                        ff_push             = i_qty_side == BID_OR_ASK;
 wire                        ff_not_empty;
 wire                        ff_pop;
 wire [QTY_MSG_BIT-1:0]      ff_o_qty_msg;
@@ -63,7 +63,7 @@ assign ff_pop = ff_not_empty && (qty_upd_state == IDLE) && !ff_o_valid;
 fifo #(
     .DEPTH          (8),
     .DATA_W         (QTY_MSG_BIT)
-) ask_qty_msg_fifo_inst (
+) qty_msg_fifo_inst (
     .i_clk          (i_clk_156),
     .i_rst          (i_rst),
     .i_do_push      (ff_push),
