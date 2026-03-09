@@ -72,16 +72,16 @@ module ask_tree_builder #(
                         bottom_ask_t_valid[LEFT_CHILD] | bottom_ask_t_valid[RIGHT_CHILD];
 
                     assign mid_to_bottom_ask_t_idx[level][node] =
+                        bottom_ask_t_valid[LEFT_CHILD]  ? LEFT_LEAF_IDX  : // left is preferred. best ask is the lowest price.
                         bottom_ask_t_valid[RIGHT_CHILD] ? RIGHT_LEAF_IDX :
-                        bottom_ask_t_valid[LEFT_CHILD]  ? LEFT_LEAF_IDX  :
                                                         {QTY_PRICE_LVL_BIT{1'b0}};
                 end else begin : gen_from_mid_to_bottom_level
                     assign mid_to_bottom_ask_t_valid[level][node] =
                         mid_to_bottom_ask_t_valid[level+1][LEFT_CHILD] | mid_to_bottom_ask_t_valid[level+1][RIGHT_CHILD];
 
                     assign mid_to_bottom_ask_t_idx[level][node] =
-                        mid_to_bottom_ask_t_valid[level+1][RIGHT_CHILD] ? mid_to_bottom_ask_t_idx[level+1][RIGHT_CHILD] :
                         mid_to_bottom_ask_t_valid[level+1][LEFT_CHILD]  ? mid_to_bottom_ask_t_idx[level+1][LEFT_CHILD]  :
+                        mid_to_bottom_ask_t_valid[level+1][RIGHT_CHILD] ? mid_to_bottom_ask_t_idx[level+1][RIGHT_CHILD] :
                                                                         {QTY_PRICE_LVL_BIT{1'b0}};
                 end
             end
@@ -100,16 +100,16 @@ module ask_tree_builder #(
                         mid_ask_t_valid[LEFT_CHILD] | mid_ask_t_valid[RIGHT_CHILD];
 
                     assign top_to_mid_ask_t_idx[level][node] =
-                        mid_ask_t_valid[RIGHT_CHILD] ? mid_ask_t_idx[RIGHT_CHILD] :
                         mid_ask_t_valid[LEFT_CHILD]  ? mid_ask_t_idx[LEFT_CHILD]  :
+                        mid_ask_t_valid[RIGHT_CHILD] ? mid_ask_t_idx[RIGHT_CHILD] :
                                                        {QTY_PRICE_LVL_BIT{1'b0}};
                 end else begin : gen_from_top_to_midlevel
                     assign top_to_mid_ask_t_valid[level][node] =
                         top_to_mid_ask_t_valid[level+1][LEFT_CHILD] | top_to_mid_ask_t_valid[level+1][RIGHT_CHILD];
 
                     assign top_to_mid_ask_t_idx[level][node] =
-                        top_to_mid_ask_t_valid[level+1][RIGHT_CHILD] ? top_to_mid_ask_t_idx[level+1][RIGHT_CHILD] :
                         top_to_mid_ask_t_valid[level+1][LEFT_CHILD]  ? top_to_mid_ask_t_idx[level+1][LEFT_CHILD]  :
+                        top_to_mid_ask_t_valid[level+1][RIGHT_CHILD] ? top_to_mid_ask_t_idx[level+1][RIGHT_CHILD] :
                                                                        {QTY_PRICE_LVL_BIT{1'b0}};
                 end
             end
