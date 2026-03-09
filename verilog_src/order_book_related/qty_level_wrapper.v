@@ -8,8 +8,7 @@ module qty_level_wrapper #(
     input  wire                          i_clk_156,
     input  wire                          i_rst,
     input  wire [QTY_MSG_BIT-1:0]        i_qty_msg,
-    output wire                          o_best_valid,
-    output wire [QTY_PRICE_LVL_BIT-1:0]  o_best_idx,
+
     output wire                          o_best_valid_aligned,
     output wire  [QTY_PRICE_LVL_BIT-1:0] o_best_idx_aligned,
     output reg  [QTY_SHARE_BIT-1:0]      o_best_shares
@@ -17,7 +16,8 @@ module qty_level_wrapper #(
 
 reg best_valid_aligned;
 reg  [QTY_PRICE_LVL_BIT-1:0]  best_idx_aligned;
-
+wire [QTY_PRICE_LVL_BIT-1:0]  best_idx;
+wire                          best_valid;
 assign o_best_valid_aligned = best_valid_aligned && (o_best_shares > 0);
 assign o_best_idx_aligned = o_best_valid_aligned ? best_idx_aligned : {QTY_PRICE_LVL_BIT{1'b0}};
 
@@ -31,8 +31,8 @@ wire [QTY_PRICE_LVL_BIT-1:0] bram_addr_a;
 wire [1:0]                   bram_op_a;
 wire [QTY_SHARE_BIT-1:0]     bram_i_data_a;
 wire [QTY_SHARE_BIT-1:0]     bram_o_data_a;
-wire [QTY_PRICE_LVL_BIT-1:0] bram_addr_b = o_best_idx;
-wire [1:0]                   bram_op_b = o_best_valid ? READ : IDLE;
+wire [QTY_PRICE_LVL_BIT-1:0] bram_addr_b = best_idx;
+wire [1:0]                   bram_op_b = best_valid ? READ : IDLE;
 wire [QTY_SHARE_BIT-1:0]     bram_i_data_b = {QTY_SHARE_BIT{1'b0}};
 wire [QTY_SHARE_BIT-1:0]     bram_o_data_b;
 reg                          best_valid_d1;
@@ -64,8 +64,8 @@ tree_builder #(
     .i_rst              (i_rst),
     .i_tree_price_idx   (tree_price_idx),
     .i_tree_price_change(tree_price_change),
-    .o_tree_best_valid  (o_best_valid),
-    .o_tree_best_idx    (o_best_idx)
+    .o_tree_best_valid  (best_valid),
+    .o_tree_best_idx    (best_idx)
 );
 
 always @(posedge i_clk_156 or posedge i_rst) begin
@@ -79,8 +79,8 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         best_valid_aligned   <= best_valid_d1;
         best_idx_aligned     <= best_idx_d1;
         o_best_shares        <= bram_o_data_b;
-        best_valid_d1       <= o_best_valid ;
-        best_idx_d1         <= o_best_idx;
+        best_valid_d1       <= best_valid ;
+        best_idx_d1         <= best_idx;
     end
 end
 
