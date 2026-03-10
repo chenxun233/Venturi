@@ -1,8 +1,8 @@
 module order_book_builder #(
     parameter STOCK_BITS       = 6,     // number of tracked stocks = 2^STOCK_BITS
     parameter PRICE_BITS       = 10,    // number of price levels per stock = 2^PRICE_BITS
-    parameter SYMBOL_NUM       = 1,     // How many symbols to track.
-    parameter ORDER_ENTRY_W    = 82     // 1+16+1+32+32 = 82 bits per order entry: valid, stock_locate, side, price, shares_remaining
+    parameter SYMBOL_NUM       = 1,
+    parameter PARSER_MSG_BIT   = 1+64+8+16+64+64+2+32+32 // {msg_valid, seq_num, msg_type, stock_locate, order_ref_num, new_order_ref_num, side, shares, price}
 ) (
     // order book parser interface
     input   wire                        i_clk_156,
@@ -43,6 +43,9 @@ end
 wire [63:0] o_ask_seq_num;
 wire [63:0] o_bid_seq_num;
 
+
+wire [PARSER_MSG_BIT-1:0]       parser_msg   = {i_msg_valid, i_seq_num, i_msg_type, i_stock_locate, i_order_ref_num, i_new_order_ref_num, side, i_shares, i_price};
+
 symbol_book #(
     .QTY_SHARE_BIT      (32), // number of bits to represent shares quantity at each price level
     .QTY_PRICE_LVL_BIT  (8),
@@ -52,16 +55,8 @@ symbol_book #(
 ) symbol_book_inst (
     .i_clk_156          (i_clk_156          ),
     .i_rst              (i_rst              ),
-    .i_msg_valid        (i_msg_valid        ),
-    .i_seq_num          (i_seq_num  ),
-    .i_msg_type         (i_msg_type         ),
-    .i_stock_locate     (i_stock_locate     ),
-    .i_order_ref_num    (i_order_ref_num    ),
-    .i_new_order_ref_num(i_new_order_ref_num),
-    .i_side             (side               ),
-    .i_shares           (i_shares           ),
-    .i_price            (i_price            ),
-    .i_timestamp        (i_timestamp        ),
+    .i_parser_msg       (parser_msg          ),
+    .o_event            (                   ),
     .o_ask_best_valid   (o_ask_best_valid   ),
     .o_ask_best_price   (o_ask_best_price   ),
     .o_ask_best_shares  (o_ask_best_shares  ),

@@ -42,15 +42,15 @@ wire                        ff_o_valid;
 wire                        ff_push;
 wire                        ff_pop;
 wire                        ff_not_empty;
-wire [63:0]   msg_seq_num        = ff_o_msg[329:266];
-wire [7:0]    msg_type           = ff_o_msg[265:258];
-wire [63:0]   msg_order_ref_num  = ff_o_msg[241:178];
-wire [63:0]   msg_new_order_ref  = ff_o_msg[177:114];
-wire [1:0]    msg_side           = ff_o_msg[113:112];
-wire [31:0]   msg_shares         = ff_o_msg[111:80];
-wire [31:0]   msg_price          = ff_o_msg[79:48];
+wire [63:0]   msg_seq_num       = ff_o_msg[281:218] ;
+wire [7:0]    msg_type          = ff_o_msg[217:210] ;
+wire [63:0]   msg_order_ref_num = ff_o_msg[193:130] ;
+wire [63:0]   msg_new_order_ref = ff_o_msg[129:66]  ;
+wire [1:0]    msg_side          = ff_o_msg[65:64]   ;
+wire [31:0]   msg_shares        = ff_o_msg[63:32]   ;
+wire [31:0]   msg_price         = ff_o_msg[31:0]    ;
 
-assign ff_push = i_parser_msg[330] && i_stock_valid;
+assign ff_push = i_parser_msg[282] && i_stock_valid;
 assign ff_pop  = ff_not_empty && (book_upd_state == IDLE) && !ff_o_valid;
 
 fifo #(
