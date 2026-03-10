@@ -6,7 +6,6 @@ module tree_builder #(
     input  wire                         i_rst,        // active high
     input  wire [QTY_PRICE_LVL_BIT-1:0] i_tree_price_idx,
     input  wire [1:0]                   i_tree_price_change,
-
     output wire                         o_tree_best_valid,
     output wire [QTY_PRICE_LVL_BIT-1:0] o_tree_best_idx
 );

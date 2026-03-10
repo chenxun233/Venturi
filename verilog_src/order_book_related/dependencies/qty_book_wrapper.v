@@ -8,10 +8,10 @@ module qty_book_wrapper #(
     input  wire                          i_clk_156,
     input  wire                          i_rst,
     input  wire [QTY_MSG_BIT-1:0]        i_qty_msg,
-
     output wire                          o_best_valid_aligned,
     output wire [31:0]                   o_best_price_aligned,
-    output wire [QTY_SHARE_BIT-1:0]      o_best_shares
+    output wire [QTY_SHARE_BIT-1:0]      o_best_shares,
+    output wire [63:0]                   o_seq_num
 );
 
 wire [QTY_PRICE_LVL_BIT-1:0]  best_idx;
@@ -21,6 +21,8 @@ wire [31:0]                   best_price = PRICE_BASE + ({24'd0, best_idx} << 2)
 localparam IDLE  = 2'b00;
 localparam READ  = 2'b01;
 localparam WRITE = 2'b10;
+
+assign o_seq_num = (o_best_valid_aligned) ? seq_num : 64'hFFFF_FFFF_FFFF_FFFF; // output max seq_num when no valid best price, so that downstream can ignore it.
 
 wire [QTY_PRICE_LVL_BIT-1:0] tree_price_idx;
 wire [1:0]                   tree_price_change;
@@ -32,6 +34,7 @@ wire [QTY_PRICE_LVL_BIT-1:0] bram_addr_b = best_idx;
 wire [1:0]                   bram_op_b = best_valid ? READ : IDLE;
 wire [QTY_SHARE_BIT-1:0]     bram_i_data_b = {QTY_SHARE_BIT{1'b0}};
 wire [QTY_SHARE_BIT-1:0]     bram_o_data_b;
+wire [63:0]                  seq_num;
 
 qty_builder #(
     .QTY_MSG_BIT       (QTY_MSG_BIT),
@@ -46,6 +49,7 @@ qty_builder #(
     .i_bram_o_data      (bram_o_data_a),
     .o_tree_price_idx   (tree_price_idx),
     .o_tree_price_change(tree_price_change),
+    .o_seq_num          (seq_num          ),
     .o_bram_addr        (bram_addr_a      ),
     .o_bram_op          (bram_op_a      ),
     .o_bram_i_data      (bram_i_data_a  )

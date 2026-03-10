@@ -40,7 +40,8 @@ always @(*) begin
     endcase
 end
 
-
+wire [63:0] o_ask_seq_num;
+wire [63:0] o_bid_seq_num;
 
 symbol_book #(
     .QTY_SHARE_BIT      (32), // number of bits to represent shares quantity at each price level
@@ -52,7 +53,7 @@ symbol_book #(
     .i_clk_156          (i_clk_156          ),
     .i_rst              (i_rst              ),
     .i_msg_valid        (i_msg_valid        ),
-    .i_rx_ingress_tick  (i_rx_ingress_tick  ),
+    .i_seq_num          (i_seq_num  ),
     .i_msg_type         (i_msg_type         ),
     .i_stock_locate     (i_stock_locate     ),
     .i_order_ref_num    (i_order_ref_num    ),
@@ -61,12 +62,14 @@ symbol_book #(
     .i_shares           (i_shares           ),
     .i_price            (i_price            ),
     .i_timestamp        (i_timestamp        ),
-    .o_ask_best_valid   (o_ask_best_valid     ),
-    .o_ask_best_price   (o_ask_best_price     ),
-    .o_ask_best_shares  (o_ask_best_shares    ),
-    .o_bid_best_valid   (o_bid_best_valid     ),
-    .o_bid_best_price   (o_bid_best_price     ),
-    .o_bid_best_shares  (o_bid_best_shares    )
+    .o_ask_best_valid   (o_ask_best_valid   ),
+    .o_ask_best_price   (o_ask_best_price   ),
+    .o_ask_best_shares  (o_ask_best_shares  ),
+    .o_ask_seq_num      (o_ask_seq_num      ),
+    .o_bid_best_valid   (o_bid_best_valid   ),
+    .o_bid_best_price   (o_bid_best_price   ),
+    .o_bid_best_shares  (o_bid_best_shares  ),
+    .o_bid_seq_num      (o_bid_seq_num      )
 );
 
 

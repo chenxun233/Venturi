@@ -11,6 +11,7 @@ module qty_builder #(
     input   wire [QTY_SHARE_BIT-1:0]      i_bram_o_data,
     output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_tree_price_idx,
     output  reg  [1:0]                    o_tree_price_change,
+    output  wire [63:0]                   o_seq_num,
     output  wire [QTY_PRICE_LVL_BIT-1:0]  o_bram_addr,
     output  wire [1:0]                    o_bram_op,
     output  wire [QTY_SHARE_BIT-1:0]      o_bram_i_data
@@ -44,10 +45,14 @@ wire                        ff_o_valid;
 wire [31:0]                 qty_price           = ff_o_qty_msg[QTY_MSG_BIT-3:QTY_MSG_BIT-34];
 wire                        qty_is_add          = ff_o_qty_msg[QTY_MSG_BIT-35];
 wire [31:0]                 qty_d_shares        = ff_o_qty_msg[QTY_MSG_BIT-36:QTY_MSG_BIT-67];
+wire [63:0]                 qty_seq_num         = ff_o_qty_msg[QTY_MSG_BIT-68:0];
 
 reg [QTY_PRICE_LVL_BIT-1:0] latch_qty_prc_idx;
 reg                         latch_qty_is_add;
 reg [QTY_SHARE_BIT-1:0]     latch_qty_d_shares;
+reg [63:0]                  latch_qty_seq_num;
+
+assign o_seq_num = latch_qty_seq_num;
 
 wire [QTY_SHARE_BIT-1:0]    qty_cur             = i_bram_o_data;
 wire [QTY_SHARE_BIT-1:0]    qty_new             = latch_qty_is_add ?
@@ -80,10 +85,12 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         latch_qty_prc_idx    <= {QTY_PRICE_LVL_BIT{1'b0}};
         latch_qty_is_add     <= 1'b0;
         latch_qty_d_shares   <= {QTY_SHARE_BIT{1'b0}};
+        latch_qty_seq_num    <= {64{1'b0}};
     end else if (ff_o_valid) begin
         latch_qty_prc_idx    <= cal_qty_book_addr(qty_price);
         latch_qty_is_add     <= qty_is_add;
         latch_qty_d_shares   <= qty_d_shares;
+        latch_qty_seq_num    <= qty_seq_num;
     end
 end
 
@@ -108,7 +115,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                 qty_upd_state     <= SECOND_CYCLE;
             end
             SECOND_CYCLE: begin
-                qty_upd_op            <= WRITE;
+                qty_upd_op          <= WRITE;
                 qty_i_shares        <= qty_new;
                 qty_upd_state       <= IDLE;
             end

@@ -1,7 +1,7 @@
 module book_builder #(
     parameter BOOK_LEVEL_BIT      = 12,
     parameter PARSER_MSG_BIT      = 1+64+8+16+64+64+2+32+32+48,
-    parameter QTY_MSG_BIT         = 2+32+1+32 // {bid_ask, price, is_add, d_shares}
+    parameter QTY_MSG_BIT         = 2+32+1+32+64 // {bid_ask, price, is_add, d_shares}
 ) (
     input   wire                        i_clk_156,
     input   wire                        i_rst,               // active high
@@ -15,9 +15,10 @@ reg [1:0]                               qty_bid_ask;
 reg  [31:0]                             qty_price;
 reg                                     qty_is_add;
 reg  [31:0]                             qty_d_shares;
+reg  [63:0]                             qty_seq_num;
 
 
-assign o_qty_msg = { qty_bid_ask, qty_price, qty_is_add, qty_d_shares};
+assign o_qty_msg = { qty_bid_ask, qty_price, qty_is_add, qty_d_shares, qty_seq_num};
 
 localparam ORDER_BOOK_WIDTH            = 67; // {valid, side, shares, price}
 localparam TYPE_A                      = 8'h41;
@@ -41,7 +42,7 @@ wire                        ff_o_valid;
 wire                        ff_push;
 wire                        ff_pop;
 wire                        ff_not_empty;
-
+wire [63:0]   msg_seq_num        = ff_o_msg[329:266];
 wire [7:0]    msg_type           = ff_o_msg[265:258];
 wire [63:0]   msg_order_ref_num  = ff_o_msg[241:178];
 wire [63:0]   msg_new_order_ref  = ff_o_msg[177:114];
@@ -105,6 +106,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         qty_price        <= 32'd0;
         qty_is_add       <= 1'b0;
         qty_d_shares     <= 32'd0;
+        qty_seq_num     <= 64'd0;
     end else if (ff_o_valid || (book_upd_state != IDLE)) begin
         case (book_upd_state)
             IDLE: begin
@@ -118,6 +120,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                         qty_price       <= msg_price;
                         qty_is_add      <= 1'b1;
                         qty_d_shares    <= msg_shares;
+                        qty_seq_num     <= msg_seq_num;
                     end
                     TYPE_E,TYPE_C,TYPE_X,TYPE_U,TYPE_D: begin
                         book_op          <= READ;
@@ -162,6 +165,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                             qty_price        <= book_o_price;
                             qty_is_add       <= 1'b0;
                             qty_d_shares     <= book_o_shares;
+                            qty_seq_num     <= msg_seq_num;
                         end else begin
                             book_op          <= IDLE;
                             book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
@@ -180,6 +184,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                             qty_is_add       <= 1'b0;
                             qty_d_shares     <= book_o_shares;
                             book_upd_state   <= THIRD_CYCLE;
+                            qty_seq_num     <= msg_seq_num;
                         end else begin
                             book_op          <= IDLE;
                             book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
@@ -196,6 +201,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                             qty_price       <= book_o_price;
                             qty_is_add      <= 1'b0;
                             qty_d_shares    <= msg_shares;
+                            qty_seq_num     <= msg_seq_num;
                         end else begin
                             book_op          <= IDLE;
                             book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
@@ -222,6 +228,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                     qty_price        <= msg_price;  // new price
                     qty_is_add       <= 1'b1;
                     qty_d_shares     <= msg_shares; // new shares
+                    qty_seq_num      <= msg_seq_num; // new sequence number
                 end else begin
                     book_op          <= IDLE;
                     book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};

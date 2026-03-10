@@ -254,7 +254,9 @@ class MoldUDP64Frame:
 # Structured manual payload templates.
 # Edit these message fields directly instead of editing large hex strings.
 
-by_or_sell = "B"  # "B" for buy, "S" for sell
+side = "S"  # "B" for buy, "S" for sell
+symbol = "HSBC"
+stock_locate = 3816  # in decimal
 
 MANUAL_MESSAGE_FRAMES = [
     MoldUDP64Frame(
@@ -262,42 +264,42 @@ MANUAL_MESSAGE_FRAMES = [
         sequence_number=1,
         messages=[
             TYPE_A(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=0,
                 timestamp=14400007075802,
                 order_reference_number=1,
-                buy_sell_indicator=by_or_sell,
+                buy_sell_indicator=side,
                 shares=10,
-                stock="AAPL",
+                stock=symbol,
                 price="000.01",
             ),
             TYPE_F(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=0,
                 timestamp=30607343087807,
                 order_reference_number=2,
-                buy_sell_indicator=by_or_sell,
+                buy_sell_indicator=side,
                 shares=500,
-                stock="AAPL",
+                stock=symbol,
                 price="000.02",
                 attribution="TSSM",
             ),
             TYPE_X(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=0,
                 timestamp=29887725030607,
                 order_reference_number=1,
                 canceled_shares=10,
             ),
             TYPE_X(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=0,
                 timestamp=29887725030607,
                 order_reference_number=2,
                 canceled_shares=100,
             ),
             TYPE_C(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=1,
                 timestamp=34200776180089,
                 order_reference_number=2,
@@ -307,7 +309,7 @@ MANUAL_MESSAGE_FRAMES = [
                 execution_price="000.02",
             ),
             TYPE_E(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=2,
                 timestamp=14788203892840,
                 order_reference_number=2,
@@ -315,17 +317,17 @@ MANUAL_MESSAGE_FRAMES = [
                 match_number=17959,
             ),
             TYPE_A(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=0,
                 timestamp=14400007075802,
                 order_reference_number=3,
-                buy_sell_indicator=by_or_sell,
+                buy_sell_indicator=side,
                 shares=20,
-                stock="AAPL",
+                stock=symbol,
                 price="000.03",
             ),
             TYPE_U(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=0,
                 timestamp=33631366330025,
                 original_order_reference_number=3,
@@ -334,7 +336,7 @@ MANUAL_MESSAGE_FRAMES = [
                 price="000.04",
             ),
             TYPE_D(
-                stock_locate=13,
+                stock_locate=stock_locate,
                 tracking_number=0,
                 timestamp=14433223196496,
                 order_reference_number=4,
@@ -409,7 +411,7 @@ def main():
         "--payload-file",
         help="Text file with one hex payload per line (# comments allowed).",
     )
-    parser.add_argument("--output", default="market_data/manual_payload.pcap")
+    parser.add_argument("--output", default=f"market_data/{symbol}_{stock_locate}_{side}_payload.pcap")
     parser.add_argument(
         "--hex-output",
         default=None,
