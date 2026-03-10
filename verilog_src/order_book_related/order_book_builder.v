@@ -52,21 +52,27 @@ symbol_book #(
     .BOOK_LEVEL_BIT     (12 ),
     .PRICE_BASE         (32'd0000_0000  ), // default lowest price (in 1/10000 dollars) for all stocks, can be updated by control plane.
     .STOCK_LOCATE       (16'h000d       )  // stock locate for this symbol book, assigned by control plane
-) symbol_book_inst (
+) symbol_book_AAPL (
     .i_clk_156          (i_clk_156          ),
     .i_rst              (i_rst              ),
     .i_parser_msg       (parser_msg          ),
     .o_event            (                   ),
-    .o_ask_best_valid   (o_ask_best_valid   ),
-    .o_ask_best_price   (o_ask_best_price   ),
-    .o_ask_best_shares  (o_ask_best_shares  ),
-    .o_ask_seq_num      (o_ask_seq_num      ),
-    .o_bid_best_valid   (o_bid_best_valid   ),
-    .o_bid_best_price   (o_bid_best_price   ),
-    .o_bid_best_shares  (o_bid_best_shares  ),
-    .o_bid_seq_num      (o_bid_seq_num      )
+    .o_payload          (                   )
 );
 
+symbol_book #(
+    .QTY_SHARE_BIT      (32), // number of bits to represent shares quantity at each price level
+    .QTY_PRICE_LVL_BIT  (8),
+    .BOOK_LEVEL_BIT     (12 ),
+    .PRICE_BASE         (32'd0000_0000  ), // default lowest price (in 1/10000 dollars) for all stocks, can be updated by control plane.
+    .STOCK_LOCATE       (16'h0ee8       )  // stock locate for this symbol book, assigned by control plane
+) symbol_book_HSBC (
+    .i_clk_156          (i_clk_156          ),
+    .i_rst              (i_rst              ),
+    .i_parser_msg       (parser_msg         ),
+    .o_event            (                   ),
+    .o_payload          (                   )
+);
 
 
 endmodule

@@ -12,19 +12,19 @@ module symbol_book #(
     input   wire                            i_rst,               // active high
     input   wire [PARSER_MSG_BIT-1:0]       i_parser_msg,
     output  wire                            o_event             ,
-    output  wire                            o_ask_best_valid    ,
-    output  wire [31:0]                     o_ask_best_price    ,
-    output  wire [QTY_SHARE_BIT-1:0]        o_ask_best_shares   ,
-    output  wire [63:0]                     o_ask_seq_num       ,
-    output  wire                            o_bid_best_valid    ,
-    output  wire [31:0]                     o_bid_best_price    ,
-    output  wire [QTY_SHARE_BIT-1:0]        o_bid_best_shares   ,
-    output  wire [63:0]                     o_bid_seq_num       
+    output  wire [2*(1+32+QTY_SHARE_BIT+64)+16-1:0] o_payload      
              // pass through seq
 );
       
 localparam                  QTY_MSG_BIT                 = 2+32+1+32+64; // {bid_ask, price, is_add, d_shares, seq_num}
-
+wire                           o_ask_best_valid    ;
+wire [31:0]                    o_ask_best_price    ;
+wire [QTY_SHARE_BIT-1:0]       o_ask_best_shares   ;
+wire [63:0]                    o_ask_seq_num       ;
+wire                           o_bid_best_valid    ;
+wire [31:0]                    o_bid_best_price    ;
+wire [QTY_SHARE_BIT-1:0]       o_bid_best_shares   ;
+wire [63:0]                    o_bid_seq_num       ;
 reg [31:0]                     prev_ask_best_price    ;
 reg [QTY_SHARE_BIT-1:0]        prev_ask_best_shares   ;
 reg [63:0]                     prev_ask_seq_num       ;
@@ -56,6 +56,18 @@ assign o_event = (o_ask_best_price != prev_ask_best_price)  ||
                  (o_bid_best_valid != prev_bid_best_valid) ||
                  (o_bid_best_price != prev_bid_best_price) ||
                  (o_bid_best_shares != prev_bid_best_shares);
+
+assign o_payload = {
+    o_ask_best_valid,
+    o_ask_best_price,
+    o_ask_best_shares,
+    o_ask_seq_num,
+    o_bid_best_valid,
+    o_bid_best_price,
+    o_bid_best_shares,
+    o_bid_seq_num,
+    stock_locate
+};
 
 
 
