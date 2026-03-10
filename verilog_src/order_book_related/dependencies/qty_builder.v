@@ -132,19 +132,19 @@ always @(*) begin
     if (qty_upd_state == SECOND_CYCLE) begin
         if ((qty_cur == 0 && qty_new > 0)) begin
             // empty -> non-empty
-            o_tree_price_idx     <= qty_addr;
-            o_tree_price_change  <= NON_EMPTY;
+            o_tree_price_idx     = qty_addr;
+            o_tree_price_change  = NON_EMPTY;
         end else if (qty_cur > 0 && qty_new == 0) begin
-            o_tree_price_idx     <= qty_addr;
-            o_tree_price_change  <= EMPTY;
+            o_tree_price_idx     = qty_addr;
+            o_tree_price_change  = EMPTY;
         end
         else begin
-            o_tree_price_idx     <= 0;
-            o_tree_price_change  <= IDLE;
+            o_tree_price_idx     = 0;
+            o_tree_price_change  = IDLE;
         end
     end else begin
-        o_tree_price_idx         <= 0;
-        o_tree_price_change      <= IDLE;
+        o_tree_price_idx         = 0;
+        o_tree_price_change      = IDLE;
     end
 end
 

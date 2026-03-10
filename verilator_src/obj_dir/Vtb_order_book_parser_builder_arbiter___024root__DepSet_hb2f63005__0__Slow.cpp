@@ -1,0 +1,191 @@
+// Verilated -*- C++ -*-
+// DESCRIPTION: Verilator output: Design implementation internals
+// See Vtb_order_book_parser_builder_arbiter.h for the primary calling header
+
+#include "Vtb_order_book_parser_builder_arbiter__pch.h"
+#include "Vtb_order_book_parser_builder_arbiter__Syms.h"
+#include "Vtb_order_book_parser_builder_arbiter___024root.h"
+
+#ifdef VL_DEBUG
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter___024root___dump_triggers__stl(Vtb_order_book_parser_builder_arbiter___024root* vlSelf);
+#endif  // VL_DEBUG
+
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter___024root___eval_triggers__stl(Vtb_order_book_parser_builder_arbiter___024root* vlSelf) {
+    if (false && vlSelf) {}  // Prevent unused
+    Vtb_order_book_parser_builder_arbiter__Syms* const __restrict vlSymsp VL_ATTR_UNUSED = vlSelf->vlSymsp;
+    VL_DEBUG_IF(VL_DBG_MSGF("+    Vtb_order_book_parser_builder_arbiter___024root___eval_triggers__stl\n"); );
+    // Body
+    vlSelf->__VstlTriggered.set(0U, (IData)(vlSelf->__VstlFirstIteration));
+    vlSelf->__VstlTriggered.set(1U, vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0));
+    vlSelf->__VstlTriggered.set(2U, (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0) 
+                                     | vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx__0)));
+    vlSelf->__VstlTriggered.set(3U, vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0));
+    vlSelf->__VstlTriggered.set(4U, (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0) 
+                                     | vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx__0)));
+    vlSelf->__VstlTriggered.set(5U, vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0));
+    vlSelf->__VstlTriggered.set(6U, (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0) 
+                                     | vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx__0)));
+    vlSelf->__VstlTriggered.set(7U, vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0));
+    vlSelf->__VstlTriggered.set(8U, (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0) 
+                                     | vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx__0)));
+    vlSelf->__VstlTriggered.set(9U, vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0));
+    vlSelf->__VstlTriggered.set(0xaU, (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0) 
+                                       | vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx__0)));
+    vlSelf->__VstlTriggered.set(0xbU, vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0));
+    vlSelf->__VstlTriggered.set(0xcU, (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0) 
+                                       | vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx__0)));
+    vlSelf->__VstlTriggered.set(0xdU, vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0));
+    vlSelf->__VstlTriggered.set(0xeU, (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0) 
+                                       | vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx__0)));
+    vlSelf->__VstlTriggered.set(0xfU, vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0));
+    vlSelf->__VstlTriggered.set(0x10U, (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0) 
+                                        | vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx.neq(vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx__0)));
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_valid);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__mid_to_last_bid_t_idx);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_valid);
+    vlSelf->__Vtrigprevexpr___TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst____PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx__0.assign(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.__PVT__bid_tree_builder_inst__DOT__root_to_midbid_t_idx);
+    if (VL_UNLIKELY((1U & (~ (IData)(vlSelf->__VstlDidInit))))) {
+        vlSelf->__VstlDidInit = 1U;
+        vlSelf->__VstlTriggered.set(1U, 1U);
+        vlSelf->__VstlTriggered.set(2U, 1U);
+        vlSelf->__VstlTriggered.set(3U, 1U);
+        vlSelf->__VstlTriggered.set(4U, 1U);
+        vlSelf->__VstlTriggered.set(5U, 1U);
+        vlSelf->__VstlTriggered.set(6U, 1U);
+        vlSelf->__VstlTriggered.set(7U, 1U);
+        vlSelf->__VstlTriggered.set(8U, 1U);
+        vlSelf->__VstlTriggered.set(9U, 1U);
+        vlSelf->__VstlTriggered.set(0xaU, 1U);
+        vlSelf->__VstlTriggered.set(0xbU, 1U);
+        vlSelf->__VstlTriggered.set(0xcU, 1U);
+        vlSelf->__VstlTriggered.set(0xdU, 1U);
+        vlSelf->__VstlTriggered.set(0xeU, 1U);
+        vlSelf->__VstlTriggered.set(0xfU, 1U);
+        vlSelf->__VstlTriggered.set(0x10U, 1U);
+    }
+#ifdef VL_DEBUG
+    if (VL_UNLIKELY(vlSymsp->_vm_contextp__->debug())) {
+        Vtb_order_book_parser_builder_arbiter___024root___dump_triggers__stl(vlSelf);
+    }
+#endif
+}
+
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter___024root___stl_sequent__TOP__1(Vtb_order_book_parser_builder_arbiter___024root* vlSelf) {
+    if (false && vlSelf) {}  // Prevent unused
+    Vtb_order_book_parser_builder_arbiter__Syms* const __restrict vlSymsp VL_ATTR_UNUSED = vlSelf->vlSymsp;
+    VL_DEBUG_IF(VL_DBG_MSGF("+    Vtb_order_book_parser_builder_arbiter___024root___stl_sequent__TOP__1\n"); );
+    // Body
+    vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__event_fifo_inst__DOT__do_push 
+        = ((2U != (IData)(vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__event_fifo_inst__DOT__count)) 
+           & ((vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.o_best_price_aligned 
+               != vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__prev_ask_best_price) 
+              | ((vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst.o_best_shares 
+                  != vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__prev_ask_best_shares) 
+                 | (((IData)(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.o_best_valid_aligned) 
+                     != (IData)(vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__prev_bid_best_valid)) 
+                    | ((vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.o_best_price_aligned 
+                        != vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__prev_bid_best_price) 
+                       | (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst.o_best_shares 
+                          != vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__prev_bid_best_shares))))));
+    vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__event_fifo_inst__DOT__do_push 
+        = ((2U != (IData)(vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__event_fifo_inst__DOT__count)) 
+           & ((vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.o_best_price_aligned 
+               != vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__prev_ask_best_price) 
+              | ((vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst.o_best_shares 
+                  != vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__prev_ask_best_shares) 
+                 | (((IData)(vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.o_best_valid_aligned) 
+                     != (IData)(vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__prev_bid_best_valid)) 
+                    | ((vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.o_best_price_aligned 
+                        != vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__prev_bid_best_price) 
+                       | (vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst.o_best_shares 
+                          != vlSelf->tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__prev_bid_best_shares))))));
+}
+
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter___024root___stl_sequent__TOP__0(Vtb_order_book_parser_builder_arbiter___024root* vlSelf);
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___stl_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__0(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2* vlSelf);
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___stl_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst__0(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2* vlSelf);
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___stl_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__0(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8* vlSelf);
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___stl_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst__0(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8* vlSelf);
+void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__0(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2* vlSelf);
+void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__1(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2* vlSelf);
+void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__0(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8* vlSelf);
+void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__1(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8* vlSelf);
+void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__3(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2* vlSelf);
+void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__4(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2* vlSelf);
+void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__3(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8* vlSelf);
+void Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__4(Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8* vlSelf);
+
+VL_ATTR_COLD void Vtb_order_book_parser_builder_arbiter___024root___eval_stl(Vtb_order_book_parser_builder_arbiter___024root* vlSelf) {
+    if (false && vlSelf) {}  // Prevent unused
+    Vtb_order_book_parser_builder_arbiter__Syms* const __restrict vlSymsp VL_ATTR_UNUSED = vlSelf->vlSymsp;
+    VL_DEBUG_IF(VL_DBG_MSGF("+    Vtb_order_book_parser_builder_arbiter___024root___eval_stl\n"); );
+    // Body
+    if ((1ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter___024root___stl_sequent__TOP__0(vlSelf);
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___stl_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__0((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst));
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___stl_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst__0((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst));
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___stl_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__0((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst));
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___stl_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst__0((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst));
+        Vtb_order_book_parser_builder_arbiter___024root___stl_sequent__TOP__1(vlSelf);
+    }
+    if ((8ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__0((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst));
+    }
+    if ((0x10ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__1((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst));
+    }
+    if ((0x80ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__0((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst));
+    }
+    if ((0x100ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__1((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst));
+    }
+    if ((0x800ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__0((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst));
+    }
+    if ((0x1000ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__1((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst));
+    }
+    if ((0x8000ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__0((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst));
+    }
+    if ((0x10000ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__1((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst));
+    }
+    if ((2ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__3((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst));
+    }
+    if ((4ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__4((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst));
+    }
+    if ((0x20ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__3((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst));
+    }
+    if ((0x40ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__ask_wrapper_inst__4((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__ask_wrapper_inst));
+    }
+    if ((0x200ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__3((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst));
+    }
+    if ((0x400ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__4((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst));
+    }
+    if ((0x2000ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__3((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst));
+    }
+    if ((0x4000ULL & vlSelf->__VstlTriggered.word(0U))) {
+        Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8___act_sequent__TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_AAPL__DOT__bid_wrapper_inst__4((&vlSymsp->TOP__tb_order_book_parser_builder_arbiter__DOT__builder_dut__DOT__symbol_book_HSBC__DOT__bid_wrapper_inst));
+    }
+}

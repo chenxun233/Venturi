@@ -56,6 +56,7 @@ module fifo #(
             wr_ptr      <= {ADDR{1'b0}};
             rd_ptr      <= {ADDR{1'b0}};
             count       <= {CNT_W{1'b0}};
+            o_data      <= {DATA_W{1'b0}};
             o_valid <= 1'b0;
         end else begin
             // write
@@ -65,12 +66,12 @@ module fifo #(
             end
             // advance read pointer
             if (i_do_pop) begin
-                o_data  <= mem[rd_ptr];
+                o_data      <= mem[rd_ptr];
                 rd_ptr      <= rd_ptr + 1;
-                o_valid <= 1'b1;
+                o_valid     <= 1'b1;
             end else begin
-                o_data  <= o_data;
-                o_valid <= 1'b0;
+                o_data      <= o_data;
+                o_valid     <= 1'b0;
             end
             // count
             case ({do_push, i_do_pop})

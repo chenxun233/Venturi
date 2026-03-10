@@ -5,18 +5,21 @@ module symbol_book #(
     parameter BOOK_LEVEL_BIT         = 12,           // trace 2^BOOK_LEVEL_BIT orders in the order table
     parameter PRICE_BASE            = 32'd0,        // 
     parameter STOCK_LOCATE          = 16'h000d,      // stock locate for this symbol book, can be updated by control plane.
-    parameter PARSER_MSG_BIT        = 1+64+8+16+64+64+2+32+32
+    parameter PARSER_MSG_BIT        = 1+64+8+16+64+64+2+32+32,
+    parameter EVENT_FIFO_DEPTH      = 2
 ) (
     // order book parser interface
     input   wire                            i_clk_156,
     input   wire                            i_rst,               // active high
     input   wire [PARSER_MSG_BIT-1:0]       i_parser_msg,
-    output  wire                            o_event             ,
-    output  wire [2*(1+32+QTY_SHARE_BIT+64)+16-1:0] o_payload      
-             // pass through seq
+    input   wire                            i_ff_pop,
+    output  wire                            o_not_empty,
+    output  wire                            o_valid,
+    output  wire [2*(1+32+QTY_SHARE_BIT+64)+16-1:0] o_payload
 );
       
 localparam                  QTY_MSG_BIT                 = 2+32+1+32+64; // {bid_ask, price, is_add, d_shares, seq_num}
+localparam                  PAYLOAD_W                   = 2*(1+32+QTY_SHARE_BIT+64)+16;
 wire                           o_ask_best_valid    ;
 wire [31:0]                    o_ask_best_price    ;
 wire [QTY_SHARE_BIT-1:0]       o_ask_best_shares   ;
@@ -31,6 +34,8 @@ reg [63:0]                     prev_ask_seq_num       ;
 reg                            prev_bid_best_valid    ;
 reg [31:0]                     prev_bid_best_price    ;
 reg [QTY_SHARE_BIT-1:0]        prev_bid_best_shares   ;
+wire                           ff_push;
+wire [PAYLOAD_W-1:0]           payload;
 
 
 always @(posedge i_clk_156) begin
@@ -51,13 +56,16 @@ always @(posedge i_clk_156) begin
     end
 end
 
-assign o_event = (o_ask_best_price != prev_ask_best_price)  ||
+
+
+wire event_found     = (o_ask_best_price != prev_ask_best_price)  ||
                  (o_ask_best_shares != prev_ask_best_shares) ||
                  (o_bid_best_valid != prev_bid_best_valid) ||
                  (o_bid_best_price != prev_bid_best_price) ||
                  (o_bid_best_shares != prev_bid_best_shares);
+assign ff_push  = event_found;
 
-assign o_payload = {
+assign payload = (o_ask_best_valid | o_bid_best_valid)? {
     o_ask_best_valid,
     o_ask_best_price,
     o_ask_best_shares,
@@ -66,8 +74,23 @@ assign o_payload = {
     o_bid_best_price,
     o_bid_best_shares,
     o_bid_seq_num,
-    stock_locate
-};
+    STOCK_LOCATE
+} : {PAYLOAD_W{1'b0}};
+
+fifo #(
+    .DEPTH  (EVENT_FIFO_DEPTH),
+    .DATA_W (PAYLOAD_W)
+) event_fifo_inst (
+    .i_clk          (i_clk_156),
+    .i_rst          (i_rst),
+    .i_do_push      (ff_push),
+    .o_push_ready   (       ),
+    .i_data         (payload),
+    .i_do_pop       (i_ff_pop),
+    .o_not_empty    (o_not_empty),
+    .o_valid        (o_valid),
+    .o_data         (o_payload)
+);
 
 
 
@@ -121,7 +144,7 @@ bid_wrapper_inst (
     .o_best_valid_aligned   (o_bid_best_valid   ),
     .o_best_price_aligned   (o_bid_best_price   ),
     .o_best_shares          (o_bid_best_shares  ),
-    .o_seq_num              (o_bid_seq_num) 
+    .o_seq_num              (o_bid_seq_num      ) 
 );
 
 

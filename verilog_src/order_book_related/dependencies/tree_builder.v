@@ -39,11 +39,11 @@ module tree_builder #(
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
             for (idx = 0; idx < LAST_COUNT; idx = idx + 1) begin
-                last_bid_t_valid[idx] <= 1'b0;
+                last_bid_t_valid[idx] = 1'b0;
             end
             for (idx = 0; idx < MID_COUNT; idx = idx + 1) begin
-                mid_bid_t_valid[idx] <= 1'b0;
-                mid_bid_t_idx[idx]   <= {QTY_PRICE_LVL_BIT{1'b0}};
+                mid_bid_t_valid[idx] = 1'b0;
+                mid_bid_t_idx[idx]   = {QTY_PRICE_LVL_BIT{1'b0}};
             end
         end else begin
             if (i_tree_price_change != IDLE) begin
@@ -62,12 +62,12 @@ module tree_builder #(
     generate
         // Reduce the leaf valid bits up to MID_LEVEL combinationally.
         for (level = MID_LEVEL; level < LEVELS; level = level + 1) begin : gen_last_to_mid_levels
-            localparam integer NODE_COUNT = (1 << level);
+                localparam integer NODE_COUNT = (1 << level);
             for (node = 0; node < NODE_COUNT; node = node + 1) begin : gen_last_to_mid_nodes
                 localparam integer LEFT_CHILD  = (node << 1);
                 localparam integer RIGHT_CHILD = LEFT_CHILD + 1;
-                localparam [QTY_PRICE_LVL_BIT-1:0] LEFT_LEAF_IDX  = LEFT_CHILD;
-                localparam [QTY_PRICE_LVL_BIT-1:0] RIGHT_LEAF_IDX = RIGHT_CHILD;
+                localparam [QTY_PRICE_LVL_BIT-1:0] LEFT_LEAF_IDX  = LEFT_CHILD[QTY_PRICE_LVL_BIT-1:0];
+                localparam [QTY_PRICE_LVL_BIT-1:0] RIGHT_LEAF_IDX = RIGHT_CHILD[QTY_PRICE_LVL_BIT-1:0];
 
                 if (level == LEVELS - 1) begin : gen_from_leaf
                     assign mid_to_last_bid_t_valid[level][node] =

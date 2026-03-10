@@ -279,6 +279,9 @@ wire [63:0]             new_order_ref_num;
 wire [7:0]              buy_sell;
 wire [31:0]             shares;
 wire [31:0]             price;
+wire                    order_book_event_not_empty;
+wire                    order_book_event_valid;
+wire [273:0]            order_book_event_payload;
 
 assign w_axi_rx_ready = axi_rx_ready;
 
@@ -364,12 +367,10 @@ order_book_builder #(
     .i_shares           (shares             ),
     .i_price            (price              ),
     .i_timestamp        (timestamp          ),
-    .o_ask_best_valid   (ask_best_valid   ),
-    .o_ask_best_price   (ask_best_price   ),
-    .o_ask_best_shares  (ask_best_shares  ),
-    .o_bid_best_valid   (bid_best_valid   ),
-    .o_bid_best_price   (bid_best_price   ),
-    .o_bid_best_shares  (bid_best_shares  )
+    .i_ff_pop           (1'b0               ),
+    .o_not_empty        (order_book_event_not_empty),
+    .o_valid            (order_book_event_valid),
+    .o_payload          (order_book_event_payload)
 );
 
 

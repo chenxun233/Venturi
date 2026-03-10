@@ -1,0 +1,13 @@
+tb_order_book_parser_builder_arbiter.sv
+../verilog_src/order_book_related/order_book_parser.v
+../verilog_src/order_book_related/order_book_builder.v
+../verilog_src/order_book_related/dependencies/event_fifo_arbiter.v
+../verilog_src/order_book_related/dependencies/symbol_book.v
+../verilog_src/order_book_related/dependencies/fifo.v
+../verilog_src/order_book_related/dependencies/book_builder.v
+../verilog_src/order_book_related/dependencies/qty_book_wrapper.v
+../verilog_src/order_book_related/dependencies/qty_builder.v
+../verilog_src/order_book_related/dependencies/tree_builder.v
+../verilog_src/order_book_related/dependencies/aligner.v
+../verilog_src/order_book_related/dependencies/bram.v
+../verilog_src/order_book_related/dependencies/bram_dp.v

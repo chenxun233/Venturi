@@ -22,7 +22,7 @@ localparam IDLE  = 2'b00;
 localparam READ  = 2'b01;
 localparam WRITE = 2'b10;
 
-assign o_seq_num = (o_best_valid_aligned) ? seq_num : 64'hFFFF_FFFF_FFFF_FFFF; // output max seq_num when no valid best price, so that downstream can ignore it.
+assign o_seq_num = (o_best_valid_aligned) ? seq_num : 64'h0; // output max seq_num when no valid best price, so that downstream can ignore it.
 
 wire [QTY_PRICE_LVL_BIT-1:0] tree_price_idx;
 wire [1:0]                   tree_price_change;
