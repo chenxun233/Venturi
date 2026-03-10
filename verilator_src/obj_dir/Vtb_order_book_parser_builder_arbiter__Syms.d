@@ -1,7 +1,0 @@
-Vtb_order_book_parser_builder_arbiter__Syms.o: \
- Vtb_order_book_parser_builder_arbiter__Syms.cpp \
- Vtb_order_book_parser_builder_arbiter__pch.h \
- Vtb_order_book_parser_builder_arbiter.h \
- Vtb_order_book_parser_builder_arbiter___024root.h \
- Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8_Bz2.h \
- Vtb_order_book_parser_builder_arbiter_qty_book_wrapper__Q83_QB8.h

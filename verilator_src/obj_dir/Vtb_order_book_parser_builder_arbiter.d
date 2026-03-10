@@ -1,3 +1,0 @@
-Vtb_order_book_parser_builder_arbiter.o: \
- Vtb_order_book_parser_builder_arbiter.cpp \
- Vtb_order_book_parser_builder_arbiter__pch.h
