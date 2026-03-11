@@ -1,0 +1,20 @@
+site_name: Venturi Docs
+
+theme:
+  name: material
+extra_css:
+  - stylesheets/extra.css
+nav:
+  - Home: index.md
+  - FPGA:
+      - Overview: FPGA/overview.md
+      - MAC_layer_rx: FPGA/MAC_layer_rx.md
+      - order_book_parser: FPGA/order_book_parser.md
+      - Architecture: FPGA/architecture.md
+      - RX Pipeline: FPGA/rx_pipeline.md
+      - DMA: FPGA/dma.md
+  - C++:
+      - Overview: cpp/overview.md
+      - Parser: cpp/parser.md
+      - Order Book: cpp/order_book.md
+      - Testing: cpp/testing.md
