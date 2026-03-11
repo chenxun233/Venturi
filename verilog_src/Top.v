@@ -279,9 +279,14 @@ wire [63:0]             new_order_ref_num;
 wire [7:0]              buy_sell;
 wire [31:0]             shares;
 wire [31:0]             price;
-wire                    order_book_event_not_empty;
-wire                    order_book_event_valid;
-wire [273:0]            order_book_event_payload;
+localparam EVENT_PAYLOAD_W = 274;
+localparam EVENT_CDC_DEPTH = 64;
+
+wire                    builder_event_valid;
+wire [EVENT_PAYLOAD_W-1:0] builder_event_payload;
+wire                    event_cdc_wr_full;
+wire                    event_valid;
+wire [EVENT_PAYLOAD_W-1:0] event_payload;
 
 assign w_axi_rx_ready = axi_rx_ready;
 
@@ -367,10 +372,25 @@ order_book_builder #(
     .i_shares           (shares             ),
     .i_price            (price              ),
     .i_timestamp        (timestamp          ),
-    .i_ff_pop           (1'b0               ),
-    .o_not_empty        (order_book_event_not_empty),
-    .o_valid            (order_book_event_valid),
-    .o_payload          (order_book_event_payload)
+    .o_valid            (builder_event_valid   ),
+    .o_payload          (builder_event_payload )
+);
+
+async_fifo #(
+    .DEPTH  (EVENT_CDC_DEPTH),
+    .DATA_W (EVENT_PAYLOAD_W)
+) event_cdc_fifo_inst (
+    .i_wr_clk   (w_xgmii_rx_clk),
+    .i_wr_rst   (w_xgmii_rx_rst),
+    .i_wr_en    (builder_event_valid),
+    .i_wr_data  (builder_event_payload),
+    .o_wr_full  (event_cdc_wr_full),
+    .i_rd_clk   (user_clk_250),
+    .i_rd_rst   (user_reset_p),
+    .i_rd_en    (1'b1),
+    .o_rd_empty (),
+    .o_rd_valid (event_valid),
+    .o_rd_data  (event_payload)
 );
 
 
@@ -448,3 +468,4 @@ pcs_pma_wrapper_inst (
 
 
 endmodule
+

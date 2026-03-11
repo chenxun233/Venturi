@@ -12,3 +12,4 @@ Note/
 .Xil/
 openspec/
 .vscode/
+verilator_src/
