@@ -1,0 +1,40 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.9 Chrome/134.0.6998.205 Electron/35.4.0 Safari/537.36" version="27.0.9">
+  <diagram name="Page-1" id="yIfBF2Iin0Jj6W5xPOnC">
+    <mxGraphModel dx="1783" dy="730" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-1" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;Ethernet header&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0a30a;fontColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="120" y="240" width="150" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-2" value="&lt;span style=&quot;font-size: 20px;&quot;&gt;IP header&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0a30a;fontColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="270" y="240" width="100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-3" value="&lt;span style=&quot;font-size: 20px;&quot;&gt;UDP/TCP header&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0a30a;fontColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="370" y="240" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-4" value="&lt;span style=&quot;font-size: 20px;&quot;&gt;True payload&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#008a00;fontColor=#ffffff;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="530" y="240" width="210" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-5" value="&lt;span style=&quot;font-size: 20px;&quot;&gt;CRC&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="737" y="240" width="90" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-6" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;preamble + SFD&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E4E4E4;fontColor=#333333;strokeColor=#000000;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="-50" y="240" width="170" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-7" value="" style="endArrow=classic;html=1;rounded=0;strokeWidth=2;exitX=0;exitY=0.75;exitDx=0;exitDy=0;" edge="1" parent="1" source="Ze3t3QUL3uriFBkJvmAV-8">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="530" y="180" as="sourcePoint" />
+            <mxPoint x="530" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-8" value="parsing start" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="570" y="170" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="Ze3t3QUL3uriFBkJvmAV-9" value="already filtered out" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="-50" y="210" width="170" height="20" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
