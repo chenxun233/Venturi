@@ -1,8 +1,37 @@
 # order_book_parser
-`order_book_parser` consumes the AXI-style receive stream from `MAC_layer_rx` and emits decoded ITCH-like order-book events. The implementation lives in `verilog_src/order_book_related/order_book_parser.v`.
-
-## Role
 Parse Ethernet/IPv4/UDP payload data into a compact event interface. The module first walks fixed packet headers, then peeks message count and message type, and finally extracts fields such as `stock_locate`, `order_ref_num`, `shares`, and `price`.
+
+## Design Logic
+
+### The header
+
+Before pasing the messages, we have to deal with Ethernet head, IP header and UDP/TCP header (The preabmle+SFD has already been filtered out in MAC layer), as illustrated below:
+
+![Ethernet frame](../figures/FPGA/order_book_parser/frame_structure.png)
+
+The lengths of headers are always fixed. The parsing of them is easy. We use a **counter** (`head_counter`) to indicate the end of headers.
+
+### The messages
+
+For each message, parsing is not finised until we get the end from `i_axi_rx_data`. Thus, we have to wait. However, The end of the previous message and the start of the next message may be mixed in `i_axi_rx_data`. So, we need another **counter** (`buffed_bytes`).
+
+### States
+In the big picture, the parsing can be divided into two phases:
+
+1. **header parsing**.
+2. **message parsing**.
+
+The end of header parsing is indicated by `head_counter`, in the phase of **message parsing**, we have the following sub-states:
+
+1. `IDLE`
+2. `PEEKING_MSG_COUNT`
+   - Get the total message count, used to indicate the end of parsing. It will be only entered once per frame.
+3. `PEEKING_TYPE`
+   - Peek the type of current message. The type will be sent at the begining of each message, we get the type, then we know how to parse.
+4. `PARSING_BODY`
+   - Case blocks, parse message according to the type. Jump back to `PEEKING_TYPE` if the parsing of the current message is over.
+5. `ERROR`
+   - If the type is no
 
 ## Interface
 ### Inputs

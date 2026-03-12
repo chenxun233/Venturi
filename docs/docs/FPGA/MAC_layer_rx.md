@@ -1,8 +1,15 @@
 # MAC_layer_rx
 `MAC_layer_rx` converts a 64-bit XGMII receive stream into a simplified AXI-Stream style interface for the parser pipeline. The implementation lives in `verilog_src/MAC_layer/MAC_layer_rx.v`.
 
-## Role
-Convert incomming (rx) xgmii signal into AXI interface.
+
+## Design logic
+
+From XGMII to MAC layer, the number of cases is limited, and the data is streaming. Thus, we can prepare data for all the possible situations and treat the situations as a switch, output the data when the corresponding situation is true.
+
+There can be three states: `IDLE`, `SOF` and `TERM`. `SOF` means not only the start of the frame, but also the receiving process. In each state, different location of sof and eof can end up with different outputs, these are what we prepared.
+
+Combinational logic is widely used for the data preparing.
+
 ## Interface
 ### Inputs
 - `i_xgmii_rx_clk` is the receive clock for the whole module.
