@@ -15,12 +15,15 @@ nav:
           - symbol_book: 
             - Overview: FPGA/order_book_builder/symbol_book/overview.md
             - fifo: FPGA/order_book_builder/symbol_book/fifo.md
-            - book_builder: FPGA/order_book_builder/symbol_book/book_builder.md
+            - book_builder: 
+              - Overview: FPGA/order_book_builder/symbol_book/book_builder/overview.md
+              - bram: FPGA/order_book_builder/symbol_book/book_builder/bram.md
             - qty_book_wrapper: 
               - Overview: FPGA/order_book_builder/symbol_book/qty_book_wrapper/overview.md
-              - qty_book: FPGA/order_book_builder/symbol_book/qty_book_wrapper/qty_book.md
+              - qty_book: FPGA/order_book_builder/symbol_book/qty_book_wrapper/qty_builder.md
               - tree_builder: FPGA/order_book_builder/symbol_book/qty_book_wrapper/tree_builder.md
               - aligner: FPGA/order_book_builder/symbol_book/qty_book_wrapper/aligner.md
+              - bram_dp: FPGA/order_book_builder/symbol_book/qty_book_wrapper/bram_dp.md
       - async_fifo: FPGA/async_fifo.md
       - pcie_wraper: 
           - Overview: FPGA/pcie_wraper/overview.md

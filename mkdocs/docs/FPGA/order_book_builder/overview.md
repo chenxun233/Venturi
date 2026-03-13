@@ -3,11 +3,18 @@ This module receives the messages from [order_book_parser](../order_book_parser.
 
 Inside, there are these modules:
 
-1. [symbol_book](symbol_book.md) x *N*.
+1. [symbol_book](symbol_book/overview.md) x *N*.
 2. [arbiter](arbiter.md)
 
+## Hierarchy
+
+Here gives a simply hierarchy of order_book_builder. When parsed messages are input from [order_book_parser](../order_book_parser.md), it will be fanned out to all the [symbol_books](symbol_book/overview.md). Inside, symbol_book will check if the symbol is the configured one and discard the unmatches. Best bid and ask, along with the shares, will be stored in a [fifo](../../FPGA/order_book_builder/symbol_book/fifo.md) inside [symbol_book](symbol_book/overview.md). Round-robin is applied in the [arbiter](arbiter.md). It will decide which [symbol_book](symbol_book/overview.md)'s best bid/ask will be output. 
+
+![hierarchy of order_book_builder](../../figures/FPGA/order_book_builder/hierarachy_order_book_builder.png)
+
+
 ## Features
-- Flexibility: Multiple symbol order book building can be done by instantiating multiple [symbol_book](symbol_book.md) instances.
+- Flexibility: Multiple symbol order book building can be done by instantiating multiple [symbol_book](symbol_book/overview.md) instances.
 - Per-symbol event routing by `stock_locate`.
 - Round-robin arbitration into one output stream.
 
@@ -29,15 +36,15 @@ Inside, there are these modules:
 ### Outputs
 - `o_valid` pulses when the arbiter emits one top-of-book snapshot from any `symbol_book`.
 - `o_payload` is a `274-bit` packed snapshot with this layout:
-  - `o_payload[273]`:       ask best valid
-  - `o_payload[272:241]`:   ask best price
-  - `o_payload[240:209]`:   ask best shares
-  - `o_payload[208:145]`:   ask sequence number
-  - `o_payload[144]`:       bid best valid
-  - `o_payload[143:112]`:   bid best price
-  - `o_payload[111:80]`:    bid best shares
-  - `o_payload[79:16]`:     bid sequence number
-  - `o_payload[15:0]`:      stock locate
+    - `o_payload[273]`:       ask best valid
+    - `o_payload[272:241]`:   ask best price
+    - `o_payload[240:209]`:   ask best shares
+    - `o_payload[208:145]`:   ask sequence number
+    - `o_payload[144]`:       bid best valid
+    - `o_payload[143:112]`:   bid best price
+    - `o_payload[111:80]`:    bid best shares
+    - `o_payload[79:16]`:     bid sequence number
+    - `o_payload[15:0]`:      stock locate
 
 ## Waveform snapshot
 
@@ -49,8 +56,9 @@ Below gives the snapshot of the waveform.
 4. From time 4 to 5, the shares of `200` is reducing to `0`. 
 5. At time 6, there is a new bid order with price `300` and shares `20`, the output best bid and shares change correspondingly.
 
-The *ask* side behaves the same if there are *ask* signals. Note that the best price and shares signals will be all packed to `o_payload`.
+The *ask* side behaves the same if there are *ask* signals. Note that the best price and shares signals (like `o_bid_best_valid`, etc.) will be all packed to `o_payload`. There signals here are just for demonstration while won't be presented in the module.
 
+Figure here is a little bit small. Zoom in the page to check.
 
 ![waveform](../../figures/FPGA/order_book_builder/waveform.png)
 
