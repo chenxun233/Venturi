@@ -57,7 +57,6 @@ module pcie_wrapper #(
     output wire                         o_rq_ready,
     input  wire                         i_rq_valid,
     input  wire [3:0]                   i_rq_type,
-    input  wire                         i_rq_payload_sop,
     input  wire                         i_rq_payload_last,        // the last cycle of data sending
     input  wire [63:0]                  i_rq_addr,
     input  wire [10:0]                  i_rq_payload_dw_count, // Total Data DWords (1-1024) in this burst. Does not include header.
@@ -278,7 +277,6 @@ module pcie_wrapper #(
         .rq_valid                   (i_rq_valid),
         .rq_ready                   (o_rq_ready),
         .rq_type                    (i_rq_type),
-        .rq_payload_sop             (i_rq_payload_sop),
         .rq_payload_last            (i_rq_payload_last),
         .rq_addr                    (i_rq_addr),
         .rq_payload_dw_count        (i_rq_payload_dw_count),

@@ -1,5 +1,12 @@
 # book_builder
 This module is the per-symbol order-table stage inside [symbol_book](../overview.md). It accepts parser events from [order_book_parser](../../../order_book_parser.md), stores the current state of each live order, and emits **compact quantity-delta messages** for the [bid-side and ask-side quantity books](../qty_book_wrapper/overview.md) at the same time.
+
+## Structure
+
+Below gives the inside schematic of book builder:
+
+![book_builder_schematic](../../../../figures/FPGA/order_book_builder/hierarchy_book_builder.png)
+
 ## Design Logic
 
 1. [fifo](../fifo.md) is necessary, as the operation cannot be done in one cycle.
@@ -76,8 +83,4 @@ When no valid update is being emitted, `qty_bid_ask` falls back to `IDLE` (`2'b0
 - `cal_order_book_addr()` is a **hash**, not a collision-free order-reference mapping.
 - The default parameter `PARSER_MSG_BIT = 1+64+8+16+64+64+2+32+32+48` still includes an extra `+48`, but the implemented field slices only use bits up to `i_parser_msg[282]`.
 
-## Structure
 
-Below gives the inside schematic of book builder:
-
-![book_builder_schematic](../../../../figures/FPGA/order_book_builder/hierarchy_book_builder.png)

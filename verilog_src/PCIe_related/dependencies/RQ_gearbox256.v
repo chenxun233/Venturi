@@ -9,10 +9,9 @@ module RQ_gearbox256 #(
     // =========================================================================
     input  wire [127:0]              rq_descriptor,
     input  wire [255:0]              rq_payload,
-    input  wire [10:0]               rq_payload_dw_count, // keep the same all the way
+    input  wire [10:0]               rq_payload_dw_count, 
     input  wire                      rq_payload_last,
     input  wire                      rq_valid,
-    input  wire                      rq_payload_sop,
     output wire                      rq_ready, 
     // =========================================================================
     // PCIe IP Core Interface
@@ -25,35 +24,37 @@ module RQ_gearbox256 #(
     input  wire                       s_axis_rq_tready
 );
 
-    reg [127:0] data_saver;
-    reg [0:0]   one_more_cycle;
+
+    localparam TYPE_READ  = 4'b0000;
+    localparam TYPE_WRITE = 4'b0001; // for example, you can define
+
+    reg [127:0] payload_prev;
+    reg [10:0]  remain_dw;
+    wire [3:0]  type  = rq_descriptor[78:75]; // 
+    wire [127:0] payload_cur = rq_payload[127:0]; // Current payload beat
+
+    reg [2:0] state;
+    localparam IDLE     = 3'b000;
+    localparam SENDING  = 3'b001;
+    localparam TAIL     = 3'b010;
+
     
-    // Helper for Tail Keep (Your logic was mostly correct, just cleaned up)
-    function [7:0] calc_tail_keep(input [10:0] count);
-        case (count & 11'd7) // all data
-            11'd1: calc_tail_keep = 8'b0001_1111;
-            11'd2: calc_tail_keep = 8'b0011_1111;
-            11'd3: calc_tail_keep = 8'b0111_1111;
-            11'd4: calc_tail_keep = 8'b1111_1111; // above can be sent in Tn
-            11'd5: calc_tail_keep = 8'b0000_0001; // Below has to be sent in Tn+1
-            11'd6: calc_tail_keep = 8'b0000_0011;
-            11'd7: calc_tail_keep = 8'b0000_0111;
-            11'd0: calc_tail_keep = 8'b0000_1111;
-            default: calc_tail_keep = 8'hFF; // should not happen
-        endcase
+    function [7:0] keep_mask(input [3:0] count);
+        begin
+            case (count)
+                4'd0: keep_mask = 8'h00;
+                4'd1: keep_mask = 8'h01;
+                4'd2: keep_mask = 8'h03;
+                4'd3: keep_mask = 8'h07;
+                4'd4: keep_mask = 8'h0F;
+                4'd5: keep_mask = 8'h1F;
+                4'd6: keep_mask = 8'h3F;
+                4'd7: keep_mask = 8'h7F;
+                default: keep_mask = 8'hFF;
+            endcase
+        end
     endfunction
 
-    // this function checks if one more cycle is needed after last beat
-    function [0:0] one_more (input [10:0] count);
-        if ((count & 11'd7) <= 11'd4)
-            one_more = 1'b0;
-        else
-            one_more = 1'b1;
-    endfunction
-
-    // =========================================================================
-    // Main Logic
-    // =========================================================================
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             s_axis_rq_tdata   <= 256'b0;
@@ -61,103 +62,92 @@ module RQ_gearbox256 #(
             s_axis_rq_tlast   <= 1'b0;
             s_axis_rq_tkeep   <= 8'b0;
             s_axis_rq_tuser   <= 60'b0;
-            data_saver        <= 128'b0;
-            one_more_cycle    <= 1'b0;
-        end 
-        else if (s_axis_rq_tready) begin
-            // -------------------------------------------------------------
-            // Priority 2: NORMAL PROCESSING
-            // -------------------------------------------------------------
-            if (rq_valid) begin
-                if (s_axis_rq_tlast) begin
-                    s_axis_rq_tlast   <= 1'b0;
-                end
-                // Check if it is a Read Request (Type 0000)
-                if (rq_descriptor[78:75] == 4'b0000) begin
-                    s_axis_rq_tdata   <= {128'b0, rq_descriptor};
-                    s_axis_rq_tvalid  <= 1'b1;
-                    s_axis_rq_tlast   <= 1'b1;
-                    s_axis_rq_tkeep   <= 8'h0F; // 4 DWs Header
-                    s_axis_rq_tuser   <= {52'b0, rq_descriptor[107:104], rq_descriptor[111:108]};
-                    one_more_cycle    <= 1'b0;
-                end
-                else begin
-                    one_more_cycle <= one_more(rq_payload_dw_count);
-                    // Case A: Small Packet (<= 4 DW) - No Remnant created
-                    if (rq_payload_sop && !one_more(rq_payload_dw_count) && rq_payload_dw_count <= 11'd4) begin
-                        s_axis_rq_tdata   <= {rq_payload[127:0], rq_descriptor};
+            payload_prev      <= 128'b0;
+            remain_dw         <= 11'b0;
+            state             <= IDLE;
+        end else begin
+            s_axis_rq_tdata   <= 256'b0;
+            s_axis_rq_tvalid  <= 1'b0;
+            s_axis_rq_tlast   <= 1'b0;
+            s_axis_rq_tkeep   <= 8'b0;
+            s_axis_rq_tuser   <= 60'b0;
+
+            if (s_axis_rq_tready) begin
+                case (state)
+                    IDLE: begin
+                        if (rq_valid) begin
+                            case (type)
+                                TYPE_READ: begin
+                                    s_axis_rq_tdata   <= {128'b0, rq_descriptor};
+                                    s_axis_rq_tvalid  <= 1'b1;
+                                    s_axis_rq_tlast   <= 1'b1;
+                                    s_axis_rq_tkeep   <= 8'h0F;
+                                    s_axis_rq_tuser   <= {52'b0, rq_descriptor[107:104], rq_descriptor[111:108]};
+                                end
+                                TYPE_WRITE: begin
+                                    payload_prev      <= rq_payload[255:128];
+                                    s_axis_rq_tdata   <= {payload_cur, rq_descriptor};
+                                    s_axis_rq_tvalid  <= 1'b1;
+                                    s_axis_rq_tuser   <= {52'b0, rq_descriptor[107:104], rq_descriptor[111:108]};
+                                    if (rq_payload_dw_count <= 11'd4) begin
+                                        s_axis_rq_tlast <= 1'b1;
+                                        s_axis_rq_tkeep <= keep_mask(4'd4 + rq_payload_dw_count[3:0]);
+                                        remain_dw       <= 11'd0;
+                                    end else begin
+                                        s_axis_rq_tlast <= 1'b0;
+                                        s_axis_rq_tkeep <= 8'hFF;
+                                        remain_dw       <= rq_payload_dw_count - 11'd4;
+                                        if (rq_payload_last)
+                                            state <= TAIL;
+                                        else
+                                            state <= SENDING;
+                                    end
+                                end
+                                default: begin
+                                    remain_dw <= 11'd0;
+                                end
+                            endcase
+                        end
+                    end
+                    SENDING: begin
+                        if (rq_valid) begin
+                            s_axis_rq_tdata  <= {payload_cur, payload_prev};
+                            s_axis_rq_tvalid <= 1'b1;
+                            s_axis_rq_tuser  <= 60'b0;
+                            payload_prev     <= rq_payload[255:128];
+
+                            if (remain_dw <= 11'd8) begin
+                                s_axis_rq_tlast <= 1'b1;
+                                s_axis_rq_tkeep <= keep_mask(remain_dw[3:0]);
+                                remain_dw       <= 11'd0;
+                                state           <= IDLE;
+                            end else begin
+                                s_axis_rq_tlast <= 1'b0;
+                                s_axis_rq_tkeep <= 8'hFF;
+                                remain_dw       <= remain_dw - 11'd8;
+                                if (rq_payload_last)
+                                    state <= TAIL;
+                            end
+                        end
+                    end
+                    TAIL: begin
+                        s_axis_rq_tdata   <= {128'b0, payload_prev};
                         s_axis_rq_tvalid  <= 1'b1;
                         s_axis_rq_tlast   <= 1'b1;
-                        // Calculate keep for small packet (Header(4) + Payload)
-                        // If count=1(Total5)->0x1F. If count=2(Total6)->0x3F.
-                        s_axis_rq_tkeep   <= calc_tail_keep(rq_payload_dw_count);
-                        s_axis_rq_tuser   <= {52'b0, rq_descriptor[107:104], rq_descriptor[111:108]};
-                    end
-                    
-                    // Case B: Large Packet 1. The SOP
-                    else if (rq_payload_sop) begin
-                        s_axis_rq_tdata   <= {rq_payload[127:0], rq_descriptor};
-                        data_saver        <= rq_payload[255:128]; // Save Upper
-                        s_axis_rq_tuser   <= {52'b0, rq_descriptor[107:104], rq_descriptor[111:108]};
-                        s_axis_rq_tvalid  <= 1'b1;
-                        s_axis_rq_tlast   <= 1'b0;
-                        s_axis_rq_tkeep   <= 8'hFF;
-                    end
-                    
-                    // Case B: Large Packet 2. The body
-                    else if (!rq_payload_last) begin
-                        s_axis_rq_tdata   <= {rq_payload[127:0], data_saver};
-                        data_saver        <= rq_payload[255:128]; // Save New Upper
+                        s_axis_rq_tkeep   <= keep_mask(remain_dw[3:0]);
                         s_axis_rq_tuser   <= 60'b0;
-                        s_axis_rq_tlast   <= 1'b0;
-                        s_axis_rq_tvalid  <= 1'b1;
-                        s_axis_rq_tkeep   <= 8'hFF;
+                        remain_dw         <= 11'd0;
+                        state             <= IDLE;
                     end
-                    // Case B: Large Packet 3. End, but no one more cycle needed
-                    else if (rq_payload_last && ! one_more(rq_payload_dw_count))begin
-                        s_axis_rq_tdata   <= {rq_payload[127:0], data_saver};
-                        data_saver        <= 0; //  not needed anymore
-                        s_axis_rq_tuser   <= 60'b0;
-                        s_axis_rq_tlast   <= 1'b1;
-                        s_axis_rq_tvalid  <= 1'b1;
-                        s_axis_rq_tkeep   <= calc_tail_keep(rq_payload_dw_count);
+                    default: begin
+                        remain_dw         <= 11'd0;
+                        state             <= IDLE;
                     end
-                    // Case B: Large Packet 3. End, one more cycle needed
-                    else if (rq_payload_last && one_more(rq_payload_dw_count))begin
-                        s_axis_rq_tdata   <= {rq_payload[127:0], data_saver};
-                        data_saver        <= rq_payload[255:128]; // Save New Upper
-                        s_axis_rq_tuser   <= 60'b0;
-                        s_axis_rq_tlast   <= 1'b0; //hold, the last is in the one more cycle.
-                        s_axis_rq_tvalid  <= 1'b1;
-                        s_axis_rq_tkeep   <= 8'hFF;
-                    end
-                end
-            end
-            // even if rq_valid is low, we may have one more cycle to send
-            else if (one_more_cycle) begin
-                // Final Cycle for Large Packet
-                s_axis_rq_tdata   <= {data_saver, 128'b0};
-                s_axis_rq_tvalid  <= 1'b1;  // still valid to the PCIe core
-                s_axis_rq_tlast   <= 1'b1; // last for one more cycle
-                s_axis_rq_tkeep   <= calc_tail_keep(rq_payload_dw_count);
-                s_axis_rq_tuser   <= 60'b0;
-                one_more_cycle    <= 1'b0;
-            end
-            // -------------------------------------------------------------
-            // Priority 3: IDLE
-            // -------------------------------------------------------------
-            else begin
-                s_axis_rq_tdata   <= 256'b0;
-                s_axis_rq_tvalid  <= 1'b0;
-                s_axis_rq_tlast   <= 1'b0;
-                s_axis_rq_tkeep   <= 8'b0;
-                s_axis_rq_tuser   <= 60'b0;
-                data_saver        <= 128'b0;
-                one_more_cycle    <= 1'b0;
+                endcase
             end
         end
-    end
-    assign rq_ready = s_axis_rq_tready && !one_more_cycle;
+    end 
+    assign rq_ready = (state != TAIL) && s_axis_rq_tready;
 
 
 endmodule

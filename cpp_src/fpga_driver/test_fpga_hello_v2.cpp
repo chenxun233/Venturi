@@ -46,10 +46,10 @@ int main(int argc, char* argv[]) {
     }
 
     if (!dev) {
-        fprintf(stderr, "Failed to create FPGA device object\n");
-        fprintf(stderr, "Make sure the device is bound to vfio-pci:\n");
-        fprintf(stderr, "  sudo modprobe vfio-pci ids=10ee:8038\n");
-        fprintf(stderr, "  echo %s | sudo tee /sys/bus/pci/drivers/vfio-pci/bind\n", pci_addr);
+        fprintf(stderr,     "Failed to create FPGA device object\n");
+        fprintf(stderr,     "Make sure the device is bound to vfio-pci:\n");
+        fprintf(stderr,     "sudo modprobe vfio-pci ids=10ee:8038\n");
+        fprintf(stderr,     "echo %s | sudo tee /sys/bus/pci/drivers/vfio-pci/bind\n", pci_addr);
         return 1;
     }
 

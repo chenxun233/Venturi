@@ -1,0 +1,30 @@
+{signal: [
+  {name: 'user_clk_250', wave: 'p.......|p.......'},
+  {},
+  ['RQ read request (single beat)',
+    {name: 'rq_ready',            wave: '1.......|........'},
+    {name: 'rq_valid',            wave: '0.1.....|........'},
+    {name: 'rq_payload_sop',      wave: '0.1.....|........'},
+    {name: 'rq_payload_last',     wave: '0.1.....|........'},
+    {name: 'rq_fire',             wave: '0.1.....|........'},
+    {name: 'rq_type',             wave: 'x.=.....|........', data: ['READ']},
+    {name: 'rq_addr',             wave: 'x.=.....|........', data: ['SRC_ADDR']},
+    {name: 'rq_payload_dw_count', wave: 'x.=.....|........', data: ['4 DW']},
+    {name: 'rq_tag',              wave: 'x.=.....|........', data: ['tag=1']}
+  ],
+  {},
+  ['RQ write request (two beats)',
+    {name: 'rq_ready',            wave: '........|1.......'},
+    {name: 'rq_valid',            wave: '........|0.11....'},
+    {name: 'rq_payload_sop',      wave: '........|0.10....'},
+    {name: 'rq_payload_last',     wave: '........|0.01....'},
+    {name: 'rq_fire',             wave: '........|0.11....'},
+    {name: 'rq_type',             wave: '........|x.=.....', data: ['WRITE']},
+    {name: 'rq_addr',             wave: '........|x.=.....', data: ['DST_ADDR']},
+    {name: 'rq_payload_dw_count', wave: '........|x.=.....', data: ['12 DW']},
+    {name: 'rq_tag',              wave: '........|x.=.....', data: ['tag=2']},
+    {name: 'rq_payload',          wave: '........|x.==....', data: ['beat0 lower 256b', 'beat1 upper 128b']}
+  ]
+],
+head: {text: 'RQ path timing from verilog_backup/user_logic.v'},
+config: {hscale: 2}}

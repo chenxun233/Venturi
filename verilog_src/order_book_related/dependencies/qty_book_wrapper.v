@@ -24,8 +24,8 @@ localparam WRITE = 2'b10;
 
 assign o_seq_num = (o_best_valid_aligned) ? seq_num : 64'h0; // output max seq_num when no valid best price, so that downstream can ignore it.
 
-wire [QTY_PRICE_LVL_BIT-1:0] tree_price_idx;
-wire [1:0]                   tree_price_change;
+wire [QTY_PRICE_LVL_BIT-1:0] price_idx;
+wire [1:0]                   price_change;
 wire [QTY_PRICE_LVL_BIT-1:0] bram_addr_a;
 wire [1:0]                   bram_op_a;
 wire [QTY_SHARE_BIT-1:0]     bram_i_data_a;
@@ -42,13 +42,13 @@ qty_builder #(
     .QTY_SHARE_BIT     (QTY_SHARE_BIT),
     .PRICE_BASE        (PRICE_BASE),
     .BID_OR_ASK        (BID_OR_ASK)
-) bid_qty_builder_inst (
+) qty_builder_inst (
     .i_clk_156          (i_clk_156),
     .i_rst              (i_rst),
     .i_qty_msg          (i_qty_msg),
     .i_bram_o_data      (bram_o_data_a),
-    .o_tree_price_idx   (tree_price_idx),
-    .o_tree_price_change(tree_price_change),
+    .o_price_idx        (price_idx),
+    .o_price_change     (price_change),
     .o_seq_num          (seq_num          ),
     .o_bram_addr        (bram_addr_a      ),
     .o_bram_op          (bram_op_a      ),
@@ -58,13 +58,13 @@ qty_builder #(
 tree_builder #(
     .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
     .BID_OR_ASK        (BID_OR_ASK)
-) bid_tree_builder_inst (
+) tree_builder_inst (
     .i_clk              (i_clk_156),
     .i_rst              (i_rst),
-    .i_tree_price_idx   (tree_price_idx),
-    .i_tree_price_change(tree_price_change),
-    .o_tree_best_valid  (best_valid),
-    .o_tree_best_idx    (best_idx)
+    .i_price_idx        (price_idx),
+    .i_price_change     (price_change),
+    .o_best_valid       (best_valid),
+    .o_best_price_idx    (best_idx)
 );
 
 aligner #(

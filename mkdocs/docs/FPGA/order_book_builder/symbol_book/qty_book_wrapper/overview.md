@@ -1,5 +1,11 @@
 # qty_book_wrapper
 This module maintains the **price-level quantity book** for one side of one symbol. It receives compact quantity-delta events from [book_builder](../book_builder/overview.md), updates the total shares at the affected price level, tracks which price level is currently the best, and outputs the best price with its corresponding shares.
+
+## Structure
+Below privides the structure inside `qty_book_wrapper` module.
+
+![structure of qty_book_wrapper](../../../../figures/FPGA/order_book_builder/hierarchy_qty_book_warpper.png)
+
 ## Introduction
 Inside [symbol_book](../overview.md), there are two instances of this wrapper:
 
@@ -68,11 +74,6 @@ The wrapper is pipelined:
 - [aligner](aligner.md) adds delay so price/valid line up with best-share BRAM data
 
 As a result, the best-price output is **not** available in the same cycle as the input quantity message.
-
-## Structure
-Below privides the structure inside `qty_book_wrapper` module.
-
-![structure of qty_book_wrapper](../../../../figures/FPGA/order_book_builder/hierarchy_qty_book_warpper.png)
 
 ## Limits
 - The tree tracks whether a price level is empty or non-empty; it does not store the exact quantity itself.

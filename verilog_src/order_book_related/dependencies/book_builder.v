@@ -196,7 +196,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                         if (book_o_valid && (book_o_shares >= msg_shares)) begin
                             book_op          <= WRITE;
                             book_addr        <= cal_order_book_addr(msg_order_ref_num);
-                            book_i_data      <= {1'b1, book_o_side, (book_o_shares - msg_shares), book_o_price};
+                            book_i_data      <= {(book_o_shares - msg_shares==0) ? 1'b0 : 1'b1, book_o_side, (book_o_shares - msg_shares), book_o_price};
                             qty_bid_ask     <= book_o_side;
                             qty_price       <= book_o_price;
                             qty_is_add      <= 1'b0;

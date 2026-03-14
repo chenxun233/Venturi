@@ -1,6 +1,6 @@
 
 module async_fifo #(
-    parameter DEPTH  = 16,
+    parameter DEPTH  = 2,
     parameter DATA_W = 274
 ) (
     input  wire              i_wr_clk,
@@ -45,10 +45,12 @@ wire wr_do = i_wr_en && !o_wr_full;
 wire rd_do = i_rd_en && !o_rd_empty;
 
 wire [PTR_W-1:0] wr_bin_next  = wr_ptr_bin + {{(PTR_W-1){1'b0}}, wr_do};
+wire [PTR_W-1:0] wr_gray_next = (wr_bin_next >> 1) ^ wr_bin_next; // binary to gray code conversion: G = B ^ (B >> 1)
 wire [PTR_W-1:0] rd_bin_next  = rd_ptr_bin + {{(PTR_W-1){1'b0}}, rd_do};
-wire [PTR_W-1:0] wr_gray_next = (wr_bin_next >> 1) ^ wr_bin_next;
 wire [PTR_W-1:0] rd_gray_next = (rd_bin_next >> 1) ^ rd_bin_next;
-wire [PTR_W-1:0] wr_full_cmp  = {~rd_ptr_gray_sync2[PTR_W-1:PTR_W-2], rd_ptr_gray_sync2[PTR_W-3:0]};
+
+
+wire [PTR_W-1:0] wr_full_cmp  = {~rd_ptr_gray_sync2[PTR_W-1:PTR_W-2], rd_ptr_gray_sync2[PTR_W-3:0]};//Gray-code representation of the “full-condition pointer” 
 wire             wr_full_next = (wr_gray_next == wr_full_cmp);
 wire             rd_empty_next = (rd_gray_next == wr_ptr_gray_sync2);
 
@@ -66,7 +68,6 @@ always @(posedge i_wr_clk or posedge i_wr_rst) begin
         if (wr_do) begin
             mem[wr_ptr_bin[ADDR_W-1:0]] <= i_wr_data;
         end
-
         wr_ptr_bin  <= wr_bin_next;
         wr_ptr_gray <= wr_gray_next;
         o_wr_full   <= wr_full_next;
@@ -90,7 +91,7 @@ always @(posedge i_rd_clk or posedge i_rd_rst) begin
             o_rd_data <= mem[rd_ptr_bin[ADDR_W-1:0]];
         end
 
-        rd_ptr_bin  <= rd_bin_next;
+        rd_ptr_bin  <= rd_bin_next; // rd_ptr_bin + 1
         rd_ptr_gray <= rd_gray_next;
         o_rd_empty  <= rd_empty_next;
         o_rd_valid  <= rd_do;

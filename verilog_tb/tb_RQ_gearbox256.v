@@ -32,22 +32,22 @@ module tb_RQ_gearbox256;
     wire                    one_more_cycle;
     reg                     s_axis_rq_tready;
 
+    localparam [127:0] DESCRIPTOR_TYPE_WRITE = {{49{1'b1}}, 4'b0001, {75{1'b1}}};
+
     // =========================================================================
     // DUT Instantiation
     // =========================================================================
-    assign one_more_cycle = dut.one_more_cycle;
 
     RQ_gearbox256 #(
         .DATA_WIDTH(DATA_WIDTH)
     ) dut (
         .clk                (clk),
         .rst_n              (rst_n),
-        .descriptor         (descriptor),
-        .rq_payload         (rq_payload),
+        .rq_descriptor             (descriptor),
+        .rq_payload             (rq_payload),
         .rq_payload_dw_count     (rq_payload_dw_count),
         .rq_payload_last            (rq_payload_last),
         .rq_valid           (rq_valid),
-        .rq_payload_sop             (rq_payload_sop),
         .rq_ready           (rq_ready),
         .s_axis_rq_tdata    (s_axis_rq_tdata),
         .s_axis_rq_tvalid   (s_axis_rq_tvalid),
@@ -68,18 +68,11 @@ module tb_RQ_gearbox256;
     // =========================================================================
     // Monitor
     // =========================================================================
-    always @(posedge clk) begin
-        if (s_axis_rq_tvalid && s_axis_rq_tready) begin
-            $display("[%0t] OUT: tdata=%h, tkeep=%b, tlast=%b",
-                     $time, s_axis_rq_tdata, s_axis_rq_tkeep, s_axis_rq_tlast);
-        end
-    end
 
     // =========================================================================
     // Main Test
     // =========================================================================
     initial begin
-        $display("========== RQ_gearbox256 Testbench ==========");
         
         // Initialize
         rst_n            = 0;
@@ -101,7 +94,7 @@ module tb_RQ_gearbox256;
         // -----------------------------------------------------------------
         $display("\n[TEST] dw_count = 1");
         @(posedge clk);
-        descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
+        descriptor     <= DESCRIPTOR_TYPE_WRITE;
         rq_payload     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0001;
         rq_payload_dw_count <= 11'd1;
         rq_valid       <= 1;
@@ -114,9 +107,8 @@ module tb_RQ_gearbox256;
         // -----------------------------------------------------------------
         // Test 2: dw_count = 2 (no one_more_cycle, keep=0x3F)
         // -----------------------------------------------------------------
-        $display("\n[TEST] dw_count = 2");
         @(posedge clk);
-        descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
+        descriptor     <= DESCRIPTOR_TYPE_WRITE;
         rq_payload     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0002_DEAD_0001;
         rq_payload_dw_count <= 11'd2;
         rq_valid       <= 1;
@@ -129,9 +121,8 @@ module tb_RQ_gearbox256;
         // -----------------------------------------------------------------
         // Test 3: dw_count = 4 (no one_more_cycle, keep=0xFF)
         // -----------------------------------------------------------------
-        $display("\n[TEST] dw_count = 4");
         @(posedge clk);
-        descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
+        descriptor     <= DESCRIPTOR_TYPE_WRITE;
         rq_payload     <= 256'h0000_0000_0000_0000_0000_0000_0000_0000_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
         rq_payload_dw_count <= 11'd4;
         rq_valid       <= 1;
@@ -144,9 +135,8 @@ module tb_RQ_gearbox256;
         // -----------------------------------------------------------------
         // Test 4: dw_count = 7 (one_more_cycle, keep=0x07)
         // -----------------------------------------------------------------
-        $display("\n[TEST] dw_count = 7");
         @(posedge clk);
-        descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
+        descriptor     <= DESCRIPTOR_TYPE_WRITE;
         rq_payload     <= 256'h0000_0000_DEAD_0007_DEAD_0006_DEAD_0005_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
         rq_payload_dw_count <= 11'd7;
         rq_valid       <= 1;
@@ -159,10 +149,9 @@ module tb_RQ_gearbox256;
         // -----------------------------------------------------------------
         // Test 5: dw_count = 9 (2 user beats + one_more_cycle, keep=0x01)
         // -----------------------------------------------------------------
-        $display("\n[TEST] dw_count = 9");
         // Beat 1 (SOP)
         @(posedge clk);
-        descriptor     <= 128'hAAAA_BBBB_CCCC_DDDD_1111_2222_3333_4444;
+        descriptor     <= DESCRIPTOR_TYPE_WRITE;
         rq_payload     <= 256'hDEAD_0008_DEAD_0007_DEAD_0006_DEAD_0005_DEAD_0004_DEAD_0003_DEAD_0002_DEAD_0001;
         rq_payload_dw_count <= 11'd9;
         rq_valid       <= 1;
@@ -181,14 +170,10 @@ module tb_RQ_gearbox256;
         // -----------------------------------------------------------------
         // Done
         // -----------------------------------------------------------------
-        $display("\n========== All Tests Completed ==========\n");
         $finish;
     end
 
     // Waveform dump
-    initial begin
-        $dumpfile("tb_RQ_gearbox256.vcd");
-        $dumpvars(0, tb_RQ_gearbox256);
-    end
+
 
 endmodule

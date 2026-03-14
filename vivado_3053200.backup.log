@@ -1,0 +1,1786 @@
+#-----------------------------------------------------------
+# Vivado v2018.3 (64-bit)
+# SW Build 2405991 on Thu Dec  6 23:36:41 MST 2018
+# IP Build 2404404 on Fri Dec  7 01:43:56 MST 2018
+# Start of session at: Sat Mar 14 18:21:09 2026
+# Process ID: 3053200
+# Current directory: /home/chenxun/Documents/Project/Venturi
+# Command line: vivado -mode batch -source /tmp/venturi_top_synth_check.tcl
+# Log file: /home/chenxun/Documents/Project/Venturi/vivado.log
+# Journal file: /home/chenxun/Documents/Project/Venturi/vivado.jou
+#-----------------------------------------------------------
+source /tmp/venturi_top_synth_check.tcl
+# open_project /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.xpr
+Scanning sources...
+Finished scanning sources
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/home/chenxun/Vivado/Vivado/2018.3/data/ip'.
+# set_property top top [get_filesets sources_1]
+# update_compile_order -fileset sources_1
+# reset_run synth_1
+# launch_runs synth_1 -jobs 8
+[Sat Mar 14 18:21:14 2026] Launched synth_1...
+Run output will be captured here: /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/synth_1/runme.log
+# wait_on_run synth_1
+[Sat Mar 14 18:21:14 2026] Waiting for synth_1 to finish...
+
+*** Running vivado
+    with args -log top.vds -m64 -product Vivado -mode batch -messageDb vivado.pb -notrace -source top.tcl
+
+
+****** Vivado v2018.3 (64-bit)
+  **** SW Build 2405991 on Thu Dec  6 23:36:41 MST 2018
+  **** IP Build 2404404 on Fri Dec  7 01:43:56 MST 2018
+    ** Copyright 1986-2018 Xilinx, Inc. All Rights Reserved.
+
+source top.tcl -notrace
+Command: synth_design -top top -part xcku035-fbva676-2-e
+Starting synth_design
+Attempting to get a license for feature 'Synthesis' and/or device 'xcku035'
+INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xcku035'
+INFO: Launching helper process for spawning children vivado processes
+INFO: Helper process launched with PID 3053617 
+WARNING: [Synth 8-2507] parameter declaration becomes local in eth_phy_10g_rx_ber_mon with formal parameter declaration list [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_ber_mon.v:62]
+WARNING: [Synth 8-2507] parameter declaration becomes local in eth_phy_10g_rx_frame_sync with formal parameter declaration list [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_frame_sync.v:56]
+WARNING: [Synth 8-2507] parameter declaration becomes local in eth_phy_10g_rx_frame_sync with formal parameter declaration list [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_frame_sync.v:57]
+WARNING: [Synth 8-2507] parameter declaration becomes local in eth_phy_10g_rx_watchdog with formal parameter declaration list [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_watchdog.v:71]
+WARNING: [Synth 8-2507] parameter declaration becomes local in lfsr with formal parameter declaration list [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:355]
+---------------------------------------------------------------------------------
+Starting RTL Elaboration : Time (s): cpu = 00:00:00.77 ; elapsed = 00:00:01 . Memory (MB): peak = 1433.020 ; gain = 89.426 ; free physical = 8280 ; free virtual = 28925
+---------------------------------------------------------------------------------
+INFO: [Synth 8-6157] synthesizing module 'top' [/home/chenxun/Documents/Project/Venturi/verilog_src/Top.v:12]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+	Parameter KEEP_WIDTH bound to: 8 - type: integer 
+	Parameter BAR0_SIZE bound to: 16 - type: integer 
+	Parameter EVENT_PAYLOAD_W bound to: 274 - type: integer 
+	Parameter EVENT_CDC_DEPTH bound to: 64 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'IBUFDS_GTE3' [/home/chenxun/Vivado/Vivado/2018.3/scripts/rt/data/unisim_comp.v:20580]
+	Parameter REFCLK_EN_TX_PATH bound to: 1'b0 
+	Parameter REFCLK_HROW_CK_SEL bound to: 2'b00 
+	Parameter REFCLK_ICNTL_RX bound to: 2'b00 
+INFO: [Synth 8-6155] done synthesizing module 'IBUFDS_GTE3' (1#1) [/home/chenxun/Vivado/Vivado/2018.3/scripts/rt/data/unisim_comp.v:20580]
+INFO: [Synth 8-6157] synthesizing module 'IBUFGDS' [/home/chenxun/Vivado/Vivado/2018.3/scripts/rt/data/unisim_comp.v:20866]
+	Parameter CAPACITANCE bound to: DONT_CARE - type: string 
+	Parameter DIFF_TERM bound to: FALSE - type: string 
+	Parameter IBUF_DELAY_VALUE bound to: 0 - type: string 
+	Parameter IBUF_LOW_PWR bound to: FALSE - type: string 
+	Parameter IOSTANDARD bound to: DEFAULT - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'IBUFGDS' (2#1) [/home/chenxun/Vivado/Vivado/2018.3/scripts/rt/data/unisim_comp.v:20866]
+INFO: [Synth 8-6157] synthesizing module 'pcie_wrapper' [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/pcie_wrapper.v:14]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+	Parameter BAR0_SIZE bound to: 16 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'CQ_parser' [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/CQ_parser.v:6]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+	Parameter BAR0_SIZE bound to: 16 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'CQ_parser' (3#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/CQ_parser.v:6]
+INFO: [Synth 8-6157] synthesizing module 'CC_formatter' [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/CC_formatter.v:6]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'CC_formatter' (4#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/CC_formatter.v:6]
+INFO: [Synth 8-6157] synthesizing module 'RQ_formatter' [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RQ_formatter.v:4]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'RQ_gearbox256' [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RQ_gearbox256.v:1]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+	Parameter TYPE_READ bound to: 4'b0000 
+	Parameter TYPE_WRITE bound to: 4'b0001 
+	Parameter IDLE bound to: 3'b000 
+	Parameter SENDING bound to: 3'b001 
+	Parameter TAIL bound to: 3'b010 
+INFO: [Synth 8-6155] done synthesizing module 'RQ_gearbox256' (5#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RQ_gearbox256.v:1]
+INFO: [Synth 8-6155] done synthesizing module 'RQ_formatter' (6#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RQ_formatter.v:4]
+WARNING: [Synth 8-689] width (4) of port connection 's_axis_rq_tready' does not match port width (1) of module 'RQ_formatter' [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/pcie_wrapper.v:291]
+INFO: [Synth 8-6157] synthesizing module 'RC_parser' [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RC_parser.v:9]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'RC_gearbox256' [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RC_gearbox256.v:17]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+INFO: [Synth 8-226] default block is never used [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RC_gearbox256.v:96]
+INFO: [Synth 8-226] default block is never used [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RC_gearbox256.v:96]
+INFO: [Synth 8-6155] done synthesizing module 'RC_gearbox256' (7#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RC_gearbox256.v:17]
+INFO: [Synth 8-6155] done synthesizing module 'RC_parser' (8#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/dependencies/RC_parser.v:9]
+INFO: [Synth 8-6157] synthesizing module 'pcie3_ultrascale_0' [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/synth_1/.Xil/Vivado-3053464-chenxun-Z790-UD-AC/realtime/pcie3_ultrascale_0_stub.v:6]
+INFO: [Synth 8-6155] done synthesizing module 'pcie3_ultrascale_0' (9#1) [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/synth_1/.Xil/Vivado-3053464-chenxun-Z790-UD-AC/realtime/pcie3_ultrascale_0_stub.v:6]
+INFO: [Synth 8-6155] done synthesizing module 'pcie_wrapper' (10#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/PCIe_related/pcie_wrapper.v:14]
+INFO: [Synth 8-6157] synthesizing module 'user_logic' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:7]
+	Parameter DATA_WIDTH bound to: 256 - type: integer 
+	Parameter BAR0_SIZE bound to: 16 - type: integer 
+	Parameter REG_SCRATCH bound to: 16'b0000000000000000 
+	Parameter REG_ID bound to: 16'b0000000000000100 
+	Parameter REG_INT_CTRL bound to: 16'b0000000000001000 
+	Parameter REG_STATUS bound to: 16'b0000000000001100 
+	Parameter REG_DMA_ADDR bound to: 16'b0000000000010000 
+	Parameter REG_DMA_CTRL bound to: 16'b0000000000011000 
+	Parameter REG_DMA_STATUS bound to: 16'b0000000000011100 
+	Parameter REG_RT_SRC_ADDR bound to: 16'b0000000000100000 
+	Parameter REG_RT_DST_ADDR bound to: 16'b0000000000101000 
+	Parameter REG_RT_CTRL bound to: 16'b0000000000110000 
+	Parameter REG_RT_STATUS bound to: 16'b0000000000110100 
+	Parameter TYPE_READ bound to: 4'b0000 
+	Parameter TYPE_WRITE bound to: 4'b0001 
+	Parameter RT_CTRL_SMALL bound to: 64'b0000000000000000000000000000000000000000000000000000000000000001 
+	Parameter RT_CTRL_LARGE bound to: 64'b0000000000000000000000000000000000000000000000000000000000000010 
+	Parameter RT_CTRL_LONG bound to: 64'b0000000000000000000000000000000000000000000000000000000000000011 
+	Parameter RT_STATUS_BUSY bound to: 64'b0000000000000000000000000000000000000000000000000000000000000001 
+	Parameter RT_STATUS_DONE bound to: 64'b0000000000000000000000000000000000000000000000000000000000000010 
+	Parameter RT_STATUS_ERROR bound to: 64'b0000000000000000000000000000000000000000000000000000000000000100 
+	Parameter RT_SMALL_DW bound to: 11'b00000000100 
+	Parameter RT_LARGE_DW bound to: 11'b00000001100 
+	Parameter RT_LONG_DW bound to: 11'b00000010100 
+	Parameter RT_SMALL_BEATS bound to: 2'b01 
+	Parameter RT_LARGE_BEATS bound to: 2'b10 
+	Parameter RT_LONG_BEATS bound to: 2'b11 
+	Parameter IDLE bound to: 2'b00 
+	Parameter CC_RESP bound to: 2'b01 
+	Parameter RT_IDLE bound to: 3'b000 
+	Parameter RT_SEND_READ bound to: 3'b001 
+	Parameter RT_WAIT_DATA bound to: 3'b010 
+	Parameter RT_SEND_WRITE bound to: 3'b011 
+	Parameter RT_DONE bound to: 3'b100 
+WARNING: [Synth 8-6014] Unused sequential element rt_buffer_dw_keep_reg[0] was removed.  [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:161]
+WARNING: [Synth 8-6014] Unused sequential element rt_buffer_dw_keep_reg[1] was removed.  [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:161]
+WARNING: [Synth 8-6014] Unused sequential element rt_buffer_dw_keep_reg[2] was removed.  [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:161]
+WARNING: [Synth 8-6014] Unused sequential element rt_buffer_dw_keep_reg[0] was removed.  [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:338]
+WARNING: [Synth 8-6014] Unused sequential element rt_buffer_dw_keep_reg[1] was removed.  [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:338]
+WARNING: [Synth 8-6014] Unused sequential element rt_buffer_dw_keep_reg[2] was removed.  [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:338]
+INFO: [Synth 8-6155] done synthesizing module 'user_logic' (11#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:7]
+INFO: [Synth 8-6157] synthesizing module 'pcs_pma_wrapper' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/pcs_pma_wrapper.v:14]
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter CTRL_WIDTH bound to: 8 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'rst_synchronizer' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:25]
+	Parameter IN_ACTIVE_HIGH bound to: 1 - type: integer 
+	Parameter OUT_ACTIVE_HIGH bound to: 1 - type: integer 
+INFO: [Synth 8-5534] Detected attribute (* ASYNC_REG = "TRUE" *) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:37]
+INFO: [Synth 8-5534] Detected attribute (* ASYNC_REG = "TRUE" *) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:38]
+INFO: [Synth 8-6155] done synthesizing module 'rst_synchronizer' (12#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:25]
+INFO: [Synth 8-6157] synthesizing module 'eth_phy_10g' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g.v:34]
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter CTRL_WIDTH bound to: 8 - type: integer 
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter BIT_REVERSE bound to: 1 - type: integer 
+	Parameter SCRAMBLER_DISABLE bound to: 0 - type: integer 
+	Parameter PRBS31_ENABLE bound to: 0 - type: integer 
+	Parameter TX_SERDES_PIPELINE bound to: 0 - type: integer 
+	Parameter RX_SERDES_PIPELINE bound to: 0 - type: integer 
+	Parameter BITSLIP_HIGH_CYCLES bound to: 1 - type: integer 
+	Parameter BITSLIP_LOW_CYCLES bound to: 8 - type: integer 
+	Parameter COUNT_125US bound to: 19531.250000 - type: float 
+INFO: [Synth 8-6157] synthesizing module 'eth_phy_10g_rx' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx.v:34]
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter CTRL_WIDTH bound to: 8 - type: integer 
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter BIT_REVERSE bound to: 1 - type: integer 
+	Parameter SCRAMBLER_DISABLE bound to: 0 - type: integer 
+	Parameter PRBS31_ENABLE bound to: 0 - type: integer 
+	Parameter SERDES_PIPELINE bound to: 0 - type: integer 
+	Parameter BITSLIP_HIGH_CYCLES bound to: 1 - type: integer 
+	Parameter BITSLIP_LOW_CYCLES bound to: 8 - type: integer 
+	Parameter COUNT_125US bound to: 19531.250000 - type: float 
+INFO: [Synth 8-6157] synthesizing module 'eth_phy_10g_rx_if' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_if.v:34]
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter BIT_REVERSE bound to: 1 - type: integer 
+	Parameter SCRAMBLER_DISABLE bound to: 0 - type: integer 
+	Parameter PRBS31_ENABLE bound to: 0 - type: integer 
+	Parameter SERDES_PIPELINE bound to: 0 - type: integer 
+	Parameter BITSLIP_HIGH_CYCLES bound to: 1 - type: integer 
+	Parameter BITSLIP_LOW_CYCLES bound to: 8 - type: integer 
+	Parameter COUNT_125US bound to: 19531.250000 - type: float 
+INFO: [Synth 8-6157] synthesizing module 'lfsr' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:34]
+	Parameter LFSR_WIDTH bound to: 58 - type: integer 
+	Parameter LFSR_POLY bound to: 58'b0000000000000000001000000000000000000000000000000000000001 
+	Parameter LFSR_CONFIG bound to: FIBONACCI - type: string 
+	Parameter LFSR_FEED_FORWARD bound to: 1 - type: integer 
+	Parameter REVERSE bound to: 1 - type: integer 
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter STYLE bound to: AUTO - type: string 
+	Parameter STYLE_INT bound to: LOOP - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'lfsr' (13#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:34]
+INFO: [Synth 8-6157] synthesizing module 'lfsr__parameterized0' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:34]
+	Parameter LFSR_WIDTH bound to: 31 - type: integer 
+	Parameter LFSR_POLY bound to: 31'b0010000000000000000000000000001 
+	Parameter LFSR_CONFIG bound to: FIBONACCI - type: string 
+	Parameter LFSR_FEED_FORWARD bound to: 1 - type: integer 
+	Parameter REVERSE bound to: 1 - type: integer 
+	Parameter DATA_WIDTH bound to: 66 - type: integer 
+	Parameter STYLE bound to: AUTO - type: string 
+	Parameter STYLE_INT bound to: LOOP - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'lfsr__parameterized0' (13#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:34]
+INFO: [Synth 8-6157] synthesizing module 'eth_phy_10g_rx_frame_sync' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_frame_sync.v:34]
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter BITSLIP_HIGH_CYCLES bound to: 1 - type: integer 
+	Parameter BITSLIP_LOW_CYCLES bound to: 8 - type: integer 
+	Parameter BITSLIP_MAX_CYCLES bound to: 8 - type: integer 
+	Parameter BITSLIP_COUNT_WIDTH bound to: 3 - type: integer 
+	Parameter SYNC_DATA bound to: 2'b10 
+	Parameter SYNC_CTRL bound to: 2'b01 
+INFO: [Synth 8-6155] done synthesizing module 'eth_phy_10g_rx_frame_sync' (14#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_frame_sync.v:34]
+INFO: [Synth 8-6157] synthesizing module 'eth_phy_10g_rx_ber_mon' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_ber_mon.v:34]
+WARNING: [Synth 8-639] system function call 'rtoi' not supported [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_ber_mon.v:62]
+WARNING: [Synth 8-639] system function call 'rtoi' not supported [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_ber_mon.v:62]
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter COUNT_125US bound to: 19531.250000 - type: float 
+	Parameter COUNT_WIDTH bound to: 0 - type: integer 
+	Parameter SYNC_DATA bound to: 2'b10 
+	Parameter SYNC_CTRL bound to: 2'b01 
+WARNING: [Synth 8-639] system function call 'rtoi' not supported [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_ber_mon.v:62]
+WARNING: [Synth 8-639] system function call 'rtoi' not supported [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_ber_mon.v:62]
+INFO: [Synth 8-6155] done synthesizing module 'eth_phy_10g_rx_ber_mon' (15#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_ber_mon.v:34]
+INFO: [Synth 8-6157] synthesizing module 'eth_phy_10g_rx_watchdog' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_watchdog.v:34]
+WARNING: [Synth 8-639] system function call 'rtoi' not supported [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_watchdog.v:71]
+WARNING: [Synth 8-639] system function call 'rtoi' not supported [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_watchdog.v:71]
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter COUNT_125US bound to: 19531.250000 - type: float 
+	Parameter COUNT_WIDTH bound to: 0 - type: integer 
+	Parameter SYNC_DATA bound to: 2'b10 
+	Parameter SYNC_CTRL bound to: 2'b01 
+WARNING: [Synth 8-639] system function call 'rtoi' not supported [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_watchdog.v:71]
+WARNING: [Synth 8-639] system function call 'rtoi' not supported [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_watchdog.v:71]
+INFO: [Synth 8-6155] done synthesizing module 'eth_phy_10g_rx_watchdog' (16#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_watchdog.v:34]
+INFO: [Synth 8-6155] done synthesizing module 'eth_phy_10g_rx_if' (17#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx_if.v:34]
+INFO: [Synth 8-6157] synthesizing module 'xgmii_baser_dec_64' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/xgmii_baser_dec_64.v:34]
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter CTRL_WIDTH bound to: 8 - type: integer 
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter XGMII_IDLE bound to: 8'b00000111 
+	Parameter XGMII_LPI bound to: 8'b00000110 
+	Parameter XGMII_START bound to: 8'b11111011 
+	Parameter XGMII_TERM bound to: 8'b11111101 
+	Parameter XGMII_ERROR bound to: 8'b11111110 
+	Parameter XGMII_SEQ_OS bound to: 8'b10011100 
+	Parameter XGMII_RES_0 bound to: 8'b00011100 
+	Parameter XGMII_RES_1 bound to: 8'b00111100 
+	Parameter XGMII_RES_2 bound to: 8'b01111100 
+	Parameter XGMII_RES_3 bound to: 8'b10111100 
+	Parameter XGMII_RES_4 bound to: 8'b11011100 
+	Parameter XGMII_RES_5 bound to: 8'b11110111 
+	Parameter XGMII_SIG_OS bound to: 8'b01011100 
+	Parameter CTRL_IDLE bound to: 7'b0000000 
+	Parameter CTRL_LPI bound to: 7'b0000110 
+	Parameter CTRL_ERROR bound to: 7'b0011110 
+	Parameter CTRL_RES_0 bound to: 7'b0101101 
+	Parameter CTRL_RES_1 bound to: 7'b0110011 
+	Parameter CTRL_RES_2 bound to: 7'b1001011 
+	Parameter CTRL_RES_3 bound to: 7'b1010101 
+	Parameter CTRL_RES_4 bound to: 7'b1100110 
+	Parameter CTRL_RES_5 bound to: 7'b1111000 
+	Parameter O_SEQ_OS bound to: 4'b0000 
+	Parameter O_SIG_OS bound to: 4'b1111 
+	Parameter SYNC_DATA bound to: 2'b10 
+	Parameter SYNC_CTRL bound to: 2'b01 
+	Parameter BLOCK_TYPE_CTRL bound to: 8'b00011110 
+	Parameter BLOCK_TYPE_OS_4 bound to: 8'b00101101 
+	Parameter BLOCK_TYPE_START_4 bound to: 8'b00110011 
+	Parameter BLOCK_TYPE_OS_START bound to: 8'b01100110 
+	Parameter BLOCK_TYPE_OS_04 bound to: 8'b01010101 
+	Parameter BLOCK_TYPE_START_0 bound to: 8'b01111000 
+	Parameter BLOCK_TYPE_OS_0 bound to: 8'b01001011 
+	Parameter BLOCK_TYPE_TERM_0 bound to: 8'b10000111 
+	Parameter BLOCK_TYPE_TERM_1 bound to: 8'b10011001 
+	Parameter BLOCK_TYPE_TERM_2 bound to: 8'b10101010 
+	Parameter BLOCK_TYPE_TERM_3 bound to: 8'b10110100 
+	Parameter BLOCK_TYPE_TERM_4 bound to: 8'b11001100 
+	Parameter BLOCK_TYPE_TERM_5 bound to: 8'b11010010 
+	Parameter BLOCK_TYPE_TERM_6 bound to: 8'b11100001 
+	Parameter BLOCK_TYPE_TERM_7 bound to: 8'b11111111 
+INFO: [Synth 8-6155] done synthesizing module 'xgmii_baser_dec_64' (18#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/xgmii_baser_dec_64.v:34]
+INFO: [Synth 8-6155] done synthesizing module 'eth_phy_10g_rx' (19#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_rx.v:34]
+INFO: [Synth 8-6157] synthesizing module 'eth_phy_10g_tx' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_tx.v:34]
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter CTRL_WIDTH bound to: 8 - type: integer 
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter BIT_REVERSE bound to: 1 - type: integer 
+	Parameter SCRAMBLER_DISABLE bound to: 0 - type: integer 
+	Parameter PRBS31_ENABLE bound to: 0 - type: integer 
+	Parameter SERDES_PIPELINE bound to: 0 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'xgmii_baser_enc_64' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/xgmii_baser_enc_64.v:34]
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter CTRL_WIDTH bound to: 8 - type: integer 
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter XGMII_IDLE bound to: 8'b00000111 
+	Parameter XGMII_LPI bound to: 8'b00000110 
+	Parameter XGMII_START bound to: 8'b11111011 
+	Parameter XGMII_TERM bound to: 8'b11111101 
+	Parameter XGMII_ERROR bound to: 8'b11111110 
+	Parameter XGMII_SEQ_OS bound to: 8'b10011100 
+	Parameter XGMII_RES_0 bound to: 8'b00011100 
+	Parameter XGMII_RES_1 bound to: 8'b00111100 
+	Parameter XGMII_RES_2 bound to: 8'b01111100 
+	Parameter XGMII_RES_3 bound to: 8'b10111100 
+	Parameter XGMII_RES_4 bound to: 8'b11011100 
+	Parameter XGMII_RES_5 bound to: 8'b11110111 
+	Parameter XGMII_SIG_OS bound to: 8'b01011100 
+	Parameter CTRL_IDLE bound to: 7'b0000000 
+	Parameter CTRL_LPI bound to: 7'b0000110 
+	Parameter CTRL_ERROR bound to: 7'b0011110 
+	Parameter CTRL_RES_0 bound to: 7'b0101101 
+	Parameter CTRL_RES_1 bound to: 7'b0110011 
+	Parameter CTRL_RES_2 bound to: 7'b1001011 
+	Parameter CTRL_RES_3 bound to: 7'b1010101 
+	Parameter CTRL_RES_4 bound to: 7'b1100110 
+	Parameter CTRL_RES_5 bound to: 7'b1111000 
+	Parameter O_SEQ_OS bound to: 4'b0000 
+	Parameter O_SIG_OS bound to: 4'b1111 
+	Parameter SYNC_DATA bound to: 2'b10 
+	Parameter SYNC_CTRL bound to: 2'b01 
+	Parameter BLOCK_TYPE_CTRL bound to: 8'b00011110 
+	Parameter BLOCK_TYPE_OS_4 bound to: 8'b00101101 
+	Parameter BLOCK_TYPE_START_4 bound to: 8'b00110011 
+	Parameter BLOCK_TYPE_OS_START bound to: 8'b01100110 
+	Parameter BLOCK_TYPE_OS_04 bound to: 8'b01010101 
+	Parameter BLOCK_TYPE_START_0 bound to: 8'b01111000 
+	Parameter BLOCK_TYPE_OS_0 bound to: 8'b01001011 
+	Parameter BLOCK_TYPE_TERM_0 bound to: 8'b10000111 
+	Parameter BLOCK_TYPE_TERM_1 bound to: 8'b10011001 
+	Parameter BLOCK_TYPE_TERM_2 bound to: 8'b10101010 
+	Parameter BLOCK_TYPE_TERM_3 bound to: 8'b10110100 
+	Parameter BLOCK_TYPE_TERM_4 bound to: 8'b11001100 
+	Parameter BLOCK_TYPE_TERM_5 bound to: 8'b11010010 
+	Parameter BLOCK_TYPE_TERM_6 bound to: 8'b11100001 
+	Parameter BLOCK_TYPE_TERM_7 bound to: 8'b11111111 
+INFO: [Synth 8-6155] done synthesizing module 'xgmii_baser_enc_64' (20#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/xgmii_baser_enc_64.v:34]
+INFO: [Synth 8-6157] synthesizing module 'eth_phy_10g_tx_if' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_tx_if.v:34]
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter HDR_WIDTH bound to: 2 - type: integer 
+	Parameter BIT_REVERSE bound to: 1 - type: integer 
+	Parameter SCRAMBLER_DISABLE bound to: 0 - type: integer 
+	Parameter PRBS31_ENABLE bound to: 0 - type: integer 
+	Parameter SERDES_PIPELINE bound to: 0 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'lfsr__parameterized1' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:34]
+	Parameter LFSR_WIDTH bound to: 58 - type: integer 
+	Parameter LFSR_POLY bound to: 58'b0000000000000000001000000000000000000000000000000000000001 
+	Parameter LFSR_CONFIG bound to: FIBONACCI - type: string 
+	Parameter LFSR_FEED_FORWARD bound to: 0 - type: integer 
+	Parameter REVERSE bound to: 1 - type: integer 
+	Parameter DATA_WIDTH bound to: 64 - type: integer 
+	Parameter STYLE bound to: AUTO - type: string 
+	Parameter STYLE_INT bound to: LOOP - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'lfsr__parameterized1' (20#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:34]
+INFO: [Synth 8-6157] synthesizing module 'lfsr__parameterized2' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:34]
+	Parameter LFSR_WIDTH bound to: 31 - type: integer 
+	Parameter LFSR_POLY bound to: 31'b0010000000000000000000000000001 
+	Parameter LFSR_CONFIG bound to: FIBONACCI - type: string 
+	Parameter LFSR_FEED_FORWARD bound to: 0 - type: integer 
+	Parameter REVERSE bound to: 1 - type: integer 
+	Parameter DATA_WIDTH bound to: 66 - type: integer 
+	Parameter STYLE bound to: AUTO - type: string 
+	Parameter STYLE_INT bound to: LOOP - type: string 
+INFO: [Synth 8-6155] done synthesizing module 'lfsr__parameterized2' (20#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/lfsr.v:34]
+INFO: [Synth 8-6155] done synthesizing module 'eth_phy_10g_tx_if' (21#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_tx_if.v:34]
+INFO: [Synth 8-6155] done synthesizing module 'eth_phy_10g_tx' (22#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g_tx.v:34]
+INFO: [Synth 8-6155] done synthesizing module 'eth_phy_10g' (23#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_phy_10g.v:34]
+INFO: [Synth 8-6157] synthesizing module 'bit_synchronizer' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/bit_synchronizer.v:21]
+	Parameter BIT_WIDTH bound to: 1 - type: integer 
+INFO: [Synth 8-5534] Detected attribute (* ASYNC_REG = "TRUE" *) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/bit_synchronizer.v:32]
+INFO: [Synth 8-5534] Detected attribute (* ASYNC_REG = "TRUE" *) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/bit_synchronizer.v:33]
+INFO: [Synth 8-6155] done synthesizing module 'bit_synchronizer' (24#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/bit_synchronizer.v:21]
+INFO: [Synth 8-6157] synthesizing module 'eth_xcvr_gth_full_wrapper' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_xcvr_gth_full_wrapper.v:57]
+INFO: [Synth 8-6157] synthesizing module 'eth_xcvr_gth_full_reset' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_xcvr_gth_full_reset.v:60]
+	Parameter P_FREERUN_FREQUENCY bound to: 100.000000 - type: float 
+	Parameter P_USE_CPLL_CAL bound to: 0 - type: integer 
+	Parameter P_TX_PLL_TYPE bound to: 0 - type: integer 
+	Parameter P_RX_PLL_TYPE bound to: 0 - type: integer 
+	Parameter P_RX_LINE_RATE bound to: 10.312500 - type: float 
+	Parameter P_CDR_TIMEOUT_FREERUN_CYC bound to: 26'b00000001010111100110000100 
+	Parameter ST_RESET_ALL_INIT bound to: 3'b000 
+	Parameter ST_RESET_ALL_BRANCH bound to: 3'b001 
+	Parameter ST_RESET_ALL_TX_PLL bound to: 3'b010 
+	Parameter ST_RESET_ALL_TX_PLL_WAIT bound to: 3'b011 
+	Parameter ST_RESET_ALL_RX_DP bound to: 3'b100 
+	Parameter ST_RESET_ALL_RX_PLL bound to: 3'b101 
+	Parameter ST_RESET_ALL_RX_WAIT bound to: 3'b110 
+	Parameter ST_RESET_ALL_DONE bound to: 3'b111 
+	Parameter P_TX_PLL_RESET_FREERUN_CYC bound to: 10'b0000000111 
+	Parameter ST_RESET_TX_BRANCH bound to: 3'b000 
+	Parameter ST_RESET_TX_PLL bound to: 3'b001 
+	Parameter ST_RESET_TX_DATAPATH bound to: 3'b010 
+	Parameter ST_RESET_TX_WAIT_LOCK bound to: 3'b011 
+	Parameter ST_RESET_TX_WAIT_USERRDY bound to: 3'b100 
+	Parameter ST_RESET_TX_WAIT_RESETDONE bound to: 3'b101 
+	Parameter ST_RESET_TX_IDLE bound to: 3'b110 
+	Parameter P_RX_PLL_RESET_FREERUN_CYC bound to: 10'b0000000111 
+	Parameter ST_RESET_RX_BRANCH bound to: 3'b000 
+	Parameter ST_RESET_RX_PLL bound to: 3'b001 
+	Parameter ST_RESET_RX_DATAPATH bound to: 3'b010 
+	Parameter ST_RESET_RX_WAIT_LOCK bound to: 3'b011 
+	Parameter ST_RESET_RX_WAIT_CDR bound to: 3'b100 
+	Parameter ST_RESET_RX_WAIT_USERRDY bound to: 3'b101 
+	Parameter ST_RESET_RX_WAIT_RESETDONE bound to: 3'b110 
+	Parameter ST_RESET_RX_IDLE bound to: 3'b111 
+INFO: [Synth 8-155] case statement is not full and has no default [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_xcvr_gth_full_reset.v:162]
+INFO: [Synth 8-6157] synthesizing module 'rst_synchronizer__parameterized0' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:25]
+	Parameter IN_ACTIVE_HIGH bound to: 1 - type: integer 
+	Parameter OUT_ACTIVE_HIGH bound to: 1 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'rst_synchronizer__parameterized0' (24#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:25]
+INFO: [Synth 8-6157] synthesizing module 'rst_synchronizer__parameterized1' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:25]
+	Parameter IN_ACTIVE_HIGH bound to: 0 - type: integer 
+	Parameter OUT_ACTIVE_HIGH bound to: 1 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'rst_synchronizer__parameterized1' (24#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:25]
+INFO: [Synth 8-6157] synthesizing module 'rst_synchronizer__parameterized2' [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:25]
+	Parameter IN_ACTIVE_HIGH bound to: 0 - type: integer 
+	Parameter OUT_ACTIVE_HIGH bound to: 0 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'rst_synchronizer__parameterized2' (24#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/rst_synchronizer.v:25]
+INFO: [Synth 8-6155] done synthesizing module 'eth_xcvr_gth_full_reset' (25#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_xcvr_gth_full_reset.v:60]
+INFO: [Synth 8-6157] synthesizing module 'eth_xcvr_gth_full' [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/synth_1/.Xil/Vivado-3053464-chenxun-Z790-UD-AC/realtime/eth_xcvr_gth_full_stub.v:6]
+INFO: [Synth 8-6155] done synthesizing module 'eth_xcvr_gth_full' (26#1) [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/synth_1/.Xil/Vivado-3053464-chenxun-Z790-UD-AC/realtime/eth_xcvr_gth_full_stub.v:6]
+WARNING: [Synth 8-350] instance 'eth_xcvr_gth_full_inst' of module 'eth_xcvr_gth_full' requires 66 connections, but only 64 given [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_xcvr_gth_full_wrapper.v:218]
+INFO: [Synth 8-6155] done synthesizing module 'eth_xcvr_gth_full_wrapper' (27#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/dependencies/eth_xcvr_gth_full_wrapper.v:57]
+INFO: [Synth 8-6155] done synthesizing module 'pcs_pma_wrapper' (28#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/pcs_pma_related/pcs_pma_wrapper.v:14]
+INFO: [Synth 8-6155] done synthesizing module 'top' (29#1) [/home/chenxun/Documents/Project/Venturi/verilog_src/Top.v:12]
+WARNING: [Synth 8-3917] design top has port sfp_0_tx_disable driven by constant 0
+WARNING: [Synth 8-3917] design top has port sfp_0_rs driven by constant 0
+WARNING: [Synth 8-3331] design eth_xcvr_gth_full_wrapper has unconnected port i_rx_data_good
+WARNING: [Synth 8-3331] design eth_phy_10g_tx_if has unconnected port rst
+WARNING: [Synth 8-3331] design eth_phy_10g_tx_if has unconnected port cfg_tx_prbs31_enable
+WARNING: [Synth 8-3331] design xgmii_baser_enc_64 has unconnected port rst
+WARNING: [Synth 8-3331] design eth_phy_10g_rx_watchdog has unconnected port rx_high_ber
+WARNING: [Synth 8-3331] design eth_phy_10g_rx_if has unconnected port cfg_rx_prbs31_enable
+WARNING: [Synth 8-3331] design user_logic has unconnected port cq_bar_id[2]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cq_bar_id[1]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cq_bar_id[0]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cq_last
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[11]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[10]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[9]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[8]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[7]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[6]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[5]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[4]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[3]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[2]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[1]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_lower_addr[0]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_request_completed
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[15]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[14]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[13]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[12]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[11]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[10]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[9]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[8]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[7]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[6]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[5]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[4]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[3]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[2]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[1]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_requester_id[0]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_keep[7]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_keep[6]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_keep[5]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_keep[4]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_keep[3]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_keep[2]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_keep[1]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_keep[0]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[12]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[11]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[10]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[9]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[8]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[7]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[6]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[5]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[4]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[3]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[2]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[1]
+WARNING: [Synth 8-3331] design user_logic has unconnected port rc_payload_dw_count[0]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cfg_max_payload[2]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cfg_max_payload[1]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cfg_max_payload[0]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cfg_max_read_req[2]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cfg_max_read_req[1]
+WARNING: [Synth 8-3331] design user_logic has unconnected port cfg_max_read_req[0]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[15]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[14]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[13]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[12]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[11]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[10]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[9]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[8]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[7]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[6]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[5]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[4]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[3]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[2]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[1]
+WARNING: [Synth 8-3331] design user_logic has unconnected port pcie_requester_id[0]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[74]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[73]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[72]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[71]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[70]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[69]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[68]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[67]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[66]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[65]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[64]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[63]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[62]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[61]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[60]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[59]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[58]
+WARNING: [Synth 8-3331] design RC_gearbox256 has unconnected port m_axis_rc_tuser[57]
+INFO: [Common 17-14] Message 'Synth 8-3331' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+---------------------------------------------------------------------------------
+Finished RTL Elaboration : Time (s): cpu = 00:01:48 ; elapsed = 00:01:49 . Memory (MB): peak = 2705.527 ; gain = 1361.934 ; free physical = 8000 ; free virtual = 28647
+---------------------------------------------------------------------------------
+
+Report Check Netlist: 
++------+------------------+-------+---------+-------+------------------+
+|      |Item              |Errors |Warnings |Status |Description       |
++------+------------------+-------+---------+-------+------------------+
+|1     |multi_driven_nets |      0|        0|Passed |Multi driven nets |
++------+------------------+-------+---------+-------+------------------+
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:01:48 ; elapsed = 00:01:49 . Memory (MB): peak = 2705.527 ; gain = 1361.934 ; free physical = 8060 ; free virtual = 28707
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 1 : Time (s): cpu = 00:01:48 ; elapsed = 00:01:49 . Memory (MB): peak = 2705.527 ; gain = 1361.934 ; free physical = 8060 ; free virtual = 28707
+---------------------------------------------------------------------------------
+INFO: [Netlist 29-17] Analyzing 1 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Device 21-403] Loading part xcku035-fbva676-2-e
+INFO: [Project 1-570] Preparing netlist for logic optimization
+
+Processing XDC Constraints
+Initializing timing engine
+Parsing XDC File [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc] for cell 'pcie_wrapper_inst/pcie3_ultrascale_inst'
+Finished Parsing XDC File [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc] for cell 'pcie_wrapper_inst/pcie3_ultrascale_inst'
+Parsing XDC File [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc] for cell 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst'
+Finished Parsing XDC File [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc] for cell 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst'
+Parsing XDC File [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc]
+WARNING: [Vivado 12-584] No ports matched 'sfp_1_tx_disable'. [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc:102]
+WARNING: [Vivado 12-584] No ports matched 'sfp_1_tx_disable'. [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc:103]
+WARNING: [Vivado 12-584] No ports matched 'sfp_1_tx_disable'. [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc:104]
+WARNING: [Vivado 12-584] No ports matched 'sfp_1_tx_disable'. [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc:110]
+WARNING: [Vivado 12-584] No ports matched 'sfp_1_tx_disable'. [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc:111]
+INFO: [Constraints 18-632] set_output_delay: No clock object specified, the clocks will be automatically identified [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc:111]
+WARNING: [Vivado 12-584] No ports matched 'sfp_1_tx_disable'. [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc:121]
+Finished Parsing XDC File [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc]
+WARNING: [Project 1-498] One or more constraints failed evaluation while reading constraint file [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc] and the design contains unresolved black boxes. These constraints will be read post-synthesis (as long as their source constraint file is marked as used_in_implementation) and should be applied correctly then. You should review the constraints listed in the file [.Xil/top_propImpl.xdc] and check the run log file to verify that these constraints were correctly applied.
+INFO: [Project 1-236] Implementation specific constraints were found while reading constraint file [/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/constrs_1/new/default.xdc]. These constraints will be ignored for synthesis but will be used in implementation. Impacted constraints are listed in the file [.Xil/top_propImpl.xdc].
+Resolution: To avoid this warning, move constraints listed in [.Xil/top_propImpl.xdc] to another XDC file and exclude this new file from synthesis with the used_in_synthesis property (File Properties dialog in GUI) and re-run elaboration/synthesis.
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2898.410 ; gain = 0.000 ; free physical = 7766 ; free virtual = 28412
+Completed Processing XDC Constraints
+
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2898.410 ; gain = 0.000 ; free physical = 7766 ; free virtual = 28412
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 1 instances were transformed.
+  IBUFGDS => IBUFDS (DIFFINBUF, IBUFCTRL): 1 instances
+
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2898.410 ; gain = 0.000 ; free physical = 7766 ; free virtual = 28412
+Constraint Validation Runtime : Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00 . Memory (MB): peak = 2898.410 ; gain = 0.000 ; free physical = 7766 ; free virtual = 28412
+---------------------------------------------------------------------------------
+Finished Constraint Validation : Time (s): cpu = 00:01:52 ; elapsed = 00:01:55 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7787 ; free virtual = 28433
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Loading Part and Timing Information
+---------------------------------------------------------------------------------
+Loading part: xcku035-fbva676-2-e
+INFO: [Synth 8-6742] Reading net delay rules and data
+---------------------------------------------------------------------------------
+Finished Loading Part and Timing Information : Time (s): cpu = 00:01:52 ; elapsed = 00:01:55 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7787 ; free virtual = 28433
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying 'set_property' XDC Constraints
+---------------------------------------------------------------------------------
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxn[0]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 6).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxn[0]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 7).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxn[1]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 8).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxn[1]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 9).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxn[2]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 10).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxn[2]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 11).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxn[3]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 12).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxn[3]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 13).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxn[4]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 14).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxn[4]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 15).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxn[5]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 16).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxn[5]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 17).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxn[6]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 18).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxn[6]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 19).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxn[7]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 20).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxn[7]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 21).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxp[0]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 22).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxp[0]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 23).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxp[1]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 24).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxp[1]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 25).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxp[2]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 26).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxp[2]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 27).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxp[3]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 28).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxp[3]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 29).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxp[4]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 30).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxp[4]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 31).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxp[5]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 32).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxp[5]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 33).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxp[6]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 34).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxp[6]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 35).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_rxp[7]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 36).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_rxp[7]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 37).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txn[0]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 38).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txn[0]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 39).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txn[1]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 40).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txn[1]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 41).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txn[2]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 42).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txn[2]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 43).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txn[3]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 44).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txn[3]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 45).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txn[4]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 46).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txn[4]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 47).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txn[5]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 48).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txn[5]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 49).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txn[6]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 50).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txn[6]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 51).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txn[7]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 52).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txn[7]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 53).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txp[0]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 54).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txp[0]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 55).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txp[1]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 56).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txp[1]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 57).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txp[2]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 58).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txp[2]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 59).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txp[3]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 60).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txp[3]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 61).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txp[4]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 62).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txp[4]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 63).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txp[5]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 64).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txp[5]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 65).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txp[6]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 66).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txp[6]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 67).
+Applied set_property IO_BUFFER_TYPE = NONE for pci_exp_txp[7]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 68).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for pci_exp_txp[7]. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/pcie3_ultrascale_0/pcie3_ultrascale_0/pcie3_ultrascale_0_in_context.xdc, line 69).
+Applied set_property IO_BUFFER_TYPE = NONE for i_gt_rx_n_0. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc, line 9).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for i_gt_rx_n_0. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc, line 10).
+Applied set_property IO_BUFFER_TYPE = NONE for i_gt_rx_p_0. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc, line 11).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for i_gt_rx_p_0. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc, line 12).
+Applied set_property IO_BUFFER_TYPE = NONE for o_gt_tx_n_0. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc, line 13).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for o_gt_tx_n_0. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc, line 14).
+Applied set_property IO_BUFFER_TYPE = NONE for o_gt_tx_p_0. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc, line 15).
+Applied set_property CLOCK_BUFFER_TYPE = NONE for o_gt_tx_p_0. (constraint file  /home/chenxun/Documents/Project/Venturi/Vivado/Venturi.srcs/sources_1/ip/eth_xcvr_gth_full/eth_xcvr_gth_full/eth_xcvr_gth_full_in_context.xdc, line 16).
+Applied set_property DONT_TOUCH = true for pcie_wrapper_inst/pcie3_ultrascale_inst. (constraint file  auto generated constraint, line ).
+Applied set_property DONT_TOUCH = true for pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst. (constraint file  auto generated constraint, line ).
+---------------------------------------------------------------------------------
+Finished applying 'set_property' XDC Constraints : Time (s): cpu = 00:01:52 ; elapsed = 00:01:55 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7785 ; free virtual = 28432
+---------------------------------------------------------------------------------
+INFO: [Synth 8-802] inferred FSM for state register 'state_reg' in module 'RQ_gearbox256'
+INFO: [Synth 8-5544] ROM "s_axis_rq_tvalid" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "payload_prev" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "remain_dw" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "state" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "state" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5546] ROM "rq_descriptor0" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-4471] merging register 'cc_last_reg' into 'cc_valid_reg' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:239]
+INFO: [Synth 8-802] inferred FSM for state register 'rt_state_reg' in module 'user_logic'
+INFO: [Synth 8-5544] ROM "rt_buffer_reg[0]" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rt_buffer_reg[1]" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rt_buffer_reg[2]" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5546] ROM "cq_val_REG_SCRATCH" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_ID" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_INT_CTRL" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_STATUS" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_DMA_ADDR" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_DMA_CTRL" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_DMA_STATUS" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_RT_SRC_ADDR" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_RT_DST_ADDR" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_RT_CTRL" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5544] ROM "cc_state" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "cc_valid" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5545] ROM "rt_state" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5545] ROM "get_rt_dw_count" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5545] ROM "get_rt_beats" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5545] ROM "get_rt_byte_count" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5544] ROM "in_val_REG_RT_STATUS" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rq_valid" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rt_state" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rt_buffer_reg[0]" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rt_buffer_reg[1]" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rt_buffer_reg[2]" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5546] ROM "cq_val_REG_SCRATCH" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_ID" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_INT_CTRL" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_STATUS" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_DMA_ADDR" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_DMA_CTRL" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_DMA_STATUS" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_RT_SRC_ADDR" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_RT_DST_ADDR" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "cq_val_REG_RT_CTRL" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5544] ROM "cc_state" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "cc_valid" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5545] ROM "rt_state" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5545] ROM "get_rt_dw_count" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5545] ROM "get_rt_beats" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5545] ROM "get_rt_byte_count" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5544] ROM "in_val_REG_RT_STATUS" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rq_valid" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rt_state" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "cc_state" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "in_val_REG_RT_STATUS" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "in_val_REG_RT_STATUS" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "ber_count_next" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rx_high_ber_next" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rx_high_ber_next" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "saw_ctrl_sh_next" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "saw_ctrl_sh_next" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "xgmii_rxd_next" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "xgmii_rxd_next" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5546] ROM "xgmii_rxc_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5544] ROM "xgmii_rxc_next" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "xgmii_rxc_next" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "rx_bad_block_next" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5546] ROM "frame_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5587] ROM size for "decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5546] ROM "decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_tx_hdr_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "tx_bad_block_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_tx_hdr_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "tx_bad_block_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encoded_ctrl" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "encode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-802] inferred FSM for state register 'sm_reset_all_reg' in module 'eth_xcvr_gth_full_reset'
+INFO: [Synth 8-802] inferred FSM for state register 'sm_reset_tx_reg' in module 'eth_xcvr_gth_full_reset'
+INFO: [Synth 8-802] inferred FSM for state register 'sm_reset_rx_reg' in module 'eth_xcvr_gth_full_reset'
+INFO: [Synth 8-5544] ROM "sm_reset_all_timer_clr" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "gtwiz_reset_rx_datapath_int" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "gtwiz_reset_rx_pll_and_datapath_int" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "gtwiz_reset_tx_pll_and_datapath_int" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "sm_reset_all" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "sm_reset_all" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "pllreset_tx_out" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "sm_reset_tx_pll_timer_clr" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "sm_reset_tx_timer_clr" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "sm_reset_tx" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "pllreset_rx_out" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "sm_reset_rx_pll_timer_clr" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "sm_reset_rx_timer_clr" won't be mapped to Block RAM because address size (3) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "sm_reset_rx" won't be mapped to Block RAM because address size (1) smaller than threshold (5)
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                    IDLE |                               00 |                              000
+                 SENDING |                               01 |                              001
+                    TAIL |                               10 |                              010
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'state_reg' using encoding 'sequential' in module 'RQ_gearbox256'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+                 RT_IDLE |                              000 |                              000
+            RT_SEND_READ |                              001 |                              001
+            RT_WAIT_DATA |                              010 |                              010
+           RT_SEND_WRITE |                              011 |                              011
+                 RT_DONE |                              100 |                              100
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'rt_state_reg' using encoding 'sequential' in module 'user_logic'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+      ST_RESET_TX_BRANCH |                              000 |                              000
+         ST_RESET_TX_PLL |                              001 |                              001
+    ST_RESET_TX_DATAPATH |                              010 |                              010
+   ST_RESET_TX_WAIT_LOCK |                              011 |                              011
+ST_RESET_TX_WAIT_USERRDY |                              100 |                              100
+ST_RESET_TX_WAIT_RESETDONE |                              101 |                              101
+        ST_RESET_TX_IDLE |                              110 |                              110
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'sm_reset_tx_reg' using encoding 'sequential' in module 'eth_xcvr_gth_full_reset'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+      ST_RESET_RX_BRANCH |                              000 |                              000
+         ST_RESET_RX_PLL |                              001 |                              001
+    ST_RESET_RX_DATAPATH |                              010 |                              010
+   ST_RESET_RX_WAIT_LOCK |                              011 |                              011
+    ST_RESET_RX_WAIT_CDR |                              100 |                              100
+ST_RESET_RX_WAIT_USERRDY |                              101 |                              101
+ST_RESET_RX_WAIT_RESETDONE |                              110 |                              110
+        ST_RESET_RX_IDLE |                              111 |                              111
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'sm_reset_rx_reg' using encoding 'sequential' in module 'eth_xcvr_gth_full_reset'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+     ST_RESET_ALL_BRANCH |                              000 |                              001
+     ST_RESET_ALL_TX_PLL |                              001 |                              010
+ST_RESET_ALL_TX_PLL_WAIT |                              010 |                              011
+      ST_RESET_ALL_RX_DP |                              011 |                              100
+     ST_RESET_ALL_RX_PLL |                              100 |                              101
+    ST_RESET_ALL_RX_WAIT |                              101 |                              110
+                  iSTATE |                              110 |                              111
+       ST_RESET_ALL_INIT |                              111 |                              000
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'sm_reset_all_reg' using encoding 'sequential' in module 'eth_xcvr_gth_full_reset'
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 2 : Time (s): cpu = 00:01:53 ; elapsed = 00:01:56 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7759 ; free virtual = 28406
+---------------------------------------------------------------------------------
+
+Report RTL Partitions: 
++-+--------------+------------+----------+
+| |RTL Partition |Replication |Instances |
++-+--------------+------------+----------+
++-+--------------+------------+----------+
+---------------------------------------------------------------------------------
+Start RTL Component Statistics 
+---------------------------------------------------------------------------------
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input     11 Bit       Adders := 2     
+	   2 Input     10 Bit       Adders := 3     
+	   2 Input      6 Bit       Adders := 1     
+	   2 Input      4 Bit       Adders := 4     
+	   2 Input      3 Bit       Adders := 4     
+	   2 Input      2 Bit       Adders := 4     
++---XORs : 
+	   3 Input      1 Bit         XORs := 156   
+	   2 Input      1 Bit         XORs := 100   
+	   4 Input      1 Bit         XORs := 37    
+	   5 Input      1 Bit         XORs := 14    
+	   6 Input      1 Bit         XORs := 5     
+	   7 Input      1 Bit         XORs := 1     
++---Registers : 
+	              256 Bit    Registers := 2     
+	              160 Bit    Registers := 1     
+	              128 Bit    Registers := 2     
+	               96 Bit    Registers := 1     
+	               64 Bit    Registers := 14    
+	               60 Bit    Registers := 1     
+	               58 Bit    Registers := 2     
+	               16 Bit    Registers := 3     
+	               11 Bit    Registers := 4     
+	               10 Bit    Registers := 3     
+	                8 Bit    Registers := 7     
+	                7 Bit    Registers := 2     
+	                6 Bit    Registers := 1     
+	                4 Bit    Registers := 5     
+	                3 Bit    Registers := 8     
+	                2 Bit    Registers := 6     
+	                1 Bit    Registers := 123   
++---Muxes : 
+	   2 Input    256 Bit        Muxes := 5     
+	   3 Input    256 Bit        Muxes := 3     
+	   2 Input    160 Bit        Muxes := 1     
+	   2 Input     96 Bit        Muxes := 1     
+	   2 Input     64 Bit        Muxes := 15    
+	   5 Input     64 Bit        Muxes := 1     
+	   3 Input     64 Bit        Muxes := 2     
+	  16 Input     64 Bit        Muxes := 1     
+	   2 Input     60 Bit        Muxes := 4     
+	   3 Input     60 Bit        Muxes := 1     
+	   2 Input     11 Bit        Muxes := 4     
+	   3 Input     11 Bit        Muxes := 1     
+	   2 Input      8 Bit        Muxes := 11    
+	   3 Input      8 Bit        Muxes := 3     
+	  13 Input      8 Bit        Muxes := 1     
+	   8 Input      8 Bit        Muxes := 2     
+	  10 Input      8 Bit        Muxes := 8     
+	  16 Input      8 Bit        Muxes := 1     
+	   2 Input      7 Bit        Muxes := 1     
+	   4 Input      7 Bit        Muxes := 1     
+	  11 Input      7 Bit        Muxes := 8     
+	   2 Input      6 Bit        Muxes := 4     
+	   2 Input      5 Bit        Muxes := 1     
+	   4 Input      5 Bit        Muxes := 1     
+	   2 Input      4 Bit        Muxes := 2     
+	   4 Input      4 Bit        Muxes := 1     
+	  16 Input      4 Bit        Muxes := 1     
+	   7 Input      3 Bit        Muxes := 3     
+	  10 Input      3 Bit        Muxes := 1     
+	   2 Input      3 Bit        Muxes := 8     
+	   8 Input      3 Bit        Muxes := 1     
+	   3 Input      2 Bit        Muxes := 2     
+	   2 Input      2 Bit        Muxes := 4     
+	   5 Input      2 Bit        Muxes := 2     
+	   4 Input      2 Bit        Muxes := 1     
+	   2 Input      1 Bit        Muxes := 62    
+	   3 Input      1 Bit        Muxes := 11    
+	  12 Input      1 Bit        Muxes := 10    
+	   5 Input      1 Bit        Muxes := 8     
+	   4 Input      1 Bit        Muxes := 1     
+	  10 Input      1 Bit        Muxes := 8     
+	  16 Input      1 Bit        Muxes := 2     
+	  18 Input      1 Bit        Muxes := 1     
+	  11 Input      1 Bit        Muxes := 8     
+	   7 Input      1 Bit        Muxes := 13    
+	   8 Input      1 Bit        Muxes := 26    
+---------------------------------------------------------------------------------
+Finished RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start RTL Hierarchical Component Statistics 
+---------------------------------------------------------------------------------
+Hierarchical RTL Component report 
+Module CC_formatter 
+Detailed RTL Component Info : 
++---Muxes : 
+	   2 Input      8 Bit        Muxes := 1     
+	   3 Input      8 Bit        Muxes := 1     
+Module RQ_gearbox256 
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input     11 Bit       Adders := 2     
++---Registers : 
+	              256 Bit    Registers := 1     
+	              128 Bit    Registers := 1     
+	               60 Bit    Registers := 1     
+	               11 Bit    Registers := 1     
+	                8 Bit    Registers := 1     
+	                1 Bit    Registers := 2     
++---Muxes : 
+	   2 Input    256 Bit        Muxes := 5     
+	   3 Input    256 Bit        Muxes := 1     
+	   2 Input     60 Bit        Muxes := 4     
+	   3 Input     60 Bit        Muxes := 1     
+	   2 Input     11 Bit        Muxes := 4     
+	   3 Input     11 Bit        Muxes := 1     
+	  13 Input      8 Bit        Muxes := 1     
+	   2 Input      8 Bit        Muxes := 4     
+	   8 Input      8 Bit        Muxes := 1     
+	   3 Input      8 Bit        Muxes := 1     
+	   3 Input      2 Bit        Muxes := 1     
+	   2 Input      2 Bit        Muxes := 2     
+	   2 Input      1 Bit        Muxes := 12    
+	   3 Input      1 Bit        Muxes := 5     
+Module RQ_formatter 
+Detailed RTL Component Info : 
++---Muxes : 
+	   2 Input      4 Bit        Muxes := 1     
+Module RC_gearbox256 
+Detailed RTL Component Info : 
++---Registers : 
+	              160 Bit    Registers := 1     
+	               96 Bit    Registers := 1     
+	                8 Bit    Registers := 2     
+	                1 Bit    Registers := 2     
++---Muxes : 
+	   2 Input    160 Bit        Muxes := 1     
+	   2 Input     96 Bit        Muxes := 1     
+	   8 Input      8 Bit        Muxes := 1     
+	   2 Input      8 Bit        Muxes := 4     
+	   2 Input      1 Bit        Muxes := 1     
+	   3 Input      1 Bit        Muxes := 1     
+Module user_logic 
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input      2 Bit       Adders := 2     
++---Registers : 
+	              256 Bit    Registers := 1     
+	              128 Bit    Registers := 1     
+	               64 Bit    Registers := 10    
+	               16 Bit    Registers := 3     
+	               11 Bit    Registers := 3     
+	                8 Bit    Registers := 3     
+	                7 Bit    Registers := 2     
+	                4 Bit    Registers := 1     
+	                3 Bit    Registers := 4     
+	                2 Bit    Registers := 1     
+	                1 Bit    Registers := 4     
++---Muxes : 
+	   3 Input    256 Bit        Muxes := 2     
+	   2 Input     64 Bit        Muxes := 1     
+	   5 Input     64 Bit        Muxes := 1     
+	   3 Input     64 Bit        Muxes := 1     
+	   3 Input      8 Bit        Muxes := 1     
+	   2 Input      7 Bit        Muxes := 1     
+	   4 Input      7 Bit        Muxes := 1     
+	   2 Input      5 Bit        Muxes := 1     
+	   4 Input      5 Bit        Muxes := 1     
+	   7 Input      3 Bit        Muxes := 1     
+	  10 Input      3 Bit        Muxes := 1     
+	   3 Input      2 Bit        Muxes := 1     
+	   5 Input      2 Bit        Muxes := 2     
+	   2 Input      2 Bit        Muxes := 1     
+	   4 Input      2 Bit        Muxes := 1     
+	   3 Input      1 Bit        Muxes := 5     
+	   2 Input      1 Bit        Muxes := 8     
+	  12 Input      1 Bit        Muxes := 10    
+	   5 Input      1 Bit        Muxes := 8     
+Module rst_synchronizer 
+Detailed RTL Component Info : 
++---Registers : 
+	                1 Bit    Registers := 3     
+Module lfsr 
+Detailed RTL Component Info : 
++---XORs : 
+	   3 Input      1 Bit         XORs := 64    
+Module lfsr__parameterized0 
+Detailed RTL Component Info : 
++---XORs : 
+	   3 Input      1 Bit         XORs := 66    
+Module eth_phy_10g_rx_frame_sync 
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input      6 Bit       Adders := 1     
+	   2 Input      4 Bit       Adders := 1     
+	   2 Input      3 Bit       Adders := 1     
++---Registers : 
+	                6 Bit    Registers := 1     
+	                4 Bit    Registers := 1     
+	                3 Bit    Registers := 1     
+	                1 Bit    Registers := 2     
++---Muxes : 
+	   2 Input      6 Bit        Muxes := 4     
+	   2 Input      3 Bit        Muxes := 1     
+	   2 Input      1 Bit        Muxes := 8     
+Module eth_phy_10g_rx_ber_mon 
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input      4 Bit       Adders := 1     
+	   2 Input      2 Bit       Adders := 1     
++---Registers : 
+	                4 Bit    Registers := 1     
+	                2 Bit    Registers := 1     
+	                1 Bit    Registers := 1     
++---Muxes : 
+	   2 Input      2 Bit        Muxes := 1     
+	   2 Input      1 Bit        Muxes := 8     
+Module eth_phy_10g_rx_watchdog 
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input     10 Bit       Adders := 1     
+	   2 Input      4 Bit       Adders := 2     
+	   2 Input      2 Bit       Adders := 1     
++---Registers : 
+	               10 Bit    Registers := 1     
+	                4 Bit    Registers := 2     
+	                2 Bit    Registers := 1     
+	                1 Bit    Registers := 3     
++---Muxes : 
+	   4 Input      4 Bit        Muxes := 1     
+	   2 Input      4 Bit        Muxes := 1     
+	   2 Input      1 Bit        Muxes := 9     
+	   4 Input      1 Bit        Muxes := 1     
+Module eth_phy_10g_rx_if 
+Detailed RTL Component Info : 
++---Registers : 
+	               64 Bit    Registers := 1     
+	               58 Bit    Registers := 1     
+	                2 Bit    Registers := 1     
+Module xgmii_baser_dec_64 
+Detailed RTL Component Info : 
++---Registers : 
+	               64 Bit    Registers := 1     
+	                8 Bit    Registers := 1     
+	                1 Bit    Registers := 3     
++---Muxes : 
+	  16 Input     64 Bit        Muxes := 1     
+	   3 Input     64 Bit        Muxes := 1     
+	  10 Input      8 Bit        Muxes := 8     
+	   2 Input      8 Bit        Muxes := 2     
+	  16 Input      8 Bit        Muxes := 1     
+	  16 Input      4 Bit        Muxes := 1     
+	   2 Input      1 Bit        Muxes := 8     
+	  10 Input      1 Bit        Muxes := 8     
+	  16 Input      1 Bit        Muxes := 2     
+	  18 Input      1 Bit        Muxes := 1     
+Module xgmii_baser_enc_64 
+Detailed RTL Component Info : 
++---Registers : 
+	               64 Bit    Registers := 1     
+	                2 Bit    Registers := 1     
+	                1 Bit    Registers := 1     
++---Muxes : 
+	   2 Input     64 Bit        Muxes := 14    
+	  11 Input      7 Bit        Muxes := 8     
+	   2 Input      1 Bit        Muxes := 6     
+	  11 Input      1 Bit        Muxes := 8     
+Module lfsr__parameterized1 
+Detailed RTL Component Info : 
++---XORs : 
+	   2 Input      1 Bit         XORs := 38    
+	   3 Input      1 Bit         XORs := 20    
+	   4 Input      1 Bit         XORs := 19    
+	   5 Input      1 Bit         XORs := 6     
+Module lfsr__parameterized2 
+Detailed RTL Component Info : 
++---XORs : 
+	   2 Input      1 Bit         XORs := 62    
+	   4 Input      1 Bit         XORs := 18    
+	   3 Input      1 Bit         XORs := 6     
+	   5 Input      1 Bit         XORs := 8     
+	   6 Input      1 Bit         XORs := 5     
+	   7 Input      1 Bit         XORs := 1     
+Module eth_phy_10g_tx_if 
+Detailed RTL Component Info : 
++---Registers : 
+	               64 Bit    Registers := 1     
+	               58 Bit    Registers := 1     
+	                2 Bit    Registers := 1     
+Module bit_synchronizer 
+Detailed RTL Component Info : 
++---Registers : 
+	                1 Bit    Registers := 3     
+Module rst_synchronizer__parameterized0 
+Detailed RTL Component Info : 
++---Registers : 
+	                1 Bit    Registers := 3     
+Module rst_synchronizer__parameterized1 
+Detailed RTL Component Info : 
++---Registers : 
+	                1 Bit    Registers := 3     
+Module rst_synchronizer__parameterized2 
+Detailed RTL Component Info : 
++---Registers : 
+	                1 Bit    Registers := 3     
+Module eth_xcvr_gth_full_reset 
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input     10 Bit       Adders := 2     
+	   2 Input      3 Bit       Adders := 3     
++---Registers : 
+	               10 Bit    Registers := 2     
+	                3 Bit    Registers := 3     
+	                1 Bit    Registers := 24    
++---Muxes : 
+	   7 Input      3 Bit        Muxes := 2     
+	   2 Input      3 Bit        Muxes := 7     
+	   8 Input      3 Bit        Muxes := 1     
+	   2 Input      1 Bit        Muxes := 2     
+	   7 Input      1 Bit        Muxes := 13    
+	   8 Input      1 Bit        Muxes := 26    
+---------------------------------------------------------------------------------
+Finished RTL Hierarchical Component Statistics
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Part Resource Summary
+---------------------------------------------------------------------------------
+Part Resources:
+DSPs: 1700 (col length:120)
+BRAMs: 1080 (col length: RAMB18 120 RAMB36 60)
+---------------------------------------------------------------------------------
+Finished Part Resource Summary
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Cross Boundary and Area Optimization
+---------------------------------------------------------------------------------
+Warning: Parallel synthesis criteria is not met 
+INFO: [Synth 8-5545] ROM "rt_state" won't be mapped to RAM because address size (64) is larger than maximum supported(25)
+INFO: [Synth 8-5544] ROM "eth_phy_10g_rx_if_inst/eth_phy_10g_rx_ber_mon_inst/rx_high_ber_next" won't be mapped to Block RAM because address size (2) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "xgmii_baser_dec_inst/xgmii_rxd_next" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5544] ROM "xgmii_baser_dec_inst/xgmii_rxd_next" won't be mapped to Block RAM because address size (4) smaller than threshold (5)
+INFO: [Synth 8-5587] ROM size for "xgmii_baser_dec_inst/decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "xgmii_baser_dec_inst/decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "xgmii_baser_dec_inst/decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "xgmii_baser_dec_inst/decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "xgmii_baser_dec_inst/decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "xgmii_baser_dec_inst/decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "xgmii_baser_dec_inst/decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5587] ROM size for "xgmii_baser_dec_inst/decoded_ctrl" is below threshold of ROM address width. It will be mapped to LUTs
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/xgmii_rxc_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_dec_inst/decode_err" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_enc_inst/encoded_tx_hdr_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "xgmii_baser_enc_inst/tx_bad_block_next" won't be mapped to RAM because it is too sparse
+INFO: [Synth 8-5546] ROM "pcie_wrapper_inst/rq_formatter_inst/rq_descriptor0" won't be mapped to RAM because it is too sparse
+WARNING: [Synth 8-3917] design top has port sfp_0_tx_disable driven by constant 0
+WARNING: [Synth 8-3917] design top has port sfp_0_rs driven by constant 0
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\pcs_pma_wrapper_inst/phy_inst /\eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_hdr_reg_reg[1] )
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[63]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[62]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[61]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[60]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[59]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[58]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[57]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[56]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[55]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[54]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[53]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[52]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[51]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[50]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[49]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[48]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[47]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[46]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[45]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[44]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[43]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[42]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[41]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[40]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[39]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[38]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[37]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[36]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[35]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[34]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[33]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[32]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[31]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[30]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[29]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[28]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[27]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[26]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[25]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[24]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[23]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[22]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[21]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[20]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[19]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[18]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[17]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[16]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[15]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[14]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[13]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[12]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[11]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[10]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[9]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[8]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[7]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[6]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[5]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[4]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[1]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[3]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[1]'
+INFO: [Synth 8-3886] merging instance 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[2]' (FD) to 'pcs_pma_wrapper_inst/phy_inst/eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[1]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\pcs_pma_wrapper_inst/phy_inst /\eth_phy_10g_tx_inst/xgmii_baser_enc_inst/encoded_tx_data_reg_reg[0] )
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/temp_cq_lower_addr_reg[0]' (FDCE) to 'user_logic_inst/temp_cq_reg_addr_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/temp_cq_lower_addr_reg[1]' (FDCE) to 'user_logic_inst/temp_cq_reg_addr_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/temp_cq_lower_addr_reg[2]' (FDCE) to 'user_logic_inst/temp_cq_reg_addr_reg[2]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/temp_cq_lower_addr_reg[3]' (FDCE) to 'user_logic_inst/temp_cq_reg_addr_reg[3]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/temp_cq_lower_addr_reg[4]' (FDCE) to 'user_logic_inst/temp_cq_reg_addr_reg[4]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/temp_cq_lower_addr_reg[5]' (FDCE) to 'user_logic_inst/temp_cq_reg_addr_reg[5]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/temp_cq_lower_addr_reg[6]' (FDCE) to 'user_logic_inst/temp_cq_reg_addr_reg[6]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/temp_cq_reg_addr_reg[0]' (FDCE) to 'user_logic_inst/temp_cq_reg_addr_reg[1]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (user_logic_inst/\temp_cq_reg_addr_reg[1] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (user_logic_inst/\cc_state_reg[1] )
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tag_reg[1]' (FDCE) to 'user_logic_inst/rq_type_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tag_reg[2]' (FDCE) to 'user_logic_inst/rq_tc_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tag_reg[3]' (FDCE) to 'user_logic_inst/rq_tc_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tag_reg[4]' (FDCE) to 'user_logic_inst/rq_tc_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tag_reg[5]' (FDCE) to 'user_logic_inst/rq_tc_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tag_reg[6]' (FDCE) to 'user_logic_inst/rq_tc_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tag_reg[7]' (FDCE) to 'user_logic_inst/rq_tc_reg[0]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tc_reg[0]' (FDCE) to 'user_logic_inst/rq_tc_reg[1]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tc_reg[1]' (FDCE) to 'user_logic_inst/rq_tc_reg[2]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_tc_reg[2]' (FDCE) to 'user_logic_inst/rq_type_reg[1]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_type_reg[3]' (FDCE) to 'user_logic_inst/rq_type_reg[1]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/rq_type_reg[2]' (FDCE) to 'user_logic_inst/rq_type_reg[1]'
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (user_logic_inst/\rq_type_reg[1] )
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_lower_addr_reg[0]' (FDCE) to 'user_logic_inst/cc_payload_reg[64]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_lower_addr_reg[1]' (FDCE) to 'user_logic_inst/cc_payload_reg[64]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_status_reg[0]' (FDCE) to 'user_logic_inst/cc_payload_reg[64]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_status_reg[1]' (FDCE) to 'user_logic_inst/cc_payload_reg[64]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_status_reg[2]' (FDCE) to 'user_logic_inst/cc_payload_reg[64]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[64]' (FDCE) to 'user_logic_inst/cc_payload_reg[65]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[65]' (FDCE) to 'user_logic_inst/cc_payload_reg[66]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[66]' (FDCE) to 'user_logic_inst/cc_payload_reg[67]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[67]' (FDCE) to 'user_logic_inst/cc_payload_reg[68]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[68]' (FDCE) to 'user_logic_inst/cc_payload_reg[69]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[69]' (FDCE) to 'user_logic_inst/cc_payload_reg[70]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[70]' (FDCE) to 'user_logic_inst/cc_payload_reg[71]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[71]' (FDCE) to 'user_logic_inst/cc_payload_reg[72]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[72]' (FDCE) to 'user_logic_inst/cc_payload_reg[73]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[73]' (FDCE) to 'user_logic_inst/cc_payload_reg[74]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[74]' (FDCE) to 'user_logic_inst/cc_payload_reg[75]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[75]' (FDCE) to 'user_logic_inst/cc_payload_reg[76]'
+INFO: [Synth 8-3886] merging instance 'user_logic_inst/cc_payload_reg[76]' (FDCE) to 'user_logic_inst/cc_payload_reg[77]'
+INFO: [Common 17-14] Message 'Synth 8-3886' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (user_logic_inst/\cc_payload_reg[127] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\pcie_wrapper_inst/rq_formatter_inst/RQ_gearbox256_inst /\s_axis_rq_tuser_reg[59] )
+INFO: [Synth 8-3333] propagating constant 0 across sequential element (\pcs_pma_wrapper_inst/phy_inst /\eth_phy_10g_tx_inst/eth_phy_10g_tx_if_inst /\serdes_tx_hdr_reg_reg[1] )
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[63]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[62]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[61]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[60]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[59]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[58]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[57]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[56]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[55]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[54]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[53]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[52]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[51]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[50]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[49]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[48]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[47]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[46]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[45]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[44]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[43]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[42]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[41]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[40]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[39]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[38]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[37]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[36]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[35]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[34]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[33]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[32]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[31]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[30]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[29]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[28]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[27]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[26]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[25]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[24]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[23]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[22]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[21]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[20]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[19]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[18]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[17]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[16]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[15]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 1st driver pin 'user_logic_inst/in_val_REG_RT_STATUS_reg[14]__0/Q' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6859] multi-driven net on pin Q with 2nd driver pin 'GND' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+INFO: [Common 17-14] Message 'Synth 8-6859' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:153]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:157]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:157]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:155]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:155]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:156]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:158]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:158]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+CRITICAL WARNING: [Synth 8-6858] multi-driven net Q is connected to at least one constant driver which has been preserved, other driver is ignored [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:160]
+INFO: [Common 17-14] Message 'Synth 8-6858' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+---------------------------------------------------------------------------------
+Finished Cross Boundary and Area Optimization : Time (s): cpu = 00:01:55 ; elapsed = 00:01:59 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7753 ; free virtual = 28408
+---------------------------------------------------------------------------------
+
+Report RTL Partitions: 
++-+--------------+------------+----------+
+| |RTL Partition |Replication |Instances |
++-+--------------+------------+----------+
++-+--------------+------------+----------+
+---------------------------------------------------------------------------------
+Start Applying XDC Timing Constraints
+---------------------------------------------------------------------------------
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/user_clk' to pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/bbstub_user_clk/O'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/int_qpll1outclk_out[0]' to pin '{pcie_wrapper_inst/pcie3_ultrascale_inst/bbstub_int_qpll1outclk_out[0]/O}'
+INFO: [Synth 8-5783] Moving clock source from hierarchical pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/sys_clk_gt' to 'refclk_ibuf/O'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/int_qpll1outclk_out[1]' to pin '{pcie_wrapper_inst/pcie3_ultrascale_inst/bbstub_int_qpll1outclk_out[1]/O}'
+INFO: [Synth 8-5783] Moving clock source from hierarchical pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/sys_clk_gt' to 'refclk_ibuf/O'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/int_qpll1outrefclk_out[0]' to pin '{pcie_wrapper_inst/pcie3_ultrascale_inst/bbstub_int_qpll1outrefclk_out[0]/O}'
+INFO: [Synth 8-5783] Moving clock source from hierarchical pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/sys_clk_gt' to 'refclk_ibuf/O'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/int_qpll1outrefclk_out[1]' to pin '{pcie_wrapper_inst/pcie3_ultrascale_inst/bbstub_int_qpll1outrefclk_out[1]/O}'
+INFO: [Synth 8-5783] Moving clock source from hierarchical pin 'pcie_wrapper_inst/pcie3_ultrascale_inst/sys_clk_gt' to 'refclk_ibuf/O'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/gtwiz_userclk_rx_srcclk_out[0]' to pin '{pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/bbstub_gtwiz_userclk_rx_srcclk_out[0]/O}'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/gtwiz_userclk_rx_usrclk2_out[0]' to pin '{pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/bbstub_gtwiz_userclk_rx_usrclk2_out[0]/O}'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/gtwiz_userclk_rx_usrclk_out[0]' to pin '{pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/bbstub_gtwiz_userclk_rx_usrclk_out[0]/O}'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/gtwiz_userclk_tx_srcclk_out[0]' to pin '{pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/bbstub_gtwiz_userclk_tx_srcclk_out[0]/O}'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/gtwiz_userclk_tx_usrclk2_out[0]' to pin '{pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/bbstub_gtwiz_userclk_tx_usrclk2_out[0]/O}'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/gtwiz_userclk_tx_usrclk_out[0]' to pin '{pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/bbstub_gtwiz_userclk_tx_usrclk_out[0]/O}'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/qpll0outclk_out[0]' to pin '{pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/bbstub_qpll0outclk_out[0]/O}'
+INFO: [Synth 8-5783] Moving clock source from hierarchical pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/gtrefclk00_in[0]' to 'pcs_pma_wrapper_inst/ibufds_gte3_refclk_inst/O'
+INFO: [Synth 8-5578] Moved timing constraint from pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/qpll0outrefclk_out[0]' to pin '{pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/bbstub_qpll0outrefclk_out[0]/O}'
+INFO: [Synth 8-5783] Moving clock source from hierarchical pin 'pcs_pma_wrapper_inst/example_wrapper_inst/eth_xcvr_gth_full_inst/gtrefclk00_in[0]' to 'pcs_pma_wrapper_inst/ibufds_gte3_refclk_inst/O'
+INFO: [Synth 8-5819] Moved 15 constraints on hierarchical pins to their respective driving/loading pins
+---------------------------------------------------------------------------------
+Finished Applying XDC Timing Constraints : Time (s): cpu = 00:02:02 ; elapsed = 00:02:10 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7612 ; free virtual = 28267
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Timing Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Timing Optimization : Time (s): cpu = 00:02:02 ; elapsed = 00:02:10 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7577 ; free virtual = 28232
+---------------------------------------------------------------------------------
+
+Report RTL Partitions: 
++-+--------------+------------+----------+
+| |RTL Partition |Replication |Instances |
++-+--------------+------------+----------+
++-+--------------+------------+----------+
+---------------------------------------------------------------------------------
+Start Technology Mapping
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Technology Mapping : Time (s): cpu = 00:02:02 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7577 ; free virtual = 28232
+---------------------------------------------------------------------------------
+
+Report RTL Partitions: 
++-+--------------+------------+----------+
+| |RTL Partition |Replication |Instances |
++-+--------------+------------+----------+
++-+--------------+------------+----------+
+---------------------------------------------------------------------------------
+Start IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished IO Insertion : Time (s): cpu = 00:02:03 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7577 ; free virtual = 28232
+---------------------------------------------------------------------------------
+
+Report Check Netlist: 
++------+------------------+-------+---------+-------+------------------+
+|      |Item              |Errors |Warnings |Status |Description       |
++------+------------------+-------+---------+-------+------------------+
+|1     |multi_driven_nets |      0|        0|Passed |Multi driven nets |
++------+------------------+-------+---------+-------+------------------+
+---------------------------------------------------------------------------------
+Start Renaming Generated Instances
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Instances : Time (s): cpu = 00:02:03 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7577 ; free virtual = 28232
+---------------------------------------------------------------------------------
+
+Report RTL Partitions: 
++-+--------------+------------+----------+
+| |RTL Partition |Replication |Instances |
++-+--------------+------------+----------+
++-+--------------+------------+----------+
+---------------------------------------------------------------------------------
+Start Rebuilding User Hierarchy
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Rebuilding User Hierarchy : Time (s): cpu = 00:02:03 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7577 ; free virtual = 28232
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Ports
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Ports : Time (s): cpu = 00:02:03 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7577 ; free virtual = 28232
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:02:03 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7576 ; free virtual = 28231
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Nets
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Nets : Time (s): cpu = 00:02:03 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7576 ; free virtual = 28231
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Writing Synthesis Report
+---------------------------------------------------------------------------------
+
+Report BlackBoxes: 
++------+-------------------+----------+
+|      |BlackBox name      |Instances |
++------+-------------------+----------+
+|1     |pcie3_ultrascale_0 |         1|
+|2     |eth_xcvr_gth_full  |         1|
++------+-------------------+----------+
+
+Report Cell Usage: 
++------+-------------------+------+
+|      |Cell               |Count |
++------+-------------------+------+
+|1     |eth_xcvr_gth_full  |     1|
+|2     |pcie3_ultrascale_0 |     1|
+|3     |BUFG               |     1|
+|4     |CARRY8             |    13|
+|5     |IBUFDS_GTE3        |     2|
+|6     |LUT1               |    21|
+|7     |LUT2               |    75|
+|8     |LUT3               |   253|
+|9     |LUT4               |    46|
+|10    |LUT5               |   232|
+|11    |LUT6               |   257|
+|12    |FDCE               |   940|
+|13    |FDPE               |    38|
+|14    |FDRE               |   411|
+|15    |FDSE               |     8|
+|16    |IBUF               |     1|
+|17    |IBUFGDS            |     1|
+|18    |OBUF               |     2|
++------+-------------------+------+
+
+Report Instance Areas: 
++------+----------------------------------------------------------------+------------------------------------+------+
+|      |Instance                                                        |Module                              |Cells |
++------+----------------------------------------------------------------+------------------------------------+------+
+|1     |top                                                             |                                    |  3528|
+|2     |  pcie_wrapper_inst                                             |pcie_wrapper                        |  1236|
+|3     |    rc_parser_inst                                              |RC_parser                           |     1|
+|4     |      rc_gearbox_inst                                           |RC_gearbox256                       |     1|
+|5     |    rq_formatter_inst                                           |RQ_formatter                        |   138|
+|6     |      RQ_gearbox256_inst                                        |RQ_gearbox256                       |   138|
+|7     |  pcs_pma_wrapper_inst                                          |pcs_pma_wrapper                     |   995|
+|8     |    bit_sync_rx_reset_req_inst                                  |bit_synchronizer__1                 |     3|
+|9     |    bit_sync_rx_status_inst                                     |bit_synchronizer__2                 |     3|
+|10    |    example_wrapper_inst                                        |eth_xcvr_gth_full_wrapper           |   438|
+|11    |      bit_synchronizer_txresetdone_inst                         |bit_synchronizer__3                 |     3|
+|12    |      bit_synchronizer_rxresetdone_inst                         |bit_synchronizer__4                 |     3|
+|13    |      gtwiz_reset_inst                                          |eth_xcvr_gth_full_reset             |   276|
+|14    |        rst_sync_inst_0                                         |rst_synchronizer                    |     3|
+|15    |        bit_synchronizer_inst0                                  |bit_synchronizer__5                 |     3|
+|16    |        reset_synchronizer_gtwiz_reset_tx_any_inst              |rst_synchronizer__parameterized0__1 |     3|
+|17    |        reset_synchronizer_gtwiz_reset_tx_pll_and_datapath_inst |rst_synchronizer__parameterized0__2 |     3|
+|18    |        bit_synchronizer_inst1                                  |bit_synchronizer__6                 |     3|
+|19    |        reset_synchronizer_gtwiz_reset_tx_datapath_inst         |rst_synchronizer__parameterized0__3 |     3|
+|20    |        bit_synchronizer_inst2                                  |bit_synchronizer__7                 |     3|
+|21    |        bit_synchronizer_inst3                                  |bit_synchronizer__8                 |     3|
+|22    |        bit_synchronizer_inst4                                  |bit_synchronizer__9                 |     3|
+|23    |        reset_synchronizer_txprogdivreset_inst                  |rst_synchronizer__parameterized1    |     4|
+|24    |        reset_synchronizer_gtwiz_reset_rx_any_inst              |rst_synchronizer__parameterized0__4 |     3|
+|25    |        reset_synchronizer_gtwiz_reset_rx_pll_and_datapath_inst |rst_synchronizer__parameterized0__5 |     3|
+|26    |        bit_synchronizer_inst5                                  |bit_synchronizer__10                |     3|
+|27    |        reset_synchronizer_gtwiz_reset_rx_datapath_inst         |rst_synchronizer__parameterized0    |     3|
+|28    |        bit_synchronizer_inst6                                  |bit_synchronizer__11                |     3|
+|29    |        bit_synchronizer_inst7                                  |bit_synchronizer__12                |     3|
+|30    |        bit_synchronizer_inst8                                  |bit_synchronizer__13                |     3|
+|31    |        bit_synchronizer_inst9                                  |bit_synchronizer                    |     3|
+|32    |        reset_synchronizer_rx_done_inst                         |rst_synchronizer__parameterized2    |     5|
+|33    |        reset_synchronizer_tx_done_inst                         |rst_synchronizer__parameterized2_1  |     5|
+|34    |    phy_inst                                                    |eth_phy_10g                         |   541|
+|35    |      eth_phy_10g_rx_inst                                       |eth_phy_10g_rx                      |   352|
+|36    |        eth_phy_10g_rx_if_inst                                  |eth_phy_10g_rx_if                   |   349|
+|37    |          descrambler_inst                                      |lfsr                                |    64|
+|38    |          eth_phy_10g_rx_frame_sync_inst                        |eth_phy_10g_rx_frame_sync           |    42|
+|39    |          eth_phy_10g_rx_watchdog_inst                          |eth_phy_10g_rx_watchdog             |    59|
+|40    |        xgmii_baser_dec_inst                                    |xgmii_baser_dec_64                  |     3|
+|41    |      eth_phy_10g_tx_inst                                       |eth_phy_10g_tx                      |   189|
+|42    |        eth_phy_10g_tx_if_inst                                  |eth_phy_10g_tx_if                   |   187|
+|43    |        xgmii_baser_enc_inst                                    |xgmii_baser_enc_64                  |     2|
+|44    |    rx_reset_sync_inst                                          |rst_synchronizer__3                 |     3|
+|45    |    sfp_ctrl_reset_sync_inst                                    |rst_synchronizer__parameterized1__2 |     4|
+|46    |    tx_reset_sync_inst                                          |rst_synchronizer_0                  |     2|
+|47    |  user_logic_inst                                               |user_logic                          |  1291|
++------+----------------------------------------------------------------+------------------------------------+------+
+---------------------------------------------------------------------------------
+Finished Writing Synthesis Report : Time (s): cpu = 00:02:03 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7576 ; free virtual = 28231
+---------------------------------------------------------------------------------
+Synthesis finished with 0 errors, 2586 critical warnings and 83 warnings.
+Synthesis Optimization Runtime : Time (s): cpu = 00:02:00 ; elapsed = 00:02:06 . Memory (MB): peak = 2898.410 ; gain = 1361.934 ; free physical = 7575 ; free virtual = 28230
+Synthesis Optimization Complete : Time (s): cpu = 00:02:03 ; elapsed = 00:02:11 . Memory (MB): peak = 2898.410 ; gain = 1554.816 ; free physical = 7575 ; free virtual = 28230
+INFO: [Project 1-571] Translating synthesized netlist
+INFO: [Netlist 29-17] Analyzing 16 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2898.410 ; gain = 0.000 ; free physical = 7565 ; free virtual = 28220
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 3 instances were transformed.
+  BUFG => BUFGCE: 1 instances
+  IBUF => IBUF (IBUFCTRL, INBUF): 1 instances
+  IBUFGDS => IBUFDS (DIFFINBUF, IBUFCTRL): 1 instances
+
+INFO: [Common 17-83] Releasing license: Synthesis
+391 Infos, 132 Warnings, 200 Critical Warnings and 0 Errors encountered.
+synth_design completed successfully
+synth_design: Time (s): cpu = 00:02:03 ; elapsed = 00:02:12 . Memory (MB): peak = 2898.410 ; gain = 1566.344 ; free physical = 7563 ; free virtual = 28218
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2898.410 ; gain = 0.000 ; free physical = 7563 ; free virtual = 28218
+WARNING: [Constraints 18-5210] No constraints selected for write.
+Resolution: This message can indicate that there are no constraints for the design, or it can indicate that the used_in flags are set such that the constraints are ignored. This later case is used when running synth_design to not write synthesis constraints to the resulting checkpoint. Instead, project constraints are read when the synthesized design is opened.
+INFO: [Common 17-1381] The checkpoint '/home/chenxun/Documents/Project/Venturi/Vivado/Venturi.runs/synth_1/top.dcp' has been generated.
+INFO: [runtcl-4] Executing : report_utilization -file top_utilization_synth.rpt -pb top_utilization_synth.pb
+INFO: [Common 17-206] Exiting Vivado at Sat Mar 14 18:23:30 2026...
+[Sat Mar 14 18:23:31 2026] synth_1 finished
+wait_on_run: Time (s): cpu = 00:02:08 ; elapsed = 00:02:16 . Memory (MB): peak = 1401.422 ; gain = 0.000 ; free physical = 8748 ; free virtual = 29395
+# close_project
+INFO: [Common 17-206] Exiting Vivado at Sat Mar 14 18:23:31 2026...

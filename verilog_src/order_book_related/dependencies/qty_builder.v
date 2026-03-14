@@ -9,8 +9,8 @@ module qty_builder #(
     input   wire                          i_rst,               // active high
     input   wire [QTY_MSG_BIT-1:0]        i_qty_msg,
     input   wire [QTY_SHARE_BIT-1:0]      i_bram_o_data,
-    output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_tree_price_idx,
-    output  reg  [1:0]                    o_tree_price_change,
+    output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_price_idx,
+    output  reg  [1:0]                    o_price_change,
     output  wire [63:0]                   o_seq_num,
     output  wire [QTY_PRICE_LVL_BIT-1:0]  o_bram_addr,
     output  wire [1:0]                    o_bram_op,
@@ -132,19 +132,19 @@ always @(*) begin
     if (qty_upd_state == SECOND_CYCLE) begin
         if ((qty_cur == 0 && qty_new > 0)) begin
             // empty -> non-empty
-            o_tree_price_idx     = qty_addr;
-            o_tree_price_change  = NON_EMPTY;
+            o_price_idx     = qty_addr;
+            o_price_change  = NON_EMPTY;
         end else if (qty_cur > 0 && qty_new == 0) begin
-            o_tree_price_idx     = qty_addr;
-            o_tree_price_change  = EMPTY;
+            o_price_idx     = qty_addr;
+            o_price_change  = EMPTY;
         end
         else begin
-            o_tree_price_idx     = 0;
-            o_tree_price_change  = IDLE;
+            o_price_idx     = 0;
+            o_price_change  = IDLE;
         end
     end else begin
-        o_tree_price_idx         = 0;
-        o_tree_price_change      = IDLE;
+        o_price_idx         = 0;
+        o_price_change      = IDLE;
     end
 end
 

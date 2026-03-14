@@ -18,14 +18,13 @@ input  wire                         s_axis_rq_tready,   // from PCIe IP core
 // =========================================================================
 // Logic Interface
 // =========================================================================
-input  wire [3:0]                   rq_type,            // 4'b0000=Mem Read, 4'b0001=Mem Write
-input  wire [63:0]                  rq_addr,            // Host physical address
+input  wire [3:0]                   rq_type,                    // 4'b0000=Mem Read, 4'b0001=Mem Write
+input  wire [63:0]                  rq_addr,                    // Host physical address
 input  wire [10:0]                  rq_payload_dw_count,     // Total Data DWords (1-1024) in this burst. Does not include header.
-input  wire [7:0]                   rq_tag,             // Tag for tracking
-input  wire [2:0]                   rq_tc,              // Traffic Class
-input  wire                         rq_valid,           // Request valid
-input  wire                         rq_payload_sop,     // Start of packet (first beat)
-input  wire                         rq_payload_last,    // Last of payload. It only cares about data. Not rq_descriptor.
+input  wire [7:0]                   rq_tag,                 // Tag for tracking
+input  wire [2:0]                   rq_tc,                  // Traffic Class
+input  wire                         rq_valid,               // Request valid
+input  wire                         rq_payload_last,        // Last of payload. It only cares about data. Not rq_descriptor.
 input  wire [255:0]                 rq_payload,
 output wire                         rq_ready            // Ready (RQ_formatter->Logic)
 );
@@ -68,7 +67,6 @@ RQ_gearbox256 RQ_gearbox256_inst (
     .rq_payload_dw_count  (rq_payload_dw_count),
     .rq_payload_last      (rq_payload_last),
     .rq_valid             (rq_valid),
-    .rq_payload_sop       (rq_payload_sop),
     .rq_ready             (rq_ready),
 
     // PCIe IP Core Interface

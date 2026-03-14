@@ -5,7 +5,7 @@
 // logic receives clean 256-bit words.
 //
 // PCIe RC format:
-//   SOP beat:     [255:128]=payload, [127:96]=reserved, [95:0]=descriptor
+//   SOP beat:     [255:96]=payload, [95:0]=descriptor
 //   Non-SOP beat: [255:0]=payload
 //
 // Problem: SOP beat only has 128 bits of payload (4 DW), subsequent beats
@@ -43,12 +43,10 @@ module RC_gearbox256 #(
 );
 
 
-
-
 // =========================================================================
 // Internal Signals
 // =========================================================================
-    wire   sop     = m_axis_rc_tvalid? m_axis_rc_tuser[32] : 1'b0; // SOP indicator
+    wire sop     = m_axis_rc_tvalid? m_axis_rc_tuser[32] : 1'b0; // SOP indicator
     reg [159:0]    data_saver           ;
     reg [7:0]      rc_last_keep         ;
 // save the current state   ==========================
@@ -64,8 +62,8 @@ always @(posedge clk or negedge rst_n) begin
         data_saver          <= 160'h0;
         rc_last_keep        <= 8'h0;
     end else if (m_axis_rc_tvalid) begin
-            rc_valid            <= 1'b1;
-            data_saver          <= m_axis_rc_tdata[255:96];
+                rc_valid            <= 1'b1;
+                data_saver          <= m_axis_rc_tdata[255:96];
             if (sop) begin
                 rc_last_keep        <= calc_tail_keep(m_axis_rc_tdata[42:32]);
                 rc_descriptor       <= m_axis_rc_tdata[95:0];
@@ -91,24 +89,10 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
     assign m_axis_rc_tready = 1'b1;
-// =========================================================================
-    // function [7:0] calc_tail_keep(input [DATA_WIDTH/32-1:0] m_axis_rc_tkeep);
-    // // rc_payload_byte_count is in bytes, convert to DW first.
-    //     case (m_axis_rc_tkeep)
-    //         8'b1111_1111: calc_tail_keep = 8'b0001_1111; 
-    //         8'b0000_0001: calc_tail_keep = 8'b0011_1111;  
-    //         8'b0000_0011: calc_tail_keep = 8'b0111_1111;
-    //         8'b0000_0111: calc_tail_keep = 8'b1111_1111;
-    //         8'b0000_1111: calc_tail_keep = 8'b0000_0001;
-    //         8'b0001_1111: calc_tail_keep = 8'b0000_0011;  
-    //         8'b0011_1111: calc_tail_keep = 8'b0000_0111;
-    //         8'b0111_1111: calc_tail_keep = 8'b0000_1111;
-    //         default: calc_tail_keep = 8'hFF;
-    //     endcase
-    // endfunction
+
 
     function [7:0] calc_tail_keep(input [10:0] dw_count);
-    // rc_payload_byte_count is in bytes, convert to DW first.
+
         case (dw_count[2:0])
             3'd5: calc_tail_keep = 8'b0001_1111; 
             3'd6: calc_tail_keep = 8'b0011_1111;  
@@ -121,8 +105,7 @@ end
             default: calc_tail_keep = 8'hFF;
         endcase
     endfunction
-    // Check if extra output beat needed after tlast
-// =========================================================================
+
 
 
 

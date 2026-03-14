@@ -4,10 +4,10 @@ module tree_builder #(
 )(
     input  wire                         i_clk,
     input  wire                         i_rst,        // active high
-    input  wire [QTY_PRICE_LVL_BIT-1:0] i_tree_price_idx,
-    input  wire [1:0]                   i_tree_price_change,
-    output wire                         o_tree_best_valid,
-    output wire [QTY_PRICE_LVL_BIT-1:0] o_tree_best_idx
+    input  wire [QTY_PRICE_LVL_BIT-1:0] i_price_idx,
+    input  wire [1:0]                   i_price_change,
+    output wire                         o_best_valid,
+    output wire [QTY_PRICE_LVL_BIT-1:0] o_best_price_idx
 );
     localparam IDLE       = 2'b00;
     localparam EMPTY      = 2'b01;
@@ -22,37 +22,37 @@ module tree_builder #(
     localparam LOWER_MAX_COUNT  = (MID_COUNT  > 1) ? (MID_COUNT >> 1) : 1;
 
 
-    reg                          last_bid_t_valid [0:LAST_COUNT-1];
-    reg [QTY_PRICE_LVL_BIT-1:0]  mid_bid_t_idx    [0:MID_COUNT-1];
-    reg                          mid_bid_t_valid  [0:MID_COUNT-1];
+    reg                          btm_valid [0:LAST_COUNT-1];
+    reg [QTY_PRICE_LVL_BIT-1:0]  mid_idx    [0:MID_COUNT-1];
+    reg                          mid_valid  [0:MID_COUNT-1];
 
-    wire [QTY_PRICE_LVL_BIT-1:0] mid_to_last_bid_t_idx   [MID_LEVEL:LEVELS-1][0:UPPER_MAX_COUNT-1];
-    wire                         mid_to_last_bid_t_valid [MID_LEVEL:LEVELS-1][0:UPPER_MAX_COUNT-1];
-    wire [QTY_PRICE_LVL_BIT-1:0] root_to_midbid_t_idx    [0:LOWER_LEVELS-1][0:LOWER_MAX_COUNT-1];
-    wire                         root_to_midbid_t_valid  [0:LOWER_LEVELS-1][0:LOWER_MAX_COUNT-1];
+    wire [QTY_PRICE_LVL_BIT-1:0] mid_to_btm_idx   [MID_LEVEL:LEVELS-1][0:UPPER_MAX_COUNT-1];
+    wire                         mid_to_btm_valid [MID_LEVEL:LEVELS-1][0:UPPER_MAX_COUNT-1];
+    wire [QTY_PRICE_LVL_BIT-1:0] top_to_mid_idx    [0:LOWER_LEVELS-1][0:LOWER_MAX_COUNT-1];
+    wire                         top_to_mid_valid  [0:LOWER_LEVELS-1][0:LOWER_MAX_COUNT-1];
 
     integer idx;
 
 
     // The leaf level stores only valid bits. The index is implied by the array subscript.
-    // mid_bid_t_* is the pipeline register stage at MID_LEVEL.
+    // mid_* is the pipeline register stage at MID_LEVEL.
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
             for (idx = 0; idx < LAST_COUNT; idx = idx + 1) begin
-                last_bid_t_valid[idx] = 1'b0;
+                btm_valid[idx] = 1'b0;
             end
             for (idx = 0; idx < MID_COUNT; idx = idx + 1) begin
-                mid_bid_t_valid[idx] = 1'b0;
-                mid_bid_t_idx[idx]   = {QTY_PRICE_LVL_BIT{1'b0}};
+                mid_valid[idx] = 1'b0;
+                mid_idx[idx]   = {QTY_PRICE_LVL_BIT{1'b0}};
             end
         end else begin
-            if (i_tree_price_change != IDLE) begin
-                last_bid_t_valid[i_tree_price_idx] <= (i_tree_price_change == NON_EMPTY);
+            if (i_price_change != IDLE) begin
+                btm_valid[i_price_idx] <= (i_price_change == NON_EMPTY);
             end
 
             for (idx = 0; idx < MID_COUNT; idx = idx + 1) begin
-                mid_bid_t_valid[idx] <= mid_to_last_bid_t_valid[MID_LEVEL][idx];
-                mid_bid_t_idx[idx]   <= mid_to_last_bid_t_idx[MID_LEVEL][idx];
+                mid_valid[idx] <= mid_to_btm_valid[MID_LEVEL][idx];
+                mid_idx[idx]   <= mid_to_btm_idx[MID_LEVEL][idx];
             end
         end
     end
@@ -61,44 +61,44 @@ module tree_builder #(
     genvar node;
     generate
         // Reduce the leaf valid bits up to MID_LEVEL combinationally.
-        for (level = MID_LEVEL; level < LEVELS; level = level + 1) begin : gen_last_to_mid_levels
+        for (level = MID_LEVEL; level < LEVELS; level = level + 1) begin : gen_btm_to_mid_levels
                 localparam integer NODE_COUNT = (1 << level);
-            for (node = 0; node < NODE_COUNT; node = node + 1) begin : gen_last_to_mid_nodes
+            for (node = 0; node < NODE_COUNT; node = node + 1) begin : gen_btm_to_mid_nodes
                 localparam integer LEFT_CHILD  = (node << 1);
                 localparam integer RIGHT_CHILD = LEFT_CHILD + 1;
                 localparam [QTY_PRICE_LVL_BIT-1:0] LEFT_LEAF_IDX  = LEFT_CHILD[QTY_PRICE_LVL_BIT-1:0];
                 localparam [QTY_PRICE_LVL_BIT-1:0] RIGHT_LEAF_IDX = RIGHT_CHILD[QTY_PRICE_LVL_BIT-1:0];
 
                 if (level == LEVELS - 1) begin : gen_from_leaf
-                    assign mid_to_last_bid_t_valid[level][node] =
-                        last_bid_t_valid[LEFT_CHILD] | last_bid_t_valid[RIGHT_CHILD];
+                    assign mid_to_btm_valid[level][node] =
+                        btm_valid[LEFT_CHILD] | btm_valid[RIGHT_CHILD];
                     if (BID_OR_ASK == 2'b01) begin
                         // For bid tree, if both children are valid, take the right one (higher price).
-                        assign mid_to_last_bid_t_idx[level][node] =
-                            last_bid_t_valid[RIGHT_CHILD] ? RIGHT_LEAF_IDX :
-                            last_bid_t_valid[LEFT_CHILD]  ? LEFT_LEAF_IDX  :
+                        assign mid_to_btm_idx[level][node] =
+                            btm_valid[RIGHT_CHILD] ? RIGHT_LEAF_IDX :
+                            btm_valid[LEFT_CHILD]  ? LEFT_LEAF_IDX  :
                                                             {QTY_PRICE_LVL_BIT{1'b0}};
                     end else if (BID_OR_ASK == 2'b10) begin
                         // For ask tree, if both children are valid, take the left one (lower price).
-                        assign mid_to_last_bid_t_idx[level][node] =
-                            last_bid_t_valid[LEFT_CHILD]  ? LEFT_LEAF_IDX  :
-                            last_bid_t_valid[RIGHT_CHILD] ? RIGHT_LEAF_IDX :
+                        assign mid_to_btm_idx[level][node] =
+                            btm_valid[LEFT_CHILD]  ? LEFT_LEAF_IDX  :
+                            btm_valid[RIGHT_CHILD] ? RIGHT_LEAF_IDX :
                                                             {QTY_PRICE_LVL_BIT{1'b0}};
                     end
-                end else begin : gen_from_mid_to_last_level
-                    assign mid_to_last_bid_t_valid[level][node] =
-                        mid_to_last_bid_t_valid[level+1][LEFT_CHILD] | mid_to_last_bid_t_valid[level+1][RIGHT_CHILD];
+                end else begin : gen_from_mid_to_btm_level
+                    assign mid_to_btm_valid[level][node] =
+                        mid_to_btm_valid[level+1][LEFT_CHILD] | mid_to_btm_valid[level+1][RIGHT_CHILD];
                     if (BID_OR_ASK == 2'b01) begin
                         // For bid tree, if both children are valid, take the right one (higher price)
-                        assign mid_to_last_bid_t_idx[level][node] =
-                        mid_to_last_bid_t_valid[level+1][RIGHT_CHILD] ? mid_to_last_bid_t_idx[level+1][RIGHT_CHILD] :
-                        mid_to_last_bid_t_valid[level+1][LEFT_CHILD]  ? mid_to_last_bid_t_idx[level+1][LEFT_CHILD]  :
+                        assign mid_to_btm_idx[level][node] =
+                        mid_to_btm_valid[level+1][RIGHT_CHILD] ? mid_to_btm_idx[level+1][RIGHT_CHILD] :
+                        mid_to_btm_valid[level+1][LEFT_CHILD]  ? mid_to_btm_idx[level+1][LEFT_CHILD]  :
                                                                   {QTY_PRICE_LVL_BIT{1'b0}};
                     end else if (BID_OR_ASK == 2'b10) begin
                         // For ask tree, if both children are valid, take the left one (lower price).
-                    assign mid_to_last_bid_t_idx[level][node] =
-                        mid_to_last_bid_t_valid[level+1][LEFT_CHILD]  ? mid_to_last_bid_t_idx[level+1][LEFT_CHILD]  :
-                        mid_to_last_bid_t_valid[level+1][RIGHT_CHILD] ? mid_to_last_bid_t_idx[level+1][RIGHT_CHILD] :
+                    assign mid_to_btm_idx[level][node] =
+                        mid_to_btm_valid[level+1][LEFT_CHILD]  ? mid_to_btm_idx[level+1][LEFT_CHILD]  :
+                        mid_to_btm_valid[level+1][RIGHT_CHILD] ? mid_to_btm_idx[level+1][RIGHT_CHILD] :
                                                                   {QTY_PRICE_LVL_BIT{1'b0}};
                     end
                 end
@@ -106,52 +106,52 @@ module tree_builder #(
         end
 
         // Use the registered MID_LEVEL results as the source for the upper half of the tree.
-        for (level = 0; level < MID_LEVEL; level = level + 1) begin : gen_mid_to_root_levels
+        for (level = 0; level < MID_LEVEL; level = level + 1) begin : gen_mid_to_top_levels
             localparam integer NODE_COUNT = (1 << level);
 
-            for (node = 0; node < NODE_COUNT; node = node + 1) begin : gen_mid_to_root_nodes
+            for (node = 0; node < NODE_COUNT; node = node + 1) begin : gen_mid_to_top_nodes
                 localparam integer LEFT_CHILD  = (node << 1);
                 localparam integer RIGHT_CHILD = LEFT_CHILD + 1;
 
                 if (level == MID_LEVEL - 1) begin : gen_from_mid_regs
-                    assign root_to_midbid_t_valid[level][node] =
-                        mid_bid_t_valid[LEFT_CHILD] | mid_bid_t_valid[RIGHT_CHILD];
+                    assign top_to_mid_valid[level][node] =
+                        mid_valid[LEFT_CHILD] | mid_valid[RIGHT_CHILD];
                     if (BID_OR_ASK == 2'b01) begin
                         // For bid tree, if both children are valid, take the right one (higher price
-                        assign root_to_midbid_t_idx[level][node] =
-                            mid_bid_t_valid[RIGHT_CHILD] ? mid_bid_t_idx[RIGHT_CHILD] :
-                            mid_bid_t_valid[LEFT_CHILD]  ? mid_bid_t_idx[LEFT_CHILD]  :
+                        assign top_to_mid_idx[level][node] =
+                            mid_valid[RIGHT_CHILD] ? mid_idx[RIGHT_CHILD] :
+                            mid_valid[LEFT_CHILD]  ? mid_idx[LEFT_CHILD]  :
                                                         {QTY_PRICE_LVL_BIT{1'b0}};
                     end else if (BID_OR_ASK == 2'b10) begin
-                        assign root_to_midbid_t_idx[level][node] =
-                            mid_bid_t_valid[LEFT_CHILD]  ? mid_bid_t_idx[LEFT_CHILD]  :
-                            mid_bid_t_valid[RIGHT_CHILD] ? mid_bid_t_idx[RIGHT_CHILD] :
+                        assign top_to_mid_idx[level][node] =
+                            mid_valid[LEFT_CHILD]  ? mid_idx[LEFT_CHILD]  :
+                            mid_valid[RIGHT_CHILD] ? mid_idx[RIGHT_CHILD] :
                                                         {QTY_PRICE_LVL_BIT{1'b0}};
                     end
-                end else begin : gen_from_root_to_midlevel
-                    assign root_to_midbid_t_valid[level][node] =
-                        root_to_midbid_t_valid[level+1][LEFT_CHILD] | root_to_midbid_t_valid[level+1][RIGHT_CHILD];
+                end else begin : gen_from_top_to_midlevel
+                    assign top_to_mid_valid[level][node] =
+                        top_to_mid_valid[level+1][LEFT_CHILD] | top_to_mid_valid[level+1][RIGHT_CHILD];
                     if (BID_OR_ASK == 2'b01) begin
-                        assign root_to_midbid_t_idx[level][node] =
-                            root_to_midbid_t_valid[level+1][RIGHT_CHILD] ? root_to_midbid_t_idx[level+1][RIGHT_CHILD] :
-                            root_to_midbid_t_valid[level+1][LEFT_CHILD]  ? root_to_midbid_t_idx[level+1][LEFT_CHILD]  :
+                        assign top_to_mid_idx[level][node] =
+                            top_to_mid_valid[level+1][RIGHT_CHILD] ? top_to_mid_idx[level+1][RIGHT_CHILD] :
+                            top_to_mid_valid[level+1][LEFT_CHILD]  ? top_to_mid_idx[level+1][LEFT_CHILD]  :
                                                                     {QTY_PRICE_LVL_BIT{1'b0}};
                     end else if (BID_OR_ASK == 2'b10) begin
-                        assign root_to_midbid_t_idx[level][node] =
-                            root_to_midbid_t_valid[level+1][LEFT_CHILD]  ? root_to_midbid_t_idx[level+1][LEFT_CHILD]  :
-                            root_to_midbid_t_valid[level+1][RIGHT_CHILD] ? root_to_midbid_t_idx[level+1][RIGHT_CHILD] :
+                        assign top_to_mid_idx[level][node] =
+                            top_to_mid_valid[level+1][LEFT_CHILD]  ? top_to_mid_idx[level+1][LEFT_CHILD]  :
+                            top_to_mid_valid[level+1][RIGHT_CHILD] ? top_to_mid_idx[level+1][RIGHT_CHILD] :
                                                                         {QTY_PRICE_LVL_BIT{1'b0}};
                     end
                 end
             end
         end
 
-        if (MID_LEVEL == 0) begin : gen_root_from_mid
-            assign o_tree_best_valid = mid_bid_t_valid[0];
-            assign o_tree_best_idx   = mid_bid_t_idx[0];
-        end else begin : gen_root_from_lower
-            assign o_tree_best_valid = root_to_midbid_t_valid[0][0];
-            assign o_tree_best_idx   = root_to_midbid_t_idx[0][0];
+        if (MID_LEVEL == 0) begin : gen_top_from_mid
+            assign o_best_valid = mid_valid[0];
+            assign o_best_price_idx   = mid_idx[0];
+        end else begin : gen_top_from_lower
+            assign o_best_valid = top_to_mid_valid[0][0];
+            assign o_best_price_idx   = top_to_mid_idx[0][0];
         end
     endgenerate
 

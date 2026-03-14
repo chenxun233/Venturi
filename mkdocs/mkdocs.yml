@@ -20,21 +20,21 @@ nav:
               - bram: FPGA/order_book_builder/symbol_book/book_builder/bram.md
             - qty_book_wrapper: 
               - Overview: FPGA/order_book_builder/symbol_book/qty_book_wrapper/overview.md
-              - qty_book: FPGA/order_book_builder/symbol_book/qty_book_wrapper/qty_builder.md
+              - qty_builder: FPGA/order_book_builder/symbol_book/qty_book_wrapper/qty_builder.md
               - tree_builder: FPGA/order_book_builder/symbol_book/qty_book_wrapper/tree_builder.md
               - aligner: FPGA/order_book_builder/symbol_book/qty_book_wrapper/aligner.md
               - bram_dp: FPGA/order_book_builder/symbol_book/qty_book_wrapper/bram_dp.md
       - async_fifo: FPGA/async_fifo.md
-      - pcie_wraper: 
-          - Overview: FPGA/pcie_wraper/overview.md
-          - CC_formatter: FPGA/pcie_wraper/CC_formatter.md
-          - CQ_parser: FPGA/pcie_wraper/CQ_parser.md
+      - pcie_wrapper: 
+          - Overview: FPGA/pcie_wrapper/overview.md
+          - CC_formatter: FPGA/pcie_wrapper/CC_formatter.md
+          - CQ_parser: FPGA/pcie_wrapper/CQ_parser.md
           - RC_parser:
-            - Overview: FPGA/pcie_wraper/RC_parser/overview.md
-            - RC_gearbox256: FPGA/pcie_wraper/RC_parser/RC_gearbox256.md
+            - Overview: FPGA/pcie_wrapper/RC_parser/overview.md
+            - RC_gearbox256: FPGA/pcie_wrapper/RC_parser/RC_gearbox256.md
           - RQ_formatter: 
-            - Overview: FPGA/pcie_wraper/RQ_formatter/overview.md
-            - RQ_gearbox256: FPGA/pcie_wraper/RQ_formatter/RQ_gearbox256.md
+            - Overview: FPGA/pcie_wrapper/RQ_formatter/overview.md
+            - RQ_gearbox256: FPGA/pcie_wrapper/RQ_formatter/RQ_gearbox256.md
   - C++:
       - Overview: cpp/overview.md
       - Parser: cpp/parser.md

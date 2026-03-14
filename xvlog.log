@@ -1,0 +1,6 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v" into library work
+INFO: [VRFC 10-311] analyzing module user_logic
+INFO: [VRFC 10-2263] Analyzing Verilog file "/home/chenxun/Documents/Project/Venturi/verilog_src/Top.v" into library work
+INFO: [VRFC 10-311] analyzing module user_logic
+WARNING: [VRFC 10-3609] overwriting previous definition of module 'user_logic' [/home/chenxun/Documents/Project/Venturi/verilog_src/user_logic.v:7]
+INFO: [VRFC 10-311] analyzing module top

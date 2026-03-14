@@ -68,9 +68,9 @@ reg [3:0]   head_counter                ;
 reg [511:0] prev_buff                   ;// saves previous and current i_axi_rx_data for message parsing, especially for variable-length fields that may cross the boundary of two i_axi_rx_data.
 wire [511:0] cur_buff = {prev_buff[447:0], i_axi_rx_data};  // mix of combinational and sequential logic, makes it one cycle faster than depending on prev_buff only. cur_buff[511:256] is the previous i_axi_rx_data, cur_buff[255:0] is the current i_axi_rx_data.
 
-reg [6:0]   buffed_bytes             ; //how many valid bytes are currently in your window
-wire [6:0]  valid_bytes = buffed_bytes < 7'd6 ? 7'd0 : buffed_bytes - 7'd6; // there is always a 6-byte gap between the prev_buff and the boundary to parse.
-// wire [6:0]  valid_bytes = buffed_bytes ;
+reg [6:0]   buffered_bytes             ; //how many valid bytes are currently in your window
+wire [6:0]  valid_bytes = buffered_bytes < 7'd6 ? 7'd0 : buffered_bytes - 7'd6; // there is always a 6-byte gap between the prev_buff and the boundary to parse.
+// wire [6:0]  valid_bytes = buffered_bytes ;
 // header fields
 reg [47:0]  dst_mac_addr                ;
 reg [31:0]  dst_ip_addr                 ;
@@ -81,6 +81,7 @@ reg [7:0]   protocol                    ;
 reg [79:0]  session                     ;
 reg [15:0]  msg_count                   ;
 reg [7:0]   peeked_type                 ; // the type field in the message, which is peeked in advance to determine the length of the message and when a whole message is parsed. This is useful for variable-length messages like type U.
+reg [15:0]  msg_len_bytes; // the length of the message in bytes, which is determined by the type field. This is used to determine when a whole message is parsed.
 
 
 
@@ -193,7 +194,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         o_price             <= 0;
         o_timestamp         <= 0;
         o_msg_valid         <= 0;
-        buffed_bytes        <= 7'd8;  // the buffed_bytes is pure sequential logic, while cur_buff is a mix. To catch up, the it should start from 8.
+        buffered_bytes        <= 7'd8;  // the buffered_bytes is pure sequential logic, while cur_buff is a mix. To catch up, the it should start from 8.
         prev_buff           <= 0;
         msg_count           <= 0;
         peeked_type         <= 0;
@@ -202,7 +203,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
             IDLE: begin
                 prev_buff       <= 0;
                 o_msg_valid     <= 0;
-                buffed_bytes    <= 7'd8;
+                buffered_bytes    <= 7'd8;
                 o_msg_type      <= 0;
                 msg_count       <= 0;
                 if (head_counter == 6) begin
@@ -214,7 +215,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                 if (i_axi_rx_valid) begin
                     msg_count       <= i_axi_rx_data[31:16];
                     prev_buff       <= {prev_buff[447:0], i_axi_rx_data};
-                    buffed_bytes    <= buffed_bytes + 8;
+                    buffered_bytes    <= buffered_bytes + 8;
                     state           <= PEEKING_TYPE;
                 end
 
@@ -234,17 +235,18 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                 end else 
                 if (i_axi_rx_valid) begin
                     prev_buff       <= {prev_buff[447:0], i_axi_rx_data};
+                    msg_len_bytes   <= take_data(cur_buff, valid_bytes, 2); // get the message length
                     peeked_type     <= take_data(cur_buff, valid_bytes-2, 1);
-                    buffed_bytes    <= buffed_bytes + 8;
+                    buffered_bytes    <= buffered_bytes + 8;
                     state           <= PARSING_BODY;
                 end
             end
             PARSING_BODY: begin
-                        if (buffed_bytes >= 64) begin
+                        if (buffered_bytes >= 64) begin
                             state <= ERROR;
-                        end else if (valid_bytes >= msg_len_bytes(peeked_type)) begin
+                        end else if (valid_bytes >= msg_len_bytes + 16'd2) begin // the + 2 is for the length field itself, which is included in the message length but not in the valid bytes calculation.
                             prev_buff       <= {prev_buff[447:0], i_axi_rx_data};
-                            buffed_bytes    <= buffed_bytes - msg_len_bytes(peeked_type) + 8; // one more beat for the next message, so +8
+                            buffered_bytes  <= buffered_bytes - msg_len_bytes - 16'd2 + 16'd8; // one more beat for the next message, so +8
                             state           <= PEEKING_TYPE;
                             // Clear fields that are not present in every message type.
                             case (peeked_type)
@@ -347,21 +349,21 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         o_msg_type      <= TYPE_C;
                                     end
                                 default: begin
-                                    state               <= ERROR;
-                                    o_msg_valid         <= 0;
-                                    o_msg_type          <= 0;
-                                    o_stock_locate      <= 0;
-                                    o_timestamp         <= 0;
-                                    o_order_ref_num     <= 64'd0;
-                                    o_new_order_ref_num <= 64'd0;
-                                    o_buy_sell          <= 8'd0;
-                                    o_shares            <= 32'd0;
-                                    o_price             <= 32'd0;
+                                        o_msg_valid         <= 0;
+                                        o_stock_locate      <= 0;
+                                        o_timestamp         <= 0; 
+                                        o_order_ref_num     <= 0;
+                                        o_new_order_ref_num <= 0;
+                                        o_buy_sell          <= 0;
+                                        o_price             <= 0;
+                                        o_shares            <= 0;
+                                        msg_count           <= msg_count - 1;
+                                        o_msg_type          <= 0;
                                 end
                             endcase
                         end else begin
-                            prev_buff     <= {prev_buff[447:0], i_axi_rx_data};
-                            buffed_bytes  <= buffed_bytes + 8;
+                            prev_buff       <= {prev_buff[447:0], i_axi_rx_data};
+                            buffered_bytes  <= buffered_bytes + 8;
                             o_msg_valid         <= 0;
                             o_msg_type          <= 0;
                             o_stock_locate      <= 0;
@@ -390,18 +392,18 @@ end
 
 // returns total length of the message in bytes. "Message Length" in the fields does not contain itself.
 // Thus, + 2 is appiled to each indicated length.
-function automatic [6:0] msg_len_bytes(input [7:0] t);
-  case (t)
-    TYPE_A: msg_len_bytes   = 7'd38;
-    TYPE_F: msg_len_bytes   = 7'd42;
-    TYPE_D: msg_len_bytes   = 7'd21;
-    TYPE_U: msg_len_bytes   = 7'd37;
-    TYPE_E: msg_len_bytes   = 7'd33;
-    TYPE_X: msg_len_bytes   = 7'd25;
-    TYPE_C: msg_len_bytes   = 7'd38;
-    default: msg_len_bytes  = 7'd0;
-  endcase
-endfunction
+// function automatic [6:0] msg_len_bytes(input [7:0] t);
+//   case (t)
+//     TYPE_A: msg_len_bytes   = 7'd38;
+//     TYPE_F: msg_len_bytes   = 7'd42;
+//     TYPE_D: msg_len_bytes   = 7'd21;
+//     TYPE_U: msg_len_bytes   = 7'd37;
+//     TYPE_E: msg_len_bytes   = 7'd33;
+//     TYPE_X: msg_len_bytes   = 7'd25;
+//     TYPE_C: msg_len_bytes   = 7'd38;
+//     default: msg_len_bytes  = 7'd0;
+//   endcase
+// endfunction
 
 function automatic [63:0] take_data(
     input [511:0] prev_buff,

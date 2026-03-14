@@ -20,14 +20,15 @@ module MAC_layer_rx #(
     output reg                      o_frame_start    ,
     input  wire                     i_axi_rx_ready
 );
-    genvar      idx;
+    
 
 //====  start and end detection ====
     localparam XGMII_START = 8'hFB;
     localparam XGMII_TERM  = 8'hFD;    
     wire [1:0]   sof_location;
     wire [7:0]   eof_location;
-
+    
+    genvar      idx;
     generate
         for (idx = 0; idx < 2; idx = idx + 1 ) begin:sof_check
             assign sof_location [idx] = i_xgmii_rxc[idx*4] && (i_xgmii_rxd[idx*32 +:8] == XGMII_START);

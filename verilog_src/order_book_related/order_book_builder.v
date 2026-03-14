@@ -104,14 +104,14 @@ arbiter #(
     .o_payload      (o_payload)
 );
 
-// wire           o_ask_best_valid    = o_payload[273];
-// wire [31:0]    o_ask_best_price    = o_payload[272:241];
-// wire [31:0]     o_ask_best_shares   = o_payload[240:209];
-// wire [63:0]     o_ask_seq_num       = o_payload[208:145];
-// wire            o_bid_best_valid    = o_payload[144];
-// wire [31:0]    o_bid_best_price    = o_payload[143:112];
-// wire [31:0]     o_bid_best_shares   = o_payload[111:80];
-// wire [63:0]     o_bid_seq_num       = o_payload[79:16];
-// wire [15:0]    o_stock_locate      = o_payload[15:0];
+wire            o_ask_best_valid    = o_payload[273];
+wire [31:0]     o_ask_best_price    = o_payload[272:241];
+wire [31:0]     o_ask_best_shares   = o_payload[240:209];
+wire [63:0]     o_ask_seq_num       = o_payload[208:145];
+wire            o_bid_best_valid    = o_payload[144];
+wire [31:0]     o_bid_best_price    = o_payload[143:112];
+wire [31:0]     o_bid_best_shares   = o_payload[111:80];
+wire [63:0]     o_bid_seq_num       = o_payload[79:16];
+wire [15:0]     o_stock_locate      = o_payload[15:0];
 
 endmodule

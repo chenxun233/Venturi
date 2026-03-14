@@ -1,0 +1,96 @@
+.md-typeset p ,
+.md-typeset ul ,
+.md-typeset ol ,
+.md-typeset li {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  font-family: Palatino, serif;
+  font-style: normal;
+}
+
+.md-typeset p {
+  margin-bottom: 0.18rem;
+}
+
+.md-typeset ul li,
+.md-typeset ol li,
+.md-typeset li p ,
+.md-typeset ul ul,
+.md-typeset ul ol,
+.md-typeset ol ul,
+.md-typeset ol ol ,
+.md-typeset p  ul,
+.md-typeset p ol{
+  margin-top: 0.1rem;
+  margin-bottom: 0.3rem;
+}
+
+.md-typeset h1{
+    font-size: 1.8rem;
+    font-family: Palatino, serif;
+  font-style: normal;
+}
+
+.md-typeset h2 {
+    font-size: 1.3rem;
+    margin-top: 0.8rem;
+  margin-bottom: 0.05rem;
+    font-family: Palatino, serif;
+  font-style: normal;
+}
+
+.md-typeset h2 + p,
+.md-typeset h2 + ol,
+.md-typeset h2 + ul {
+  margin-top: 0;
+}
+
+.md-typeset h3 {
+    font-size: 1.0rem;
+    margin-top: 0.6rem;
+  margin-bottom: 0.05rem;
+    font-family: Palatino, serif;
+  font-style: normal;
+}
+
+.md-typeset h2 + h3 {
+  margin-top: 0.10rem;
+}
+
+.md-typeset h4 {
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  margin-bottom: 0.05rem;
+    font-family: Palatino, serif;
+  font-style: normal;
+}
+
+.md-typeset h3 + p,
+.md-typeset h3 + ol,
+.md-typeset h3 + ul {
+  margin-top: 0;
+}
+
+.md-typeset h4 + p,
+.md-typeset h4 + ol,
+.md-typeset h4 + ul {
+  margin-top: 0;
+}
+
+.md-typeset p + ul,
+.md-typeset p + ol {
+  margin-top: 0;
+}
+
+.md-typeset code {
+  color: #2a49a5;
+  background-color: #f5f5f5;
+}
+.md-typeset strong {
+  color: #c1121f;
+}
+
+.md-typeset a {
+  color: #c1121f;
+  text-decoration: underline;
+}

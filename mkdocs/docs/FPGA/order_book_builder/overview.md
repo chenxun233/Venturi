@@ -4,11 +4,11 @@ This module receives the messages from [order_book_parser](../order_book_parser.
 Inside, there are these modules:
 
 1. [symbol_book](symbol_book/overview.md) x *N*.
-2. [arbiter](arbiter.md)
+2. [arbiter](../arbiter.md)
 
 ## Hierarchy
 
-Here gives a simply hierarchy of order_book_builder. When parsed messages are input from [order_book_parser](../order_book_parser.md), it will be fanned out to all the [symbol_books](symbol_book/overview.md). Inside, symbol_book will check if the symbol is the configured one and discard the unmatches. Best bid and ask, along with the shares, will be stored in a [fifo](../../FPGA/order_book_builder/symbol_book/fifo.md) inside [symbol_book](symbol_book/overview.md). Round-robin is applied in the [arbiter](arbiter.md). It will decide which [symbol_book](symbol_book/overview.md)'s best bid/ask will be output. 
+Here gives a simply hierarchy of order_book_builder. When parsed messages are input from [order_book_parser](../order_book_parser.md), it will be fanned out to all the [symbol_books](symbol_book/overview.md). Inside, symbol_book will check if the symbol is the configured one and discard the unmatches. Best bid and ask, along with the shares, will be stored in a [fifo](../../FPGA/order_book_builder/symbol_book/fifo.md) inside [symbol_book](symbol_book/overview.md). Round-robin is applied in the [arbiter](../arbiter.md). It will decide which [symbol_book](symbol_book/overview.md)'s best bid/ask will be output. 
 
 ![hierarchy of order_book_builder](../../figures/FPGA/order_book_builder/hierarachy_order_book_builder.png)
 
@@ -25,7 +25,7 @@ Here gives a simply hierarchy of order_book_builder. When parsed messages are in
 - `i_msg_valid` marks one decoded parser event as valid.
 - `i_seq_num` carries the sequence number attached to the parser event.
 - `i_rx_ingress_tick` carries the packet ingress tick from the receive path. (not used now)
-- `i_msg_type` identifies the ITCH message type, such as `A`, `D`, `X`, `U`, `E`, or `F`.
+- `i_msg_type` identifies the ITCH message type, such as `A`, `D`, `X`, `U`, `E`, or `F`.zhege
 - `i_stock_locate` selects which per-symbol book should consume the event.
 - `i_order_ref_num` carries the original order reference number.
 - `i_new_order_ref_num` is used by replace messages such as `U`.

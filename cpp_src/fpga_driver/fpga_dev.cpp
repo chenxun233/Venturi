@@ -5,7 +5,9 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-FPGADev::FPGADev(std::string pci_addr) : BasicDev(pci_addr, 1) {}
+FPGADev::FPGADev(std::string pci_addr) : 
+BasicDev(pci_addr, 1) 
+{}
 
 FPGADev::~FPGADev() {}
 
@@ -308,181 +310,109 @@ bool FPGADev::test_dma_roundtrip() {
 
   DMAMemoryAllocator &allocator = DMAMemoryAllocator::getInstance();
 
-  // =========================================================================
-  // Test 1: Small Round-Trip (4 DWords = 16 bytes)
-  // =========================================================================
-  info("Test 1: Small round-trip (4 DWords)");
+  struct RoundTripCase {
+    const char *name;
+    uint32_t ctrl;
+    int qwords;
+    uint64_t seed;
+  };
 
-  // Allocate source buffer and fill with test data
-  DMAMemoryPair src_small = allocator.allocDMAMemory(4096, m_fds.container_fd);
-  if (src_small.virt == nullptr) {
-    error("Failed to allocate small source buffer");
-    return false;
-  }
+  const RoundTripCase cases[] = {
+      {"Small round-trip (4 DWords)", 0x01, 2, 0x1122334455667788ULL},
+      {"Large round-trip (12 DWords)", 0x02, 6, 0x0001000200030004ULL},
+      {"Long round-trip (20 DWords)", 0x03, 10, 0xABCDEF0000000000ULL},
+  };
 
-  // Allocate destination buffer and clear it
-  DMAMemoryPair dst_small = allocator.allocDMAMemory(4096, m_fds.container_fd);
-  if (dst_small.virt == nullptr) {
-    error("Failed to allocate small destination buffer");
-    return false;
-  }
+  bool results[3] = {false, false, false};
 
-  // Fill source with test pattern
-  volatile uint64_t *src_small_data = (volatile uint64_t *)src_small.virt;
-  src_small_data[0] = 0x1122334455667788ULL;
-  src_small_data[1] = 0xAABBCCDDEEFF0011ULL;
+  auto fill_pattern = [](volatile uint64_t *buf, int qwords, uint64_t seed) {
+    for (int i = 0; i < qwords; ++i) {
+      buf[i] = seed + 0x0101010101010101ULL * static_cast<uint64_t>(i);
+    }
+  };
 
-  // Clear destination
-  volatile uint64_t *dst_small_data = (volatile uint64_t *)dst_small.virt;
-  dst_small_data[0] = 0xFFFFFFFFFFFFFFFFULL;
-  dst_small_data[1] = 0xFFFFFFFFFFFFFFFFULL;
+  for (size_t case_idx = 0; case_idx < 3; ++case_idx) {
+    const RoundTripCase &test_case = cases[case_idx];
+    info("Test %zu: %s", case_idx + 1, test_case.name);
 
-  // Memory barrier after writing source data
-  __asm__ volatile("" ::: "memory");
+    DMAMemoryPair src = allocator.allocDMAMemory(4096, m_fds.container_fd);
+    if (src.virt == nullptr) {
+      error("Failed to allocate source buffer for %s", test_case.name);
+      return false;
+    }
 
-  info("  Source IOVA:      0x%016lX", src_small.iova);
-  info("  Destination IOVA: 0x%016lX", dst_small.iova);
-  info("  Source data[0]:   0x%016lX", src_small_data[0]);
-  info("  Source data[1]:   0x%016lX", src_small_data[1]);
+    DMAMemoryPair dst = allocator.allocDMAMemory(4096, m_fds.container_fd);
+    if (dst.virt == nullptr) {
+      error("Failed to allocate destination buffer for %s", test_case.name);
+      return false;
+    }
 
-  // Program round-trip addresses
-  write_reg64(REG_RT_SRC_ADDR, src_small.iova);
-  write_reg64(REG_RT_DST_ADDR, dst_small.iova);
+    volatile uint64_t *src_data = (volatile uint64_t *)src.virt;
+    volatile uint64_t *dst_data = (volatile uint64_t *)dst.virt;
+    fill_pattern(src_data, test_case.qwords, test_case.seed);
+    for (int i = 0; i < test_case.qwords; ++i) {
+      dst_data[i] = 0xFFFFFFFFFFFFFFFFULL;
+    }
 
-  // Trigger small round-trip (bit 0 = small)
-  write_reg32(REG_RT_CTRL, 0x01);
+    __asm__ volatile("mfence" ::: "memory");
 
-  // Wait for completion
-  int timeout = 1000;
-  while (timeout-- > 0) {
-    uint32_t status = read_reg32(REG_RT_STATUS);
-    if (status & 0x2) {   // Done bit
-      if (status & 0x4) { // Error bit
-        info("  Small round-trip error!");
-        return false;
+    info("  Source IOVA:      0x%016lX", src.iova);
+    info("  Destination IOVA: 0x%016lX", dst.iova);
+
+    write_reg64(REG_RT_SRC_ADDR, src.iova);
+    write_reg64(REG_RT_DST_ADDR, dst.iova);
+    write_reg32(REG_RT_CTRL, test_case.ctrl);
+
+    int timeout = 2000;
+    bool done = false;
+    while (timeout-- > 0) {
+      uint32_t status = read_reg32(REG_RT_STATUS);
+      if (status & 0x4) {
+        error("  %s reported FPGA-side error status 0x%08X", test_case.name,
+              status);
+        break;
       }
-      break;
-    }
-    usleep(100);
-  }
-
-  if (timeout <= 0) {
-    warn("  Small round-trip timeout!");
-    return false;
-  }
-
-  // Memory barrier before reading destination
-  __asm__ volatile("mfence" ::: "memory");
-
-  // Verify data
-  bool small_pass = true;
-  for (int i = 0; i < 2; i++) {
-    if (dst_small_data[i] != src_small_data[i]) {
-      warn("  Small RT mismatch at QW[%d]: got 0x%016lX, expected 0x%016lX", i,
-           dst_small_data[i], src_small_data[i]);
-      small_pass = false;
-    }
-  }
-
-  if (small_pass) {
-    info("  Small round-trip [PASS] - Data verified:");
-    info("    Dst[0]: 0x%016lX", dst_small_data[0]);
-    info("    Dst[1]: 0x%016lX", dst_small_data[1]);
-  }
-
-  write_reg32(REG_RT_CTRL, 0x00); // reset
-  // =========================================================================
-  // Test 2: Large Round-Trip (12 DWords = 48 bytes)
-  // =========================================================================
-  info("Test 2: Large round-trip (12 DWords)");
-
-  // Allocate source buffer
-  DMAMemoryPair src_large = allocator.allocDMAMemory(4096, m_fds.container_fd);
-  if (src_large.virt == nullptr) {
-    error("Failed to allocate large source buffer");
-    return false;
-  }
-
-  // Allocate destination buffer
-  DMAMemoryPair dst_large = allocator.allocDMAMemory(4096, m_fds.container_fd);
-  if (dst_large.virt == nullptr) {
-    error("Failed to allocate large destination buffer");
-    return false;
-  }
-
-  // Fill source with test pattern (12 DW = 6 QW)
-  volatile uint64_t *src_large_data = (volatile uint64_t *)src_large.virt;
-  src_large_data[0] = 0x0001000200030004ULL;
-  src_large_data[1] = 0x0005000600070008ULL;
-  src_large_data[2] = 0x0009000A000B000CULL;
-  src_large_data[3] = 0x000D000E000F0010ULL;
-  src_large_data[4] = 0x0011001200130014ULL;
-  src_large_data[5] = 0x0015001600170018ULL;
-
-  // Clear destination
-  volatile uint64_t *dst_large_data = (volatile uint64_t *)dst_large.virt;
-  for (int i = 0; i < 6; i++) {
-    dst_large_data[i] = 0xFFFFFFFFFFFFFFFFULL;
-  }
-
-  // Memory barrier
-  __asm__ volatile("mfence" ::: "memory");
-
-  info("  Source IOVA:      0x%016lX", src_large.iova);
-  info("  Destination IOVA: 0x%016lX", dst_large.iova);
-
-  // Program round-trip addresses
-  write_reg64(REG_RT_SRC_ADDR, src_large.iova);
-  write_reg64(REG_RT_DST_ADDR, dst_large.iova);
-
-  // Trigger large round-trip (bit 1 = large)
-  write_reg32(REG_RT_CTRL, 0x02);
-
-  // Wait for completion
-  timeout = 1000;
-  while (timeout-- > 0) {
-    uint32_t status = read_reg32(REG_RT_STATUS);
-    if (status & 0x2) {   // Done bit
-      if (status & 0x4) { // Error bit
-        error("  Large round-trip error!");
-        return false;
+      if (status & 0x2) {
+        done = true;
+        break;
       }
-      break;
+      usleep(100);
     }
-    usleep(100);
-  }
 
-  if (timeout <= 0) {
-    warn("  Large round-trip timeout!");
-    return false;
-  }
+    write_reg32(REG_RT_CTRL, 0x00);
 
-  // Memory barrier
-  __asm__ volatile("mfence" ::: "memory");
-
-  // Verify data
-  bool large_pass = true;
-  for (int i = 0; i < 6; i++) {
-    if (dst_large_data[i] != src_large_data[i]) {
-      warn("  Large RT mismatch at QW[%d]: got 0x%016lX, expected 0x%016lX", i,
-           dst_large_data[i], src_large_data[i]);
-      large_pass = false;
+    if (!done) {
+      if (timeout <= 0) {
+        warn("  %s timeout!", test_case.name);
+      }
+      continue;
     }
-  }
 
-  if (large_pass) {
-    info("  Large round-trip [PASS] - Data verified:");
-    for (int i = 0; i < 6; i++) {
-      info("    Dst[%d]: 0x%016lX", i, dst_large_data[i]);
+    __asm__ volatile("mfence" ::: "memory");
+
+    bool pass = true;
+    for (int i = 0; i < test_case.qwords; ++i) {
+      if (dst_data[i] != src_data[i]) {
+        warn("  %s mismatch at QW[%d]: got 0x%016lX, expected 0x%016lX",
+             test_case.name, i, dst_data[i], src_data[i]);
+        pass = false;
+      }
     }
+
+    if (pass) {
+      info("  %s [PASS] - Data verified:", test_case.name);
+      for (int i = 0; i < test_case.qwords; ++i) {
+        info("    Dst[%d]: 0x%016lX", i, dst_data[i]);
+      }
+    }
+
+    results[case_idx] = pass;
   }
 
-  // =========================================================================
-  // Summary
-  // =========================================================================
   info("--- Round-Trip Test Summary ---");
-  info("  Small RT (4 DW):  %s", small_pass ? "PASS" : "FAIL");
-  info("  Large RT (12 DW): %s", large_pass ? "PASS" : "FAIL");
+  info("  Small RT (4 DW):   %s", results[0] ? "PASS" : "FAIL");
+  info("  Large RT (12 DW):  %s", results[1] ? "PASS" : "FAIL");
+  info("  Long RT (20 DW):   %s", results[2] ? "PASS" : "FAIL");
 
-  return large_pass;
+  return results[0] && results[1] && results[2];
 }

@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "user_logic.v"
 
 // =============================================================================
 // Top.v - Venturi FPGA NIC Top Level Module
@@ -121,7 +122,6 @@ wire                    cc_last;
 wire                    rq_ready;
 wire                    rq_valid;
 wire [3:0]              rq_type;
-wire                    rq_payload_sop;
 wire                    rq_payload_last;
 wire [63:0]             rq_addr;
 wire [10:0]             rq_payload_dw_count;
@@ -210,7 +210,6 @@ pcie_wrapper #(
     .o_rq_ready                 (rq_ready),
     .i_rq_valid                 (rq_valid),
     .i_rq_type                  (rq_type),
-    .i_rq_payload_sop           (rq_payload_sop),
     .i_rq_payload_last          (rq_payload_last),
     .i_rq_addr                  (rq_addr),
     .i_rq_payload_dw_count      (rq_payload_dw_count),
@@ -235,6 +234,65 @@ pcie_wrapper #(
     .o_cfg_max_payload          (cfg_max_payload),
     .o_cfg_max_read_req         (cfg_max_read_req),
     .o_pcie_requester_id        (pcie_requester_id)
+);
+
+user_logic #(
+    .DATA_WIDTH                 (DATA_WIDTH),
+    .BAR0_SIZE                  (BAR0_SIZE)
+) user_logic_inst (
+    .user_clk                   (user_clk_250),
+    .user_reset_p               (user_reset_p),
+
+    .cq_valid                   (cq_valid),
+    .cq_type                    (cq_type),
+    .cq_reg_addr                (cq_reg_addr),
+    .cq_payload                 (cq_payload),
+    .cq_bar_id                  (cq_bar_id),
+    .cq_requester_id            (cq_requester_id),
+    .cq_tag                     (cq_tag),
+    .cq_tc                      (cq_tc),
+    .cq_lower_addr              (cq_lower_addr),
+    .cq_payload_dw_count        (cq_payload_dw_count),
+    .cq_last                    (cq_last),
+
+    .cc_ready                   (cc_ready),
+    .cc_valid                   (cc_valid),
+    .cc_requester_id            (cc_requester_id),
+    .cc_tag                     (cc_tag),
+    .cc_tc                      (cc_tc),
+    .cc_lower_addr              (cc_lower_addr),
+    .cc_dword_count             (cc_dword_count),
+    .cc_status                  (cc_status),
+    .cc_payload                 (cc_payload),
+    .cc_last                    (cc_last),
+
+    .rq_ready                   (rq_ready),
+    .rq_valid                   (rq_valid),
+    .rq_type                    (rq_type),
+    .rq_payload_sop             (),
+    .rq_payload_last            (rq_payload_last),
+    .rq_addr                    (rq_addr),
+    .rq_payload_dw_count        (rq_payload_dw_count),
+    .rq_tag                     (rq_tag),
+    .rq_tc                      (rq_tc),
+    .rq_payload                 (rq_payload),
+
+    .rc_lower_addr              (rc_lower_addr),
+    .rc_err_code                (rc_err_code),
+    .rc_payload_byte_count      (rc_payload_byte_count),
+    .rc_request_completed       (rc_request_completed),
+    .rc_requester_id            (rc_requester_id),
+    .rc_tag                     (rc_tag),
+    .rc_valid                   (rc_valid),
+    .rc_payload_last            (rc_payload_last),
+    .rc_payload                 (rc_payload),
+    .rc_payload_dw_keep         (rc_payload_dw_keep),
+    .rc_posioned                (rc_posioned),
+    .rc_payload_dw_count        (rc_payload_dw_count),
+
+    .cfg_max_payload            (cfg_max_payload),
+    .cfg_max_read_req           (cfg_max_read_req),
+    .pcie_requester_id          (pcie_requester_id)
 );
 
 
@@ -299,140 +357,140 @@ wire [31:0]  bid_best_price ;
 wire [31:0]  bid_best_shares;
 
 
-MAC_layer_rx #(
-    .DATA_WIDTH (64),
-    .CTRL_WIDTH (8)
-) MAC_layer_rx_inst (
-    .i_xgmii_rx_clk   (w_xgmii_rx_clk   ),
-    .i_xgmii_rx_rst   (w_xgmii_rx_rst   ),
-    .i_xgmii_rxd      (w_xgmii_rxd      ),
-    .i_xgmii_rxc      (w_xgmii_rxc      ),
-    .i_rx_status      (w_sfp_rx_status  ),
-    .o_axi_rx_data    (w_axi_rx_data    ),
-    .o_axi_rx_valid   (w_axi_rx_valid   ),
-    .o_axi_rx_keep    (w_axi_rx_keep    ),
-    .o_axi_rx_last    (w_axi_rx_last    ),
-    .o_frame_start    (w_axi_rx_frame_start),
-    .i_axi_rx_ready   (w_axi_rx_ready   )
-);
+// MAC_layer_rx #(
+//     .DATA_WIDTH (64),
+//     .CTRL_WIDTH (8)
+// ) MAC_layer_rx_inst (
+//     .i_xgmii_rx_clk   (w_xgmii_rx_clk   ),
+//     .i_xgmii_rx_rst   (w_xgmii_rx_rst   ),
+//     .i_xgmii_rxd      (w_xgmii_rxd      ),
+//     .i_xgmii_rxc      (w_xgmii_rxc      ),
+//     .i_rx_status      (w_sfp_rx_status  ),
+//     .o_axi_rx_data    (w_axi_rx_data    ),
+//     .o_axi_rx_valid   (w_axi_rx_valid   ),
+//     .o_axi_rx_keep    (w_axi_rx_keep    ),
+//     .o_axi_rx_last    (w_axi_rx_last    ),
+//     .o_frame_start    (w_axi_rx_frame_start),
+//     .i_axi_rx_ready   (w_axi_rx_ready   )
+// );
 
-frame_timestamp #(
-    .COUNTER_WIDTH(64)
-) frame_timestamp_inst (
-    .i_clk            (w_xgmii_rx_clk),
-    .i_rst            (w_xgmii_rx_rst),
-    .i_event          (w_axi_rx_frame_start),
-    .o_event_timestamp(w_axi_rx_ingress_tick)
-);
+// frame_timestamp #(
+//     .COUNTER_WIDTH(64)
+// ) frame_timestamp_inst (
+//     .i_clk            (w_xgmii_rx_clk),
+//     .i_rst            (w_xgmii_rx_rst),
+//     .i_event          (w_axi_rx_frame_start),
+//     .o_event_timestamp(w_axi_rx_ingress_tick)
+// );
 
-order_book_parser #(
-)
-order_book_parser_inst 
-(
-// mac layer rx interface
-.i_clk_156          (w_xgmii_rx_clk   ),
-.i_rst              (w_xgmii_rx_rst   ),
-.i_axi_rx_data      (w_axi_rx_data    ),
-.i_axi_rx_valid     (w_axi_rx_valid   ),
-.i_axi_rx_keep      (w_axi_rx_keep    ),
-.i_axi_rx_last      (w_axi_rx_last    ),
-.i_axi_rx_ingress_tick(w_axi_rx_ingress_tick),
-.o_axi_rx_ready     (axi_rx_ready),
-.o_msg_valid        (msg_valid),
-.o_seq_num          (seq_num),
-.o_rx_ingress_tick  (rx_ingress_tick),
-.o_timestamp        (timestamp),
-.o_msg_type         (msg_type), //A, D, X, U, E, F
-.o_stock_locate     (stock_locate), // the stock ID
-.o_order_ref_num    (order_ref_num), // order reference number
-.o_new_order_ref_num(new_order_ref_num), // new order reference number (for replace)
-.o_buy_sell         (buy_sell), 
-.o_shares           (shares),
-.o_price            (price),
-.i_ctl_dst_mac      (o_ctl_mac_addr     ),
-.i_ctl_dst_ip       (o_ctl_ip_addr      ),
-.i_ctl_dst_port     (o_ctl_port         ),
-.i_promiscuous      (o_ctl_promiscuous  ),
-.i_sync_fire        (o_sync_fire        ),
-.i_ctl_reg          (o_ctl_reg          )
-);
+// order_book_parser #(
+// )
+// order_book_parser_inst 
+// (
+// // mac layer rx interface
+// .i_clk_156          (w_xgmii_rx_clk   ),
+// .i_rst              (w_xgmii_rx_rst   ),
+// .i_axi_rx_data      (w_axi_rx_data    ),
+// .i_axi_rx_valid     (w_axi_rx_valid   ),
+// .i_axi_rx_keep      (w_axi_rx_keep    ),
+// .i_axi_rx_last      (w_axi_rx_last    ),
+// .i_axi_rx_ingress_tick(w_axi_rx_ingress_tick),
+// .o_axi_rx_ready     (axi_rx_ready),
+// .o_msg_valid        (msg_valid),
+// .o_seq_num          (seq_num),
+// .o_rx_ingress_tick  (rx_ingress_tick),
+// .o_timestamp        (timestamp),
+// .o_msg_type         (msg_type), //A, D, X, U, E, F
+// .o_stock_locate     (stock_locate), // the stock ID
+// .o_order_ref_num    (order_ref_num), // order reference number
+// .o_new_order_ref_num(new_order_ref_num), // new order reference number (for replace)
+// .o_buy_sell         (buy_sell), 
+// .o_shares           (shares),
+// .o_price            (price),
+// .i_ctl_dst_mac      (o_ctl_mac_addr     ),
+// .i_ctl_dst_ip       (o_ctl_ip_addr      ),
+// .i_ctl_dst_port     (o_ctl_port         ),
+// .i_promiscuous      (o_ctl_promiscuous  ),
+// .i_sync_fire        (o_sync_fire        ),
+// .i_ctl_reg          (o_ctl_reg          )
+// );
 
-order_book_builder #(
-) order_book_builder_inst (
-    .i_clk_156          (w_xgmii_rx_clk     ),
-    .i_rst              (w_xgmii_rx_rst     ),
-    .i_msg_valid        (msg_valid          ),
-    .i_seq_num          (seq_num            ),
-    .i_rx_ingress_tick  (rx_ingress_tick    ),
-    .i_msg_type         (msg_type           ),
-    .i_stock_locate     (stock_locate       ),
-    .i_order_ref_num    (order_ref_num      ),
-    .i_new_order_ref_num(new_order_ref_num  ),
-    .i_buy_sell         (buy_sell           ),
-    .i_shares           (shares             ),
-    .i_price            (price              ),
-    .i_timestamp        (timestamp          ),
-    .o_valid            (builder_event_valid   ),
-    .o_payload          (builder_event_payload )
-);
+// order_book_builder #(
+// ) order_book_builder_inst (
+//     .i_clk_156          (w_xgmii_rx_clk     ),
+//     .i_rst              (w_xgmii_rx_rst     ),
+//     .i_msg_valid        (msg_valid          ),
+//     .i_seq_num          (seq_num            ),
+//     .i_rx_ingress_tick  (rx_ingress_tick    ),
+//     .i_msg_type         (msg_type           ),
+//     .i_stock_locate     (stock_locate       ),
+//     .i_order_ref_num    (order_ref_num      ),
+//     .i_new_order_ref_num(new_order_ref_num  ),
+//     .i_buy_sell         (buy_sell           ),
+//     .i_shares           (shares             ),
+//     .i_price            (price              ),
+//     .i_timestamp        (timestamp          ),
+//     .o_valid            (builder_event_valid   ),
+//     .o_payload          (builder_event_payload )
+// );
 
-async_fifo #(
-    .DEPTH  (EVENT_CDC_DEPTH),
-    .DATA_W (EVENT_PAYLOAD_W)
-) event_cdc_fifo_inst (
-    .i_wr_clk   (w_xgmii_rx_clk),
-    .i_wr_rst   (w_xgmii_rx_rst),
-    .i_wr_en    (builder_event_valid),
-    .i_wr_data  (builder_event_payload),
-    .o_wr_full  (event_cdc_wr_full),
-    .i_rd_clk   (user_clk_250),
-    .i_rd_rst   (user_reset_p),
-    .i_rd_en    (1'b1),
-    .o_rd_empty (),
-    .o_rd_valid (event_valid),
-    .o_rd_data  (event_payload)
-);
-
-
+// async_fifo #(
+//     .DEPTH  (EVENT_CDC_DEPTH),
+//     .DATA_W (EVENT_PAYLOAD_W)
+// ) event_cdc_fifo_inst (
+//     .i_wr_clk   (w_xgmii_rx_clk),
+//     .i_wr_rst   (w_xgmii_rx_rst),
+//     .i_wr_en    (builder_event_valid),
+//     .i_wr_data  (builder_event_payload),
+//     .o_wr_full  (event_cdc_wr_full),
+//     .i_rd_clk   (user_clk_250),
+//     .i_rd_rst   (user_reset_p),
+//     .i_rd_en    (1'b1),
+//     .o_rd_empty (),
+//     .o_rd_valid (event_valid),
+//     .o_rd_data  (event_payload)
+// );
 
 
 
 
-control_plane #()
-control_plane_inst
-(
-// pcie_wrapper interface
-.i_user_clk_250         (user_clk_250       ),
-.i_user_reset_p         (user_reset_p       ), //active hig
-.i_cq_valid             (cq_valid           ),
-.i_cq_type              (cq_type            ),
-.i_cq_reg_addr          (cq_reg_addr        ),
-.i_cq_payload           (cq_payload         ),
-.i_cq_bar_id            (cq_bar_id          ),
-.i_cq_requester_id      (cq_requester_id    ),
-.i_cq_tag               (cq_tag             ),
-.i_cq_tc                (cq_tc              ),
-.i_cq_lower_addr        (cq_lower_addr      ),
-.i_cq_payload_dw_count  (cq_payload_dw_count),
-.i_cq_last              (cq_last            ),
-.i_cc_ready             (cc_ready           ),
-.o_cc_valid             (cc_valid           ),
-.o_cc_requester_id      (cc_requester_id    ),
-.o_cc_tag               (cc_tag             ),
-.o_cc_tc                (cc_tc              ),
-.o_cc_lower_addr        (cc_lower_addr      ),
-.o_cc_dword_count       (cc_dword_count     ),
-.o_cc_status            (cc_status          ),
-.o_cc_payload           (cc_payload         ),
-.o_cc_last              (cc_last            ),
-.i_clk_156              (w_xgmii_rx_clk     ),
-.o_sync_fire            (o_sync_fire        ),
-.o_ctl_mac_addr         (o_ctl_mac_addr     ),
-.o_ctl_ip_addr          (o_ctl_ip_addr      ),
-.o_ctl_port             (o_ctl_port         ),
-.o_ctl_promiscuous      (o_ctl_promiscuous  ),
-.o_ctl_reg              (o_ctl_reg          )
-);
+
+
+// control_plane #()
+// control_plane_inst
+// (
+// // pcie_wrapper interface
+// .i_user_clk_250         (user_clk_250       ),
+// .i_user_reset_p         (user_reset_p       ), //active hig
+// .i_cq_valid             (cq_valid           ),
+// .i_cq_type              (cq_type            ),
+// .i_cq_reg_addr          (cq_reg_addr        ),
+// .i_cq_payload           (cq_payload         ),
+// .i_cq_bar_id            (cq_bar_id          ),
+// .i_cq_requester_id      (cq_requester_id    ),
+// .i_cq_tag               (cq_tag             ),
+// .i_cq_tc                (cq_tc              ),
+// .i_cq_lower_addr        (cq_lower_addr      ),
+// .i_cq_payload_dw_count  (cq_payload_dw_count),
+// .i_cq_last              (cq_last            ),
+// .i_cc_ready             (cc_ready           ),
+// .o_cc_valid             (cc_valid           ),
+// .o_cc_requester_id      (cc_requester_id    ),
+// .o_cc_tag               (cc_tag             ),
+// .o_cc_tc                (cc_tc              ),
+// .o_cc_lower_addr        (cc_lower_addr      ),
+// .o_cc_dword_count       (cc_dword_count     ),
+// .o_cc_status            (cc_status          ),
+// .o_cc_payload           (cc_payload         ),
+// .o_cc_last              (cc_last            ),
+// .i_clk_156              (w_xgmii_rx_clk     ),
+// .o_sync_fire            (o_sync_fire        ),
+// .o_ctl_mac_addr         (o_ctl_mac_addr     ),
+// .o_ctl_ip_addr          (o_ctl_ip_addr      ),
+// .o_ctl_port             (o_ctl_port         ),
+// .o_ctl_promiscuous      (o_ctl_promiscuous  ),
+// .o_ctl_reg              (o_ctl_reg          )
+// );
 
 
 
@@ -468,4 +526,3 @@ pcs_pma_wrapper_inst (
 
 
 endmodule
-

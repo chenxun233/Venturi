@@ -29,7 +29,7 @@ module tb_RC_gearbox256;
     wire [95:0]                 rc_descriptor;
 
     wire            sop             = dut.sop;
-    wire [12:0]     byte_count      = dut.byte_count;
+    // wire [12:0]     byte_count      = dut.byte_count;
     // =========================================================================
     // DUT Instantiation
     // =========================================================================
@@ -68,19 +68,19 @@ module tb_RC_gearbox256;
     // Task: Reset
     task apply_reset;
         begin
-            m_axis_rc_tdata  = 0;
-            m_axis_rc_tvalid = 0;
-            m_axis_rc_tuser  = 0;
-            m_axis_rc_tkeep  = 0;
-            m_axis_rc_tlast  = 0;
+            m_axis_rc_tdata  <= 0;
+            m_axis_rc_tvalid <= 0;
+            m_axis_rc_tuser  <= 0;
+            m_axis_rc_tkeep  <= 0;
+            m_axis_rc_tlast  <= 0;
         end
     endtask
 
 
-    wire [95:0]     descriptor_1 = {{67{1'b1}},13'b00000_0001_0100,{16{1'b1}}};
-    wire [95:0]     descriptor_2 = {{67{1'b1}},13'b00000_0011_0100,{16{1'b1}}};
-    wire [95:0]     descriptor_3 = {{67{1'b1}},13'b00000_0101_0100,{16{1'b1}}};
-    wire [159:0]    payload_1   = 159'hAA10_AAA9_AAA8_AAA7_AAA6_AAA5_AAA4_AAA3__AAA2_AAA1;
+    wire [95:0]     descriptor_1 = {{53{1'b1}}, 11'd5,  {32{1'b1}}};
+    wire [95:0]     descriptor_2 = {{53{1'b1}}, 11'd13, {32{1'b1}}};
+    wire [95:0]     descriptor_3 = {{53{1'b1}}, 11'd21, {32{1'b1}}};
+    wire [159:0]    payload_1   = 160'hAAAA_AAA9_AAA8_AAA7_AAA6_AAA5_AAA4_AAA3__AAA2_AAA1;
     wire [255:0]    payload_2   = 256'hBB16_BB15_BB14_BB13_BB12_BB11_BB10_BBB9_BBB8_BBB7_BBB6_BBB5_BBB4_BBB3_BBB2_BBB1;
     wire [255:0]    payload_3   = 256'hCC16_CC15_CC14_CC13_CC12_CC11_CC10_CCC9_CCC8_CCC7_CCC6_CCC5_CCC4_CCC3_CCC2_CCC1;
 
@@ -89,70 +89,70 @@ module tb_RC_gearbox256;
     // Main Test Sequence
     // =========================================================================
     initial begin
-        rst_n = 0;
+        rst_n <= 0;
         #CLK_PERIOD;
-        rst_n = 1;
+        rst_n <= 1;
         #CLK_PERIOD;
 
         // =====================================================================
         // Burst 1: Single-cycle transfer (256 bits = payload_1 + descriptor_1)
-        // descriptor_1[28:16] = 20 bytes (payload_1 is 160 bits = 20 bytes)
+        // descriptor_1[42:32] = 4 DW
         // tvalid=1, tlast=1 at time 1
         // =====================================================================
-        m_axis_rc_tdata  = {payload_1, descriptor_1};
-        m_axis_rc_tvalid = 1;
-        m_axis_rc_tuser  = {{42{1'b0}}, 1'b1, {32{1'b0}}};  // tuser[32] = 1 (SOP)
-        m_axis_rc_tkeep  = 8'hFF;
-        m_axis_rc_tlast  = 1;
+        m_axis_rc_tdata  <= {payload_1,descriptor_1};
+        m_axis_rc_tvalid <= 1;
+        m_axis_rc_tuser  <= {{42{1'b0}}, 1'b1, {32{1'b0}}};  // tuser[32] = 1 (SOP)
+        m_axis_rc_tkeep  <= 8'hFF;
+        m_axis_rc_tlast  <= 1;
         #CLK_PERIOD;
         apply_reset();
         #CLK_PERIOD;
 
         // =====================================================================
         // Burst 2: Two-cycle transfer
-        // descriptor_2[28:16] = 52 bytes (payload_1 + payload_2 = 20 + 32 bytes)
+        // descriptor_2[42:32] = 12 DW (4 DW from SOP payload + 8 DW from payload_2)
         // Time 1: payload_1 + descriptor_2, tlast=0
         // Time 2: payload_2, tlast=1
         // =====================================================================
-        m_axis_rc_tdata  = {payload_1, descriptor_2};
-        m_axis_rc_tvalid = 1;
-        m_axis_rc_tuser  = {{42{1'b0}}, 1'b1, {32{1'b0}}};  // tuser[32] = 1 (SOP)
-        m_axis_rc_tkeep  = 8'hFF;
-        m_axis_rc_tlast  = 0;
+        m_axis_rc_tdata  <= {payload_1,descriptor_2};
+        m_axis_rc_tvalid <= 1;
+        m_axis_rc_tuser  <= {{42{1'b0}}, 1'b1, {32{1'b0}}};  // tuser[32] = 1 (SOP)
+        m_axis_rc_tkeep  <= 8'hFF;
+        m_axis_rc_tlast  <= 0;
         #CLK_PERIOD;
-        m_axis_rc_tdata  = payload_2;
-        m_axis_rc_tvalid = 1;
-        m_axis_rc_tuser  = 0;  // tuser[32] = 0 (not SOP)
-        m_axis_rc_tkeep  = 8'hFF;
-        m_axis_rc_tlast  = 1;
+        m_axis_rc_tdata  <= payload_2;
+        m_axis_rc_tvalid <= 1;
+        m_axis_rc_tuser  <= 0;  // tuser[32] = 0 (not SOP)
+        m_axis_rc_tkeep  <= 8'hFF;
+        m_axis_rc_tlast  <= 1;
         #CLK_PERIOD;
         apply_reset();
         #CLK_PERIOD;
 
         // =====================================================================
         // Burst 3: Three-cycle transfer
-        // descriptor_3[28:16] = 84 bytes (payload_1 + payload_2 + payload_3 = 20 + 32 + 32 bytes)
+        // descriptor_3[42:32] = 20 DW (4 DW from SOP payload + 8 DW + 8 DW)
         // Time 1: payload_1 + descriptor_3, tlast=0
         // Time 2: payload_2, tlast=0
         // Time 3: payload_3, tlast=1
         // =====================================================================
-        m_axis_rc_tdata  = {payload_1, descriptor_3};
-        m_axis_rc_tvalid = 1;
-        m_axis_rc_tuser  = {{42{1'b0}}, 1'b1, {32{1'b0}}};  // tuser[32] = 1 (SOP)
-        m_axis_rc_tkeep  = 8'hFF;
-        m_axis_rc_tlast  = 0;
+        m_axis_rc_tdata  <= {payload_1,descriptor_3};
+        m_axis_rc_tvalid <= 1;
+        m_axis_rc_tuser  <= {{42{1'b0}}, 1'b1, {32{1'b0}}};  // tuser[32] = 1 (SOP)
+        m_axis_rc_tkeep  <= 8'hFF;
+        m_axis_rc_tlast  <= 0;
         #CLK_PERIOD;
-        m_axis_rc_tdata  = payload_2;
-        m_axis_rc_tvalid = 1;
-        m_axis_rc_tuser  = 0;  // tuser[32] = 0 (not SOP)
-        m_axis_rc_tkeep  = 8'hFF;
-        m_axis_rc_tlast  = 0;
+        m_axis_rc_tdata  <= payload_2;
+        m_axis_rc_tvalid <= 1;
+        m_axis_rc_tuser  <= 0;  // tuser[32] = 0 (not SOP)
+        m_axis_rc_tkeep  <= 8'hFF;
+        m_axis_rc_tlast  <= 0;
         #CLK_PERIOD;
-        m_axis_rc_tdata  = payload_3;
-        m_axis_rc_tvalid = 1;
-        m_axis_rc_tuser  = 0;  // tuser[32] = 0 (not SOP)
-        m_axis_rc_tkeep  = 8'hFF;
-        m_axis_rc_tlast  = 1;
+        m_axis_rc_tdata  <= payload_3;
+        m_axis_rc_tvalid <= 1;
+        m_axis_rc_tuser  <= 0;  // tuser[32] = 0 (not SOP)
+        m_axis_rc_tkeep  <= 8'hFF;
+        m_axis_rc_tlast  <= 1;
         #CLK_PERIOD;
         apply_reset();
         #(CLK_PERIOD*5);
