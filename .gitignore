@@ -13,3 +13,5 @@ Note/
 openspec/
 .vscode/
 verilator_src/
+.codex2/
+obj_dir2/
