@@ -6,7 +6,8 @@
 
 module user_logic #(
     parameter DATA_WIDTH = 256,
-    parameter BAR0_SIZE  = 16
+    parameter BAR0_SIZE  = 16,
+    parameter RX_RING_COUNT = 2
 )(
     input wire                          user_clk,
     input wire                          user_reset_p, //active high
@@ -60,7 +61,14 @@ module user_logic #(
     // Configuration Outputs
     input wire [2:0]                    cfg_max_payload,
     input wire [2:0]                    cfg_max_read_req,
-    input wire [15:0]                   pcie_requester_id
+    input wire [15:0]                   pcie_requester_id,
+    output wire [RX_RING_COUNT*64-1:0]  o_rx_ring_base_addr,
+    output wire [RX_RING_COUNT*64-1:0]  o_rx_ring_size,
+    output wire [RX_RING_COUNT*64-1:0]  o_rx_ring_ctrl,
+    output wire [RX_RING_COUNT*64-1:0]  o_rx_ring_cons_ptr,
+    input  wire [RX_RING_COUNT*64-1:0]  i_rx_ring_prod_ptr,
+    input  wire [RX_RING_COUNT*64-1:0]  i_rx_ring_drop_count,
+    input  wire [RX_RING_COUNT*64-1:0]  i_rx_ring_status
 );
     // =========================================================================
     // Register Address Map
@@ -75,6 +83,20 @@ module user_logic #(
     localparam [BAR0_SIZE-1:0] REG_RT_DST_ADDR  = 16'h28;
     localparam [BAR0_SIZE-1:0] REG_RT_CTRL      = 16'h30;
     localparam [BAR0_SIZE-1:0] REG_RT_STATUS    = 16'h34;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING0_BASE = 16'h40;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING0_SIZE = 16'h48;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING0_CTRL = 16'h50;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING0_CONS = 16'h58;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING0_PROD = 16'h60;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING0_DROP = 16'h68;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING0_STAT = 16'h70;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING1_BASE = 16'h80;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING1_SIZE = 16'h88;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING1_CTRL = 16'h90;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING1_CONS = 16'h98;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING1_PROD = 16'hA0;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING1_DROP = 16'hA8;
+    localparam [BAR0_SIZE-1:0] REG_RX_RING1_STAT = 16'hB0;
 
 // =========================================================================
     localparam [3:0] TYPE_READ = 4'b0000;
@@ -94,6 +116,10 @@ module user_logic #(
     reg [63:0] cq_val_REG_RT_DST_ADDR  ;
     reg [63:0] cq_val_REG_RT_CTRL      ;
     reg [63:0] in_val_REG_RT_STATUS    ;
+    reg [63:0] cq_val_REG_RX_RING_BASE [0:RX_RING_COUNT-1];
+    reg [63:0] cq_val_REG_RX_RING_SIZE [0:RX_RING_COUNT-1];
+    reg [63:0] cq_val_REG_RX_RING_CTRL [0:RX_RING_COUNT-1];
+    reg [63:0] cq_val_REG_RX_RING_CONS [0:RX_RING_COUNT-1];
 
     localparam [63:0] RT_CTRL_SMALL    = 64'd1;
     localparam [63:0] RT_CTRL_LARGE    = 64'd2;
@@ -120,6 +146,16 @@ module user_logic #(
     reg [12:0]  rt_expected_byte_count;
     integer     i;
 
+generate
+    genvar ring_cfg_idx;
+    for (ring_cfg_idx = 0; ring_cfg_idx < RX_RING_COUNT; ring_cfg_idx = ring_cfg_idx + 1) begin : g_rx_ring_cfg
+        assign o_rx_ring_base_addr[ring_cfg_idx*64 +: 64] = cq_val_REG_RX_RING_BASE[ring_cfg_idx];
+        assign o_rx_ring_size[ring_cfg_idx*64 +: 64]      = cq_val_REG_RX_RING_SIZE[ring_cfg_idx];
+        assign o_rx_ring_ctrl[ring_cfg_idx*64 +: 64]      = cq_val_REG_RX_RING_CTRL[ring_cfg_idx];
+        assign o_rx_ring_cons_ptr[ring_cfg_idx*64 +: 64]  = cq_val_REG_RX_RING_CONS[ring_cfg_idx];
+    end
+endgenerate
+
 
 // cq channel ======================================================
     reg [BAR0_SIZE-1:0] temp_cq_reg_addr          ;
@@ -144,6 +180,12 @@ always @(posedge user_clk or posedge user_reset_p) begin
         cq_val_REG_RT_SRC_ADDR     <= {64{1'b0}};
         cq_val_REG_RT_DST_ADDR     <= {64{1'b0}};
         cq_val_REG_RT_CTRL         <= {64{1'b0}};
+        for (i = 0; i < RX_RING_COUNT; i = i + 1) begin
+            cq_val_REG_RX_RING_BASE[i] <= 64'd0;
+            cq_val_REG_RX_RING_SIZE[i] <= 64'd0;
+            cq_val_REG_RX_RING_CTRL[i] <= 64'd0;
+            cq_val_REG_RX_RING_CONS[i] <= 64'd0;
+        end
         temp_cq_reg_addr        <= {BAR0_SIZE{1'b0}};
         temp_cq_requester_id    <= 16'b0;
         temp_cq_tag             <= 8'b0;
@@ -165,6 +207,14 @@ always @(posedge user_clk or posedge user_reset_p) begin
                     REG_RT_SRC_ADDR :   cq_val_REG_RT_SRC_ADDR<= cq_payload;
                     REG_RT_DST_ADDR :   cq_val_REG_RT_DST_ADDR<= cq_payload;
                     REG_RT_CTRL     :   cq_val_REG_RT_CTRL    <= cq_payload;
+                    REG_RX_RING0_BASE:  cq_val_REG_RX_RING_BASE[0] <= cq_payload;
+                    REG_RX_RING0_SIZE:  cq_val_REG_RX_RING_SIZE[0] <= cq_payload;
+                    REG_RX_RING0_CTRL:  cq_val_REG_RX_RING_CTRL[0] <= cq_payload;
+                    REG_RX_RING0_CONS:  cq_val_REG_RX_RING_CONS[0] <= cq_payload;
+                    REG_RX_RING1_BASE:  cq_val_REG_RX_RING_BASE[1] <= cq_payload;
+                    REG_RX_RING1_SIZE:  cq_val_REG_RX_RING_SIZE[1] <= cq_payload;
+                    REG_RX_RING1_CTRL:  cq_val_REG_RX_RING_CTRL[1] <= cq_payload;
+                    REG_RX_RING1_CONS:  cq_val_REG_RX_RING_CONS[1] <= cq_payload;
                 default: ; // Do nothing for RO or undefined registers
                 endcase
             end else if (cq_type == TYPE_READ) begin
@@ -208,6 +258,20 @@ function [63:0] get_cc_payload (input [BAR0_SIZE-1:0] reg_addr);
             REG_RT_DST_ADDR :   get_cc_payload = cq_val_REG_RT_DST_ADDR;
             REG_RT_CTRL     :   get_cc_payload = cq_val_REG_RT_CTRL;
             REG_RT_STATUS   :   get_cc_payload = in_val_REG_RT_STATUS;
+            REG_RX_RING0_BASE:  get_cc_payload = cq_val_REG_RX_RING_BASE[0];
+            REG_RX_RING0_SIZE:  get_cc_payload = cq_val_REG_RX_RING_SIZE[0];
+            REG_RX_RING0_CTRL:  get_cc_payload = cq_val_REG_RX_RING_CTRL[0];
+            REG_RX_RING0_CONS:  get_cc_payload = cq_val_REG_RX_RING_CONS[0];
+            REG_RX_RING0_PROD:  get_cc_payload = i_rx_ring_prod_ptr[0*64 +: 64];
+            REG_RX_RING0_DROP:  get_cc_payload = i_rx_ring_drop_count[0*64 +: 64];
+            REG_RX_RING0_STAT:  get_cc_payload = i_rx_ring_status[0*64 +: 64];
+            REG_RX_RING1_BASE:  get_cc_payload = cq_val_REG_RX_RING_BASE[1];
+            REG_RX_RING1_SIZE:  get_cc_payload = cq_val_REG_RX_RING_SIZE[1];
+            REG_RX_RING1_CTRL:  get_cc_payload = cq_val_REG_RX_RING_CTRL[1];
+            REG_RX_RING1_CONS:  get_cc_payload = cq_val_REG_RX_RING_CONS[1];
+            REG_RX_RING1_PROD:  get_cc_payload = i_rx_ring_prod_ptr[1*64 +: 64];
+            REG_RX_RING1_DROP:  get_cc_payload = i_rx_ring_drop_count[1*64 +: 64];
+            REG_RX_RING1_STAT:  get_cc_payload = i_rx_ring_status[1*64 +: 64];
 
         default: get_cc_payload = {64{1'b0}}; // Undefined registers return 0
         endcase

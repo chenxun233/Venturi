@@ -25,6 +25,7 @@ nav:
               - aligner: FPGA/order_book_builder/symbol_book/qty_book_wrapper/aligner.md
               - bram_dp: FPGA/order_book_builder/symbol_book/qty_book_wrapper/bram_dp.md
       - async_fifo: FPGA/async_fifo.md
+      - rx_dma_stage: FPGA/rx_dma_stage.md
       - pcie_wrapper: 
           - Overview: FPGA/pcie_wrapper/overview.md
           - CC_formatter: FPGA/pcie_wrapper/CC_formatter.md

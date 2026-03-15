@@ -12,8 +12,6 @@ module symbol_book #(
     input   wire                            i_clk_156,
     input   wire                            i_rst,               // active high
     input   wire [PARSER_MSG_BIT-1:0]       i_parser_msg,
-    input   wire                            i_ff_pop,
-    output  wire                            o_not_empty,
     output  wire                            o_valid,
     output  wire [2*(1+32+QTY_SHARE_BIT+64)+16-1:0] o_payload
 );
@@ -77,20 +75,8 @@ assign payload = (o_ask_best_valid | o_bid_best_valid)? {
     STOCK_LOCATE
 } : {PAYLOAD_W{1'b0}};
 
-fifo #(
-    .DEPTH  (EVENT_FIFO_DEPTH),
-    .DATA_W (PAYLOAD_W)
-) event_fifo_inst (
-    .i_clk          (i_clk_156),
-    .i_rst          (i_rst),
-    .i_do_push      (ff_push),
-    .o_push_ready   (       ),
-    .i_data         (payload),
-    .i_do_pop       (i_ff_pop),
-    .o_not_empty    (o_not_empty),
-    .o_valid        (o_valid),
-    .o_data         (o_payload)
-);
+assign o_valid   = ff_push;
+assign o_payload = payload;
 
 
 

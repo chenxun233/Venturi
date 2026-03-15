@@ -13,5 +13,6 @@ Note/
 openspec/
 .vscode/
 verilator_src/
-.codex2/
-obj_dir2/
+.codex/
+obj_dir/
+corundum_exanic_x10/
