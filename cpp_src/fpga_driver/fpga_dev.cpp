@@ -25,6 +25,7 @@ constexpr uint8_t kTypeExec = 0x45;     // E
 constexpr uint8_t kTypeAddMpid = 0x46;  // F
 constexpr uint8_t kTypeExecPrice = 0x43;// C
 constexpr std::chrono::seconds kPollTimeout(10);
+constexpr uint32_t kConsPtrBatchSize = 16;
 
 uint16_t read_be16(const std::vector<uint8_t>& bytes, std::size_t offset) {
     return static_cast<uint16_t>((static_cast<uint16_t>(bytes[offset]) << 8) |
@@ -162,6 +163,14 @@ bool FPGADev::initHardware() {
         warn("BAR0 not mapped");
         return false;
     }
+    write_reg32(REG_RESET, 1);
+    (void)read_reg32(REG_STATUS);
+info("Queue0 drop count is %llu",
+     static_cast<unsigned long long>(
+         read_reg64(_queueRegOffset(0, REG_RX_QUE_DROP_OFFSET))));
+info("Queue1 drop count is %llu",
+     static_cast<unsigned long long>(
+         read_reg64(_queueRegOffset(1, REG_RX_QUE_DROP_OFFSET))));
 
     m_hw_ready = true;
     return true;
@@ -673,6 +682,7 @@ bool FPGADev::_pollQueueAndValidate(uint16_t que_idx) {
 
     while (queue.host_cons_ptr < queue.expected_events.size()) {
         const uint64_t prod_ptr = read_reg64(_queueRegOffset(que_idx, REG_RX_QUE_PROD_OFFSET));
+        uint32_t batch_count = 0;
         while (queue.host_cons_ptr < prod_ptr && queue.host_cons_ptr < queue.expected_events.size()) {
             const std::size_t slot_index = static_cast<std::size_t>(queue.host_cons_ptr % queue.slot_num);
             const uint8_t* slot_bytes = static_cast<const uint8_t*>(queue.dma_memory.virt) +
@@ -684,6 +694,14 @@ bool FPGADev::_pollQueueAndValidate(uint16_t que_idx) {
             }
 
             ++queue.host_cons_ptr;
+            ++batch_count;
+            if (batch_count >= kConsPtrBatchSize) {
+                write_reg64(_queueRegOffset(que_idx, REG_RX_QUE_CONS_PTR_OFFSET), queue.host_cons_ptr);
+                batch_count = 0;
+            }
+        }
+
+        if (batch_count != 0) {
             write_reg64(_queueRegOffset(que_idx, REG_RX_QUE_CONS_PTR_OFFSET), queue.host_cons_ptr);
         }
 

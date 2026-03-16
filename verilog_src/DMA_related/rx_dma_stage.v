@@ -12,6 +12,7 @@ module rx_dma_stage #(
     input  wire [SYMBOL_NUM*64-1:0]         i_que_slot_num,
     input  wire [SYMBOL_NUM*64-1:0]         i_que_enable,
     input  wire [SYMBOL_NUM*64-1:0]         i_que_cons_ptr,
+    input  wire                             i_reg_reset,
     output wire [SYMBOL_NUM*64-1:0]         o_que_prod_ptr,
     output wire [SYMBOL_NUM*64-1:0]         o_que_drop_count,
     output wire [SYMBOL_NUM*64-1:0]         o_que_status,
@@ -146,9 +147,15 @@ always @(posedge i_clk or posedge i_rst) begin
             que_slot_index[que_idx] <= 64'd0;
             que_drop_count[que_idx] <= 64'd0;
         end
-    end else begin
+    end else if (i_reg_reset) begin
+        for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
+            que_prod_ptr[que_idx]   <= 64'd0;
+            que_slot_index[que_idx] <= 64'd0;
+            que_drop_count[que_idx] <= 64'd0;
+        end
+    end
+    else begin
         o_event_pop <= {SYMBOL_NUM{1'b0}};
-
         for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
             if (que_clear_vec[que_idx]) begin
                 que_prod_ptr[que_idx]   <= 64'd0;

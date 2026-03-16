@@ -32,9 +32,11 @@ public:
     bool test_dma_roundtrip();
 
 private:
+
     static constexpr uint32_t REG_RX_IOVA_OFFSET = 0x00;
     static constexpr uint16_t RX_QUEUE_COUNT = 2;
     static constexpr uint32_t RX_RECORD_BYTES = 32;
+    static constexpr uint32_t REG_RESET = 0x00;
     static constexpr uint32_t REG_ID = 0x04;
     static constexpr uint32_t REG_STATUS = 0x0C;
     static constexpr uint32_t REG_RX_QUE_BASE0 = 0x40;
