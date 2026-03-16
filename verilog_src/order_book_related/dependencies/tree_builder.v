@@ -6,8 +6,9 @@ module tree_builder #(
     input  wire                         i_rst,        // active high
     input  wire [QTY_PRICE_LVL_BIT-1:0] i_price_idx,
     input  wire [1:0]                   i_price_change,
-    output wire                         o_best_valid,
-    output wire [QTY_PRICE_LVL_BIT-1:0] o_best_price_idx
+    input  wire                         i_op_done,
+    output wire [QTY_PRICE_LVL_BIT-1:0] o_best_price_idx,
+    output wire                         o_op_done
 );
     localparam IDLE       = 2'b00;
     localparam EMPTY      = 2'b01;
@@ -32,12 +33,13 @@ module tree_builder #(
     wire                         top_to_mid_valid  [0:LOWER_LEVELS-1][0:LOWER_MAX_COUNT-1];
 
     integer idx;
-
+    reg     latch_op_done;
 
     // The leaf level stores only valid bits. The index is implied by the array subscript.
     // mid_* is the pipeline register stage at MID_LEVEL.
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
+            latch_op_done <= 1'b0;
             for (idx = 0; idx < LAST_COUNT; idx = idx + 1) begin
                 btm_valid[idx] = 1'b0;
             end
@@ -48,6 +50,7 @@ module tree_builder #(
         end else begin
             if (i_price_change != IDLE) begin
                 btm_valid[i_price_idx] <= (i_price_change == NON_EMPTY);
+                latch_op_done <= i_op_done;
             end
 
             for (idx = 0; idx < MID_COUNT; idx = idx + 1) begin
@@ -147,11 +150,11 @@ module tree_builder #(
         end
 
         if (MID_LEVEL == 0) begin : gen_top_from_mid
-            assign o_best_valid = mid_valid[0];
             assign o_best_price_idx   = mid_idx[0];
+            assign o_op_done = latch_op_done;
         end else begin : gen_top_from_lower
-            assign o_best_valid = top_to_mid_valid[0][0];
             assign o_best_price_idx   = top_to_mid_idx[0][0];
+            assign o_op_done = latch_op_done;
         end
     endgenerate
 

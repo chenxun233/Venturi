@@ -1,29 +1,27 @@
 module qty_builder #(
-    parameter QTY_MSG_BIT       = 2+32+1+32, // {side, price, is_add, d_shares}
+    parameter QTY_MSG_BIT       = 2+32+1+32+1, // {side, price, is_add, d_shares, op_done}
     parameter QTY_PRICE_LVL_BIT = 10,        // trace 2^QTY_PRICE_LVL_BIT price levels
-    parameter QTY_SHARE_BIT     = 32,        // number of bits to represent shares quantity at each price level
     parameter PRICE_BASE        = 32'd0,
     parameter BID_OR_ASK        = 2'b01         // 01 for bid, 10 for ask
 )(
     input   wire                          i_clk_156,
     input   wire                          i_rst,               // active high
     input   wire [QTY_MSG_BIT-1:0]        i_qty_msg,
-    input   wire [QTY_SHARE_BIT-1:0]      i_bram_o_data,
+    input   wire [31:0]      i_bram_o_data,
     output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_price_idx,
     output  reg  [1:0]                    o_price_change,
-    output  wire [63:0]                   o_seq_num,
+    output  reg                           o_op_done,
     output  wire [QTY_PRICE_LVL_BIT-1:0]  o_bram_addr,
     output  wire [1:0]                    o_bram_op,
-    output  wire [QTY_SHARE_BIT-1:0]      o_bram_i_data
+    output  wire [31:0]      o_bram_i_data
 );
 // o_price_idx indicating the price idx whose share changed between empty and non-empty.
 // o_price_change is a pulse indicating any price idx change, used to trigger ask_tree update.
 
 
 reg [1:0]                                qty_upd_state; // used for updating the price and corresponding shares in the book
-reg [1:0]                                qty_best_upd_state; // only used for tracking the shares of the best price.
 reg [1:0]                                qty_upd_op;
-reg [QTY_SHARE_BIT-1:0]                  qty_i_shares;
+reg [31:0]                  qty_i_shares;
 
 localparam IDLE                          = 2'b00;
 localparam FIRST_CYCLE                   = 2'b01;
@@ -45,19 +43,18 @@ wire                        ff_o_valid;
 wire [31:0]                 qty_price           = ff_o_qty_msg[QTY_MSG_BIT-3:QTY_MSG_BIT-34];
 wire                        qty_is_add          = ff_o_qty_msg[QTY_MSG_BIT-35];
 wire [31:0]                 qty_d_shares        = ff_o_qty_msg[QTY_MSG_BIT-36:QTY_MSG_BIT-67];
-wire [63:0]                 qty_seq_num         = ff_o_qty_msg[QTY_MSG_BIT-68:0];
+wire                        op_done             = ff_o_qty_msg[0];
 
 reg [QTY_PRICE_LVL_BIT-1:0] latch_qty_prc_idx;
 reg                         latch_qty_is_add;
-reg [QTY_SHARE_BIT-1:0]     latch_qty_d_shares;
-reg [63:0]                  latch_qty_seq_num;
+reg [31:0]     latch_qty_d_shares;
+reg                         latch_op_done;
 
-assign o_seq_num = latch_qty_seq_num;
 
-wire [QTY_SHARE_BIT-1:0]    qty_cur             = i_bram_o_data;
-wire [QTY_SHARE_BIT-1:0]    qty_new             = latch_qty_is_add ?
+wire [31:0]    qty_cur             = i_bram_o_data;
+wire [31:0]    qty_new             = latch_qty_is_add ?
                                                   (qty_cur + latch_qty_d_shares) :
-                                                  ((qty_cur > latch_qty_d_shares) ? (qty_cur - latch_qty_d_shares) : {QTY_SHARE_BIT{1'b0}});
+                                                  ((qty_cur > latch_qty_d_shares) ? (qty_cur - latch_qty_d_shares) : {32{1'b0}});
 wire [QTY_PRICE_LVL_BIT-1:0] qty_addr           = latch_qty_prc_idx;
 
 assign o_bram_addr = qty_addr;
@@ -84,13 +81,13 @@ always @(posedge i_clk_156 or posedge i_rst) begin
     if (i_rst) begin
         latch_qty_prc_idx    <= {QTY_PRICE_LVL_BIT{1'b0}};
         latch_qty_is_add     <= 1'b0;
-        latch_qty_d_shares   <= {QTY_SHARE_BIT{1'b0}};
-        latch_qty_seq_num    <= {64{1'b0}};
+        latch_qty_d_shares   <= {32{1'b0}};
+        latch_op_done        <= 1'b0;
     end else if (ff_o_valid) begin
         latch_qty_prc_idx    <= cal_qty_book_addr(qty_price);
         latch_qty_is_add     <= qty_is_add;
         latch_qty_d_shares   <= qty_d_shares;
-        latch_qty_seq_num    <= qty_seq_num;
+        latch_op_done        <= op_done;
     end
 end
 
@@ -98,7 +95,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
     if (i_rst) begin
         qty_upd_state        <= IDLE;
         qty_upd_op           <= IDLE;
-        qty_i_shares         <= {QTY_SHARE_BIT{1'b0}};
+        qty_i_shares         <= {32{1'b0}};
     end else begin
         case (qty_upd_state)
             IDLE: begin
@@ -107,22 +104,22 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                     qty_upd_state <= FIRST_CYCLE;
                 end else begin
                     qty_upd_op        <= IDLE;
-                    qty_upd_state <= IDLE;
-                    qty_i_shares  <= {QTY_SHARE_BIT{1'b0}};
+                    qty_upd_state       <= IDLE;
+                    qty_i_shares        <= {32{1'b0}};
                 end
             end
             FIRST_CYCLE: begin
                 qty_upd_state     <= SECOND_CYCLE;
             end
             SECOND_CYCLE: begin
-                qty_upd_op          <= WRITE;
-                qty_i_shares        <= qty_new;
-                qty_upd_state       <= IDLE;
+                qty_upd_op       <= WRITE;
+                qty_i_shares     <= qty_new;
+                qty_upd_state    <= IDLE;
             end
             default: begin
-                qty_upd_state     <= IDLE;
-                qty_i_shares      <= {QTY_SHARE_BIT{1'b0}};
-                qty_upd_op            <= IDLE;
+                qty_upd_state    <= IDLE;
+                qty_i_shares     <= {32{1'b0}};
+                qty_upd_op       <= IDLE;
             end
         endcase
     end
@@ -130,13 +127,14 @@ end
 
 always @(*) begin
     if (qty_upd_state == SECOND_CYCLE) begin
-        if ((qty_cur == 0 && qty_new > 0)) begin
+        o_op_done       = latch_op_done;
+        if (qty_cur == 0 && qty_new > 0) begin
             // empty -> non-empty
             o_price_idx     = qty_addr;
-            o_price_change  = NON_EMPTY;
-        end else if (qty_cur > 0 && qty_new == 0) begin
+            o_price_change  = NON_EMPTY ;
+        end else if (qty_cur > 0 && qty_new == 0 ) begin
             o_price_idx     = qty_addr;
-            o_price_change  = EMPTY;
+            o_price_change  = EMPTY ;
         end
         else begin
             o_price_idx     = 0;
@@ -145,6 +143,7 @@ always @(*) begin
     end else begin
         o_price_idx         = 0;
         o_price_change      = IDLE;
+        o_op_done           = 1'b0;
     end
 end
 

@@ -20,7 +20,7 @@ At the top level, the RX export path is organized around two active downstream s
 - observing which per-symbol CDC FIFOs are non-empty
 - arbitrating between rings when more than one ring has data ready
 - dropping events when a host ring is disabled or full
-- packing each event into a fixed `64-byte` host record
+- packing each event into a fixed `32-byte` host record
 - computing the destination address from the programmed ring base, size, and producer pointer
 - issuing PCIe `RQ` write requests into host memory
 
@@ -46,10 +46,10 @@ The FPGA reports:
 The write address for each event is:
 
 ```text
-write_addr = base_addr + (prod_ptr % ring_size) * 64
+write_addr = base_addr + (prod_ptr % ring_size) * 32
 ```
 
-This works because the current order-book event payload is fixed-format and can be zero-padded into a single `64-byte` host record.
+This works because the current order-book event payload is fixed-format and can be zero-padded into a single `32-byte` host record.
 
 ## Dataflow
 
@@ -58,7 +58,7 @@ order_book_builder per-symbol event
   -> async_fifo
   -> rx_dma_stage
      -> ring arbitration
-     -> 64B record formatting
+     -> 32B record formatting
      -> RQ write
      -> host memory ring
 ```

@@ -1,74 +1,118 @@
 #pragma once
-#include "../common/basic_dev.h"
-#include <cstdint>
 
-/**
- * Simple FPGA PCIe Hello World Device
- *
- * This is a minimal implementation of BasicDev for the FPGA hello world example.
- * It provides direct BAR0 register access without the full NIC complexity.
- *
- * Register Map (BAR0):
- *   0x00: Scratch Register (R/W)    - 64-bit scratch pad
- *   0x08: ID Register (RO)          - Returns 0xDEADBEEF_CAFEBABE
- *   0x10: Interrupt Control (W)     - Write to trigger MSI
- *   0x18: Status Register (RO)      - Bit 0: Link Up, [31:16]: Int count
- *   0x20: DMA Target Addr Low (W)   - Lower 32 bits of host memory IOVA
- *   0x28: DMA Target Addr High (W)  - Upper 32 bits of host memory IOVA
- *   0x30: DMA Control (W)           - Write 1 to trigger DMA write
- *   0x38: DMA Status (RO)           - Bit 0: Busy, Bit 1: Done
- */
+#include "../common/basic_dev.h"
+#include "../common/dma_memory_allocator.h"
+#include <array>
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <vector>
+
 class FPGADev : public BasicDev {
 public:
     FPGADev(std::string pci_addr);
     ~FPGADev() override;
 
-    // BasicDev interface - minimal implementations
     bool initHardware() override;
-    bool initializeInterrupt(const int interrupt_interval, const uint32_t timeout_ms) override;
-    bool enableDevQueues() override { return true; }  // No queues in hello world
-    bool enableDevInterrupt() override { return true; }
-    bool wait4Link() override;
-    bool setRxRingBuffers(uint16_t num_rx_queues, uint32_t num_buf, uint32_t buf_size) override { return true; }
-    bool setTxRingBuffers(uint16_t num_tx_queues, uint32_t num_buf, uint32_t buf_size) override { return true; }
-    bool setPromisc(bool enable) override { return true; }
-    bool sendOnQueue(uint8_t* p_data, size_t size, uint16_t queue_id) override { return false; }
+    bool setRxRingBuffers(uint16_t num_rx_queues, uint32_t num_buf, uint32_t buf_size) override;
+    bool setTxRingBuffers(uint16_t num_tx_queues, uint32_t num_buf, uint32_t buf_size) override;
 
-    // FPGA-specific register access
     void write_reg64(uint32_t offset, uint64_t value);
     uint64_t read_reg64(uint32_t offset);
     void write_reg32(uint32_t offset, uint32_t value);
     uint32_t read_reg32(uint32_t offset);
-    // Test functions
+
     bool test_register();
-    void trigger_interrupt();
+    bool trigger_interrupt();
     bool test_dma_write();
     bool test_dma_roundtrip();
 
-    // Register offsets
-    static constexpr uint32_t REG_ETH_FIRE     = 0x00;
-    static constexpr uint32_t REG_MAC          = 0x04;
-    static constexpr uint32_t REG_IP           = 0x08;
-    static constexpr uint32_t REG_PORT         = 0x0C;
-
-    static constexpr uint32_t REG_DMA_ADDR     = 0x10;  // 64-bit DMA target address
-    static constexpr uint32_t REG_DMA_CTRL     = 0x18;
-    static constexpr uint32_t REG_DMA_STATUS   = 0x1C;
-    static constexpr uint32_t REG_RT_SRC_ADDR  = 0x20;  // Round-trip source address
-    static constexpr uint32_t REG_RT_DST_ADDR  = 0x28;  // Round-trip destination address
-    static constexpr uint32_t REG_RT_CTRL      = 0x30;  // Round-trip control
-    static constexpr uint32_t REG_RT_STATUS    = 0x34;  // Round-trip status 
-
-    static constexpr uint64_t EXPECTED_ID = 0xDEADBEEFCAFEBABEULL;
-
-    // DMA test patterns (must match Verilog)
-    static constexpr uint64_t DMA_PATTERN_0 = 0xDEADBEEFCAFEBABEULL;
-    static constexpr uint64_t DMA_PATTERN_1 = 0x123456789ABCDEF0ULL;
-    static constexpr uint64_t DMA_PATTERN_2 = 0xFEDCBA9876543210ULL;
-    static constexpr uint64_t DMA_PATTERN_3 = 0xAAAAAAAA55555555ULL;
-
 private:
-    // _getFD() and _getBARAddr() are now inherited from BasicDev
+    static constexpr uint32_t REG_RX_IOVA_OFFSET = 0x00;
+    static constexpr uint16_t RX_QUEUE_COUNT = 2;
+    static constexpr uint32_t RX_RECORD_BYTES = 32;
+    static constexpr uint32_t REG_ID = 0x04;
+    static constexpr uint32_t REG_STATUS = 0x0C;
+    static constexpr uint32_t REG_RX_QUE_BASE0 = 0x40;
+    static constexpr uint32_t REG_RX_QUE_STRIDE = 0x40;
+    static constexpr uint32_t REG_RX_QUE_SLOT_NUM_OFFSET = 0x08;
+    static constexpr uint32_t REG_RX_QUE_ENABLE_OFFSET = 0x10;
+    static constexpr uint32_t REG_RX_QUE_CONS_PTR_OFFSET = 0x18;
+    static constexpr uint32_t REG_RX_QUE_PROD_OFFSET = 0x20;
+    static constexpr uint32_t REG_RX_QUE_DROP_OFFSET = 0x28;
+    static constexpr uint32_t REG_RX_QUE_STAT_OFFSET = 0x30;
+    static constexpr uint64_t RX_DMA_CFG_ID = 0x4d5f52585f434647ULL;
+
+    struct ExpectedEvent {
+        bool ask_valid {false};
+        uint32_t ask_price {0};
+        uint32_t ask_shares {0};
+        bool bid_valid {false};
+        uint32_t bid_price {0};
+        uint32_t bid_shares {0};
+        uint16_t stock_locate {0};
+    };
+
+    struct DecodedEvent {
+        bool ask_valid {false};
+        uint32_t ask_price {0};
+        uint32_t ask_shares {0};
+        bool bid_valid {false};
+        uint32_t bid_price {0};
+        uint32_t bid_shares {0};
+        uint64_t event_timestamp {0};
+        uint16_t stock_locate {0};
+    };
+
+    struct QueueRuntime {
+        std::string symbol_name;
+        uint16_t stock_locate {0};
+        uint32_t slot_num {0};
+        uint32_t slot_size_bytes {RX_RECORD_BYTES};
+        uint64_t host_cons_ptr {0};
+        DMAMemoryPair dma_memory {nullptr, 0, 0};
+        std::vector<ExpectedEvent> expected_events;
+    };
+
+    struct OrderState {
+        char side {'\0'};
+        uint32_t shares {0};
+        uint32_t price {0};
+    };
+
+    struct SymbolModel {
+        std::string symbol_name;
+        uint16_t stock_locate {0};
+        std::unordered_map<uint64_t, OrderState> orders;
+        std::map<uint32_t, uint64_t> bid_book;
+        std::map<uint32_t, uint64_t> ask_book;
+        ExpectedEvent last_event;
+        bool has_last_event {false};
+        std::vector<ExpectedEvent> expected_events;
+    };
+
     bool _enableDMA() override;
     void _initStatus(DevStatus* stats) override;
+
+    uint32_t _queueRegOffset(uint16_t que_idx, uint32_t reg_offset) const;
+    bool _loadExpectedPayloads();
+    bool _loadFixtureFrame(const std::string& file_name, std::vector<uint8_t>& frame_bytes);
+    bool _parseExpectedEvents(const std::vector<uint8_t>& frame_bytes, QueueRuntime& queue);
+    bool _parseMessage(const std::vector<uint8_t>& frame_bytes, std::size_t msg_offset, uint16_t msg_len, SymbolModel& model);
+    void _applyBookUpdate(SymbolModel& model, uint8_t msg_type, uint64_t order_ref_num, uint64_t new_order_ref_num, char side, uint32_t shares, uint32_t price);
+    void _accumulateLevel(std::map<uint32_t, uint64_t>& side_book, uint32_t price, int64_t delta_shares);
+    void _emitEventIfChanged(SymbolModel& model);
+    bool _runReplayEnvironmentChecks();
+    bool _pollQueueAndValidate(uint16_t que_idx);
+    DecodedEvent _decodeRecord(const uint8_t* slot_bytes) const;
+    bool _compareEvent(uint16_t que_idx, uint64_t event_idx, const DecodedEvent& actual, uint64_t& last_timestamp);
+    const QueueRuntime* _queueForIndex(uint16_t que_idx) const;
+
+private:
+    std::array<QueueRuntime, RX_QUEUE_COUNT> m_rx_queues {};
+    bool m_hw_ready {false};
 };

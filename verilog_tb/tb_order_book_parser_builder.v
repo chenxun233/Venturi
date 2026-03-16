@@ -9,12 +9,23 @@ module tb_order_book_parser_builder;
     localparam FIFO_RD_CLK_PERIOD = 6;
     localparam FRAME_BYTES   = 359;
     localparam NUM_ROUNDS    = 3;
-    localparam PAYLOAD_W     = 274;
+    localparam SYMBOL_NUM    = 2;
+    localparam PAYLOAD_W     = 208;
     localparam EVENT_CDC_DEPTH = 16;
+    localparam AAPL_IDX      = 0;
+    localparam HSBC_IDX      = 1;
     localparam AAPL_LOCATE   = 16'h000d;
     localparam HSBC_LOCATE   = 16'h0ee8;
     localparam ASK_VALID_MSB = PAYLOAD_W - 1;
-    localparam BID_VALID_LSB = 16 + 64 + 32 + 32;
+    localparam ASK_PRICE_MSB = ASK_VALID_MSB - 1;
+    localparam ASK_PRICE_LSB = ASK_PRICE_MSB - 31;
+    localparam ASK_SHARES_MSB = ASK_PRICE_LSB - 1;
+    localparam ASK_SHARES_LSB = ASK_SHARES_MSB - 31;
+    localparam BID_VALID_LSB = ASK_SHARES_LSB - 1;
+    localparam BID_PRICE_MSB = BID_VALID_LSB - 1;
+    localparam BID_PRICE_LSB = BID_PRICE_MSB - 31;
+    localparam BID_SHARES_MSB = BID_PRICE_LSB - 1;
+    localparam BID_SHARES_LSB = BID_SHARES_MSB - 31;
 
     localparam [63:0] IDLE_WORD  = 64'h0707_0707_0707_0707;
     localparam [63:0] START_WORD = 64'hFB55_5555_5555_55D5;
@@ -26,12 +37,9 @@ module tb_order_book_parser_builder;
     reg                         i_axi_rx_valid;
     reg  [CTRL_WIDTH-1:0]       i_axi_rx_keep;
     reg                         i_axi_rx_last;
-    reg  [63:0]                 i_axi_rx_ingress_tick;
 
     wire                        o_axi_rx_ready;
     wire                        o_msg_valid;
-    wire [63:0]                 o_seq_num;
-    wire [63:0]                 o_rx_ingress_tick;
     wire [7:0]                  o_msg_type;
     wire [15:0]                 o_stock_locate;
     wire [63:0]                 o_order_ref_num;
@@ -40,12 +48,12 @@ module tb_order_book_parser_builder;
     wire [31:0]                 o_shares;
     wire [31:0]                 o_price;
     wire [47:0]                 o_timestamp;
-    wire                        builder_event_valid;
-    wire [PAYLOAD_W-1:0]        builder_event_payload;
-    wire                        event_cdc_wr_full;
-    wire                        event_cdc_rd_empty;
-    wire                        event_cdc_rd_valid;
-    wire [PAYLOAD_W-1:0]        event_cdc_rd_data;
+    wire [SYMBOL_NUM-1:0]       builder_event_valid;
+    wire [SYMBOL_NUM*PAYLOAD_W-1:0] builder_event_payload;
+    wire [SYMBOL_NUM-1:0]       event_cdc_wr_full;
+    wire [SYMBOL_NUM-1:0]       event_cdc_rd_empty;
+    wire [SYMBOL_NUM-1:0]       event_cdc_rd_valid;
+    wire [SYMBOL_NUM*PAYLOAD_W-1:0] event_cdc_rd_data;
 
     reg  [47:0]                 i_ctl_dst_mac;
     reg  [31:0]                 i_ctl_dst_ip;
@@ -66,15 +74,32 @@ module tb_order_book_parser_builder;
     integer rd_domain_errors;
     integer final_errors;
     integer total_errors;
-    wire [15:0] payload_stock_locate = event_cdc_rd_data[15:0];
-    wire [63:0] payload_bid_seq      = event_cdc_rd_data[79:16];
-    wire [31:0] payload_bid_shares   = event_cdc_rd_data[111:80];
-    wire [31:0] payload_bid_price    = event_cdc_rd_data[143:112];
-    wire        payload_bid_valid    = event_cdc_rd_data[BID_VALID_LSB];
-    wire [63:0] payload_ask_seq      = event_cdc_rd_data[208:145];
-    wire [31:0] payload_ask_shares   = event_cdc_rd_data[240:209];
-    wire [31:0] payload_ask_price    = event_cdc_rd_data[272:241];
-    wire        payload_ask_valid    = event_cdc_rd_data[ASK_VALID_MSB];
+    integer builder_payload_inc;
+    integer fifo_payload_inc;
+    reg [63:0] last_aapl_event_timestamp;
+    reg [63:0] last_hsbc_event_timestamp;
+    wire [PAYLOAD_W-1:0]        aapl_builder_payload = builder_event_payload[AAPL_IDX*PAYLOAD_W +: PAYLOAD_W];
+    wire [PAYLOAD_W-1:0]        hsbc_builder_payload = builder_event_payload[HSBC_IDX*PAYLOAD_W +: PAYLOAD_W];
+    wire [PAYLOAD_W-1:0]        aapl_fifo_payload    = event_cdc_rd_data[AAPL_IDX*PAYLOAD_W +: PAYLOAD_W];
+    wire [PAYLOAD_W-1:0]        hsbc_fifo_payload    = event_cdc_rd_data[HSBC_IDX*PAYLOAD_W +: PAYLOAD_W];
+
+    wire [15:0] aapl_stock_locate = aapl_fifo_payload[15:0];
+    wire [63:0] aapl_event_timestamp = aapl_fifo_payload[79:16];
+    wire [31:0] aapl_bid_shares   = aapl_fifo_payload[BID_SHARES_MSB:BID_SHARES_LSB];
+    wire [31:0] aapl_bid_price    = aapl_fifo_payload[BID_PRICE_MSB:BID_PRICE_LSB];
+    wire        aapl_bid_valid    = aapl_fifo_payload[BID_VALID_LSB];
+    wire [31:0] aapl_ask_shares   = aapl_fifo_payload[ASK_SHARES_MSB:ASK_SHARES_LSB];
+    wire [31:0] aapl_ask_price    = aapl_fifo_payload[ASK_PRICE_MSB:ASK_PRICE_LSB];
+    wire        aapl_ask_valid    = aapl_fifo_payload[ASK_VALID_MSB];
+
+    wire [15:0] hsbc_stock_locate = hsbc_fifo_payload[15:0];
+    wire [63:0] hsbc_event_timestamp = hsbc_fifo_payload[79:16];
+    wire [31:0] hsbc_bid_shares   = hsbc_fifo_payload[BID_SHARES_MSB:BID_SHARES_LSB];
+    wire [31:0] hsbc_bid_price    = hsbc_fifo_payload[BID_PRICE_MSB:BID_PRICE_LSB];
+    wire        hsbc_bid_valid    = hsbc_fifo_payload[BID_VALID_LSB];
+    wire [31:0] hsbc_ask_shares   = hsbc_fifo_payload[ASK_SHARES_MSB:ASK_SHARES_LSB];
+    wire [31:0] hsbc_ask_price    = hsbc_fifo_payload[ASK_PRICE_MSB:ASK_PRICE_LSB];
+    wire        hsbc_ask_valid    = hsbc_fifo_payload[ASK_VALID_MSB];
 
     order_book_parser #(
         .DATA_WIDTH (DATA_WIDTH),
@@ -87,11 +112,9 @@ module tb_order_book_parser_builder;
         .i_axi_rx_valid       (i_axi_rx_valid),
         .i_axi_rx_keep        (i_axi_rx_keep),
         .i_axi_rx_last        (i_axi_rx_last),
-        .i_axi_rx_ingress_tick(i_axi_rx_ingress_tick),
         .o_axi_rx_ready       (o_axi_rx_ready),
         .o_msg_valid          (o_msg_valid),
-        .o_seq_num            (o_seq_num),
-        .o_rx_ingress_tick    (o_rx_ingress_tick),
+        .o_seq_num            (),
         .o_msg_type           (o_msg_type),
         .o_stock_locate       (o_stock_locate),
         .o_order_ref_num      (o_order_ref_num),
@@ -114,8 +137,6 @@ module tb_order_book_parser_builder;
         .i_clk_156           (i_clk_156),
         .i_rst               (i_rst),
         .i_msg_valid         (o_msg_valid),
-        .i_seq_num           (o_seq_num),
-        .i_rx_ingress_tick   (o_rx_ingress_tick),
         .i_msg_type          (o_msg_type),
         .i_stock_locate      (o_stock_locate),
         .i_order_ref_num     (o_order_ref_num),
@@ -123,27 +144,31 @@ module tb_order_book_parser_builder;
         .i_buy_sell          (o_buy_sell),
         .i_shares            (o_shares),
         .i_price             (o_price),
-        .i_timestamp         (o_timestamp),
-        .o_valid             (builder_event_valid),
-        .o_payload           (builder_event_payload)
+        .o_event_valid       (builder_event_valid),
+        .o_event_payload     (builder_event_payload)
     );
 
-    async_fifo #(
-        .DEPTH  (EVENT_CDC_DEPTH),
-        .DATA_W (PAYLOAD_W)
-    ) event_cdc_fifo_inst (
-        .i_wr_clk   (i_clk_156),
-        .i_wr_rst   (i_rst),
-        .i_wr_en    (builder_event_valid),
-        .i_wr_data  (builder_event_payload),
-        .o_wr_full  (event_cdc_wr_full),
-        .i_rd_clk   (i_clk_250),
-        .i_rd_rst   (i_rst),
-        .i_rd_en    (1'b1),
-        .o_rd_empty (event_cdc_rd_empty),
-        .o_rd_valid (event_cdc_rd_valid),
-        .o_rd_data  (event_cdc_rd_data)
-    );
+    generate
+        genvar cdc_idx;
+        for (cdc_idx = 0; cdc_idx < SYMBOL_NUM; cdc_idx = cdc_idx + 1) begin : g_event_cdc
+            async_fifo #(
+                .DEPTH  (EVENT_CDC_DEPTH),
+                .DATA_W (PAYLOAD_W)
+            ) event_cdc_fifo_inst (
+                .i_wr_clk   (i_clk_156),
+                .i_wr_rst   (i_rst),
+                .i_wr_en    (builder_event_valid[cdc_idx]),
+                .i_wr_data  (builder_event_payload[cdc_idx*PAYLOAD_W +: PAYLOAD_W]),
+                .o_wr_full  (event_cdc_wr_full[cdc_idx]),
+                .i_rd_clk   (i_clk_250),
+                .i_rd_rst   (i_rst),
+                .i_rd_en    (1'b1),
+                .o_rd_empty (event_cdc_rd_empty[cdc_idx]),
+                .o_rd_valid (event_cdc_rd_valid[cdc_idx]),
+                .o_rd_data  (event_cdc_rd_data[cdc_idx*PAYLOAD_W +: PAYLOAD_W])
+            );
+        end
+    endgenerate
 
     always #(CLK_PERIOD/2) i_clk_156 = ~i_clk_156;
     always #(FIFO_RD_CLK_PERIOD/2) i_clk_250 = ~i_clk_250;
@@ -159,7 +184,6 @@ module tb_order_book_parser_builder;
             i_axi_rx_data         <= dat;
             i_axi_rx_last         <= lst;
             i_axi_rx_keep         <= keep;
-            i_axi_rx_ingress_tick <= i_axi_rx_ingress_tick + 64'd1;
         end
     endtask
 
@@ -247,12 +271,10 @@ module tb_order_book_parser_builder;
         begin
             timeout = 0;
             begin : drain_loop
-                while (builder_dut.symbol_book_AAPL.o_not_empty ||
-                       builder_dut.symbol_book_HSBC.o_not_empty ||
-                       builder_event_valid ||
-                       !event_cdc_rd_empty ||
-                       event_cdc_rd_valid) begin
-                    @(posedge i_clk_156 or posedge i_clk_250);
+                while ((builder_event_valid != {SYMBOL_NUM{1'b0}}) ||
+                       (event_cdc_rd_empty != {SYMBOL_NUM{1'b1}}) ||
+                       (event_cdc_rd_valid != {SYMBOL_NUM{1'b0}})) begin
+                    @(posedge i_clk_250);
                     timeout = timeout + 1;
                     if (timeout > 2400) begin
                         $display("[%0t] ERROR: timed out draining async FIFO output", $time);
@@ -265,53 +287,94 @@ module tb_order_book_parser_builder;
     endtask
 
     always @(posedge i_clk_156) begin
+        builder_payload_inc = 0;
+
         if (o_msg_valid) begin
             total_parser_msgs <= total_parser_msgs + 1;
-            $display("[%0t] parser msg[%0d] type=%02h locate=%04h ref=%016h new_ref=%016h side=%02h shares=%08h price=%08h seq=%016h",
+            $display("[%0t] parser msg[%0d] type=%02h locate=%04h ref=%016h new_ref=%016h side=%02h shares=%08h price=%08h pkt_timestamp=%012h",
                      $time, total_parser_msgs + 1, o_msg_type, o_stock_locate, o_order_ref_num,
-                     o_new_order_ref_num, o_buy_sell, o_shares, o_price, o_seq_num);
+                     o_new_order_ref_num, o_buy_sell, o_shares, o_price, o_timestamp);
         end
 
-        if (builder_event_valid) begin
-            total_builder_payloads <= total_builder_payloads + 1;
-            $display("[%0t] builder payload[%0d] queued for async FIFO",
-                     $time, total_builder_payloads + 1);
+        if (builder_event_valid[AAPL_IDX]) begin
+            builder_payload_inc = builder_payload_inc + 1;
+            $display("[%0t] builder payload[%0d] queued for async FIFO symbol=AAPL locate=%04h",
+                     $time, total_builder_payloads + builder_payload_inc, aapl_builder_payload[15:0]);
         end
 
-        if (builder_event_valid && event_cdc_wr_full) begin
-            $display("[%0t] ERROR: async FIFO overflow dropped a builder payload", $time);
+        if (builder_event_valid[HSBC_IDX]) begin
+            builder_payload_inc = builder_payload_inc + 1;
+            $display("[%0t] builder payload[%0d] queued for async FIFO symbol=HSBC locate=%04h",
+                     $time, total_builder_payloads + builder_payload_inc, hsbc_builder_payload[15:0]);
+        end
+
+        if (builder_payload_inc != 0) begin
+            total_builder_payloads <= total_builder_payloads + builder_payload_inc;
+        end
+
+        if (builder_event_valid[AAPL_IDX] && event_cdc_wr_full[AAPL_IDX]) begin
+            $display("[%0t] ERROR: async FIFO overflow dropped an AAPL builder payload", $time);
+            wr_domain_errors <= wr_domain_errors + 1;
+        end
+        if (builder_event_valid[HSBC_IDX] && event_cdc_wr_full[HSBC_IDX]) begin
+            $display("[%0t] ERROR: async FIFO overflow dropped an HSBC builder payload", $time);
             wr_domain_errors <= wr_domain_errors + 1;
         end
     end
 
     always @(posedge i_clk_250) begin
-        if (event_cdc_rd_valid) begin
-            total_payloads <= total_payloads + 1;
-            $display("[%0t] async fifo payload[%0d] locate=%04h ask_valid=%0b ask_price=%08h ask_shares=%08h ask_seq=%016h bid_valid=%0b bid_price=%08h bid_shares=%08h bid_seq=%016h",
-                     $time, total_payloads + 1, payload_stock_locate,
-                     payload_ask_valid, payload_ask_price, payload_ask_shares, payload_ask_seq,
-                     payload_bid_valid, payload_bid_price, payload_bid_shares, payload_bid_seq);
+        fifo_payload_inc = 0;
 
-            case (payload_stock_locate)
-                AAPL_LOCATE: begin
-                    aapl_payloads <= aapl_payloads + 1;
-                    if (payload_ask_valid !== 1'b0) begin
-                        $display("[%0t] ERROR: AAPL payload has unexpected ask_valid=1", $time);
-                        rd_domain_errors <= rd_domain_errors + 1;
-                    end
-                end
-                HSBC_LOCATE: begin
-                    hsbc_payloads <= hsbc_payloads + 1;
-                    if (payload_bid_valid !== 1'b0) begin
-                        $display("[%0t] ERROR: HSBC payload has unexpected bid_valid=1", $time);
-                        rd_domain_errors <= rd_domain_errors + 1;
-                    end
-                end
-                default: begin
-                    $display("[%0t] ERROR: arbiter produced unknown stock locate %04h", $time, payload_stock_locate);
-                    rd_domain_errors <= rd_domain_errors + 1;
-                end
-            endcase
+        if (event_cdc_rd_valid[AAPL_IDX]) begin
+            fifo_payload_inc = fifo_payload_inc + 1;
+            aapl_payloads <= aapl_payloads + 1;
+            $display("[%0t] async fifo payload[%0d] symbol=AAPL locate=%04h ask_valid=%0b ask_price=%08h ask_shares=%08h bid_valid=%0b bid_price=%08h bid_shares=%08h event_timestamp=%016h",
+                     $time, total_payloads + fifo_payload_inc, aapl_stock_locate,
+                     aapl_ask_valid, aapl_ask_price, aapl_ask_shares,
+                     aapl_bid_valid, aapl_bid_price, aapl_bid_shares, aapl_event_timestamp);
+
+            if (aapl_stock_locate != AAPL_LOCATE) begin
+                $display("[%0t] ERROR: AAPL FIFO produced wrong stock locate %04h", $time, aapl_stock_locate);
+                rd_domain_errors <= rd_domain_errors + 1;
+            end
+            if ((aapl_payloads != 0) && (aapl_event_timestamp <= last_aapl_event_timestamp)) begin
+                $display("[%0t] ERROR: AAPL payload timestamp did not increase prev=%016h cur=%016h",
+                         $time, last_aapl_event_timestamp, aapl_event_timestamp);
+                rd_domain_errors <= rd_domain_errors + 1;
+            end
+            if (aapl_ask_valid !== 1'b0) begin
+                $display("[%0t] ERROR: AAPL payload has unexpected ask_valid=1", $time);
+                rd_domain_errors <= rd_domain_errors + 1;
+            end
+            last_aapl_event_timestamp <= aapl_event_timestamp;
+        end
+
+        if (event_cdc_rd_valid[HSBC_IDX]) begin
+            fifo_payload_inc = fifo_payload_inc + 1;
+            hsbc_payloads <= hsbc_payloads + 1;
+            $display("[%0t] async fifo payload[%0d] symbol=HSBC locate=%04h ask_valid=%0b ask_price=%08h ask_shares=%08h bid_valid=%0b bid_price=%08h bid_shares=%08h event_timestamp=%016h",
+                     $time, total_payloads + fifo_payload_inc, hsbc_stock_locate,
+                     hsbc_ask_valid, hsbc_ask_price, hsbc_ask_shares,
+                     hsbc_bid_valid, hsbc_bid_price, hsbc_bid_shares, hsbc_event_timestamp);
+
+            if (hsbc_stock_locate != HSBC_LOCATE) begin
+                $display("[%0t] ERROR: HSBC FIFO produced wrong stock locate %04h", $time, hsbc_stock_locate);
+                rd_domain_errors <= rd_domain_errors + 1;
+            end
+            if ((hsbc_payloads != 0) && (hsbc_event_timestamp <= last_hsbc_event_timestamp)) begin
+                $display("[%0t] ERROR: HSBC payload timestamp did not increase prev=%016h cur=%016h",
+                         $time, last_hsbc_event_timestamp, hsbc_event_timestamp);
+                rd_domain_errors <= rd_domain_errors + 1;
+            end
+            if (hsbc_bid_valid !== 1'b0) begin
+                $display("[%0t] ERROR: HSBC payload has unexpected bid_valid=1", $time);
+                rd_domain_errors <= rd_domain_errors + 1;
+            end
+            last_hsbc_event_timestamp <= hsbc_event_timestamp;
+        end
+
+        if (fifo_payload_inc != 0) begin
+            total_payloads <= total_payloads + fifo_payload_inc;
         end
     end
 
@@ -323,7 +386,6 @@ module tb_order_book_parser_builder;
         i_axi_rx_valid        = 1'b0;
         i_axi_rx_keep         = 8'hFF;
         i_axi_rx_last         = 1'b0;
-        i_axi_rx_ingress_tick = 64'd1;
         i_ctl_dst_mac         = 48'h0;
         i_ctl_dst_ip          = 32'h0;
         i_ctl_dst_port        = 16'h0;
@@ -340,6 +402,8 @@ module tb_order_book_parser_builder;
         rd_domain_errors      = 0;
         final_errors          = 0;
         total_errors          = 0;
+        last_aapl_event_timestamp = 64'd0;
+        last_hsbc_event_timestamp = 64'd0;
 
         repeat (5) @(posedge i_clk_156);
         i_rst <= 1'b0;
@@ -383,10 +447,10 @@ module tb_order_book_parser_builder;
                  aapl_payloads, hsbc_payloads, total_errors);
 
         if (total_errors != 0) begin
-            $fatal(1, "Parser/builder arbiter test failed with %0d errors", total_errors);
+            $fatal(1, "Parser/builder CDC test failed with %0d errors", total_errors);
         end
 
-        $display("[%0t] PASS: parser->builder arbiter test completed", $time);
+        $display("[%0t] PASS: parser->builder CDC test completed", $time);
         $finish;
     end
 

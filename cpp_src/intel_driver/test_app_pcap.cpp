@@ -13,7 +13,7 @@ uint64_t interrupt_interval = 100;
 #define NUM_OF_TX_BUF 2048
 #define NUM_OF_QUEUE 1
 
-std::unique_ptr<BasicDev> device1 = createDevice("0000:01:00.1",0,NUM_OF_QUEUE,NUM_OF_RX_BUF, PKT_BUF_SIZE, INTERRUPT_INITIAL_INTERVAL, 100);
+std::unique_ptr<Intel82599Dev> device1 = createDevice("0000:01:00.1",0,NUM_OF_QUEUE,NUM_OF_RX_BUF, PKT_BUF_SIZE, INTERRUPT_INITIAL_INTERVAL, 100);
 
 int main(int argc, char* argv[]) {
 	if (argc != 2) {
@@ -21,6 +21,6 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
     std::string file_name = argv[1];
-    static_cast<Intel82599Dev*>(device1.get())->capturePackets( 64,1000, file_name);
+    device1->capturePackets( 64,1000, file_name);
     return 0;
 }

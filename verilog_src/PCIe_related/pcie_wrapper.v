@@ -82,9 +82,7 @@ module pcie_wrapper #(
     output wire [15:0]                  o_pcie_requester_id
 );
 
-    // To enable this debug hook, define PCIE_ILA_ENABLE and add an ILA IP/module
-    // named ila_pcie_0 with ports:
-    //   clk, probe0[47:0], probe1[31:0], probe2[15:0], probe3[0:0]
+
 
     // =========================================================================
     // Internal Wires - CQ Channel (from PCIe IP to CQ_parser)

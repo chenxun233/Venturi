@@ -71,21 +71,9 @@ class BasicDev{
     public:
            BasicDev(std::string pci_addr,uint8_t max_bar_index )            ;
         virtual             ~BasicDev()   = default                         ;
-        virtual bool        initHardware()  = 0 ;
-        virtual bool        initializeInterrupt(const int interrupt_interval, const uint32_t timeout_ms) = 0 ;
-        virtual bool        enableDevQueues()                           = 0 ;
-        virtual bool        enableDevInterrupt()                        = 0 ;
-        virtual bool        wait4Link()                                 = 0 ;
-        virtual bool        setRxRingBuffers(uint16_t num_rx_queues,
-                                            uint32_t num_buf, 
-                                            uint32_t buf_size)          = 0 ;
-        virtual bool        setTxRingBuffers(uint16_t num_tx_queues,
-                                            uint32_t num_buf, 
-                                            uint32_t buf_size)          = 0 ;
-        virtual bool        setPromisc(bool enable)                     = 0 ;
-        virtual bool        sendOnQueue(uint8_t* p_data, 
-                                        size_t size, 
-                                        uint16_t queue_id)              = 0 ;
+        virtual bool        initHardware()                = 0 ;
+        virtual bool        setRxRingBuffers(uint16_t num_rx_queues,uint32_t num_buf, uint32_t buf_size)          = 0 ;
+        virtual bool        setTxRingBuffers(uint16_t num_tx_queues,uint32_t num_buf, uint32_t buf_size)          = 0 ;
         basic_para_type     get_basic_para()                                ;
     protected:
         // Common VFIO setup functions (shared by all PCIe drivers)

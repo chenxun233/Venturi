@@ -10,12 +10,12 @@ input   wire [DATA_WIDTH-1:0]       i_axi_rx_data           ,
 input   wire                        i_axi_rx_valid          ,
 input   wire [CTRL_WIDTH-1:0]       i_axi_rx_keep           ,
 input   wire                        i_axi_rx_last           ,
-input   wire [63:0]                 i_axi_rx_ingress_tick   ,
+// input   wire [63:0]                 i_axi_rx_ingress_tick   ,
 output  wire                        o_axi_rx_ready          ,
 // order book interface
 output  reg                         o_msg_valid             , // 1 when all the parts are parsed.
 output  reg [63:0]                  o_seq_num               , // sequence number
-output  reg [63:0]                  o_rx_ingress_tick       , // local monotonic RX ingress timestamp
+// output  reg [63:0]                  o_rx_ingress_tick       , // local monotonic RX ingress timestamp
 output  reg [7:0]                   o_msg_type              , //A, D, X, U, E, F
 output  reg [15:0]                  o_stock_locate          , // the stock ID
 output  reg [63:0]                  o_order_ref_num         , // (old, for type u)order reference number
@@ -116,7 +116,7 @@ end
 // header parsing. These will not be output.
 always @(posedge i_clk_156 or posedge i_rst) begin
     if (i_rst) begin
-        o_rx_ingress_tick   <= 0;
+        // o_rx_ingress_tick   <= 0;
         dst_mac_addr        <= 0;
         dst_ip_addr         <= 0;
         dst_port            <= 0;
@@ -129,7 +129,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
     end else if (i_axi_rx_valid && !i_axi_rx_last) begin
             case (head_counter)
             0: begin
-                o_rx_ingress_tick   <= i_axi_rx_ingress_tick;
+                // o_rx_ingress_tick   <= i_axi_rx_ingress_tick;
                 dst_mac_addr        <= i_axi_rx_data[63:24];
                 head_counter        <= head_counter + 1;
                 end

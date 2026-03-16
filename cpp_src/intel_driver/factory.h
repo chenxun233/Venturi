@@ -7,7 +7,7 @@
 
 
 
-std::unique_ptr<BasicDev> createDevice(const std::string pci_addr, 
+std::unique_ptr<Intel82599Dev> createDevice(const std::string pci_addr, 
                                         const uint8_t max_bar_index, 
                                         const uint8_t num_of_quueue, 
                                         const uint16_t num_of_buf, 

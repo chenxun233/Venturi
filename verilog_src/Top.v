@@ -5,7 +5,7 @@
 // =============================================================================
 // Top-level wrapper using the modular PCIe interface architecture:
 //   pcie_wrapper.v → CQ_parser, CC_formatter, RQ_formatter, RC_parser
-//   user_logic.v     → Register handling and DMA control
+//   rx_dma_config → Register handling for RX DMA configuration
 // =============================================================================
 
 module top #(
@@ -127,14 +127,6 @@ wire [10:0]             rq_payload_dw_count;
 wire [7:0]              rq_tag;
 wire [2:0]              rq_tc;
 wire [DATA_WIDTH-1:0]   rq_payload;
-wire                    ul_rq_valid;
-wire [3:0]              ul_rq_type;
-wire                    ul_rq_payload_last;
-wire [63:0]             ul_rq_addr;
-wire [10:0]             ul_rq_payload_dw_count;
-wire [7:0]              ul_rq_tag;
-wire [2:0]              ul_rq_tc;
-wire [DATA_WIDTH-1:0]   ul_rq_payload;
 wire                    dma_rq_ready;
 wire                    dma_rq_valid;
 wire [3:0]              dma_rq_type;
@@ -252,72 +244,40 @@ pcie_wrapper #(
     .o_pcie_requester_id        (pcie_requester_id)
 );
 
-// user_logic #(
-//     .DATA_WIDTH                 (DATA_WIDTH),
-//     .BAR0_SIZE                  (BAR0_SIZE),
-//     .RX_RING_COUNT              (2)
-// ) user_logic_inst (
-//     .user_clk                   (user_clk_250),
-//     .user_reset_p               (user_reset_p),
-
-//     .cq_valid                   (cq_valid),
-//     .cq_type                    (cq_type),
-//     .cq_reg_addr                (cq_reg_addr),
-//     .cq_payload                 (cq_payload),
-//     .cq_bar_id                  (cq_bar_id),
-//     .cq_requester_id            (cq_requester_id),
-//     .cq_tag                     (cq_tag),
-//     .cq_tc                      (cq_tc),
-//     .cq_lower_addr              (cq_lower_addr),
-//     .cq_payload_dw_count        (cq_payload_dw_count),
-//     .cq_last                    (cq_last),
-
-//     .cc_ready                   (cc_ready),
-//     .cc_valid                   (cc_valid),
-//     .cc_requester_id            (cc_requester_id),
-//     .cc_tag                     (cc_tag),
-//     .cc_tc                      (cc_tc),
-//     .cc_lower_addr              (cc_lower_addr),
-//     .cc_dword_count             (cc_dword_count),
-//     .cc_status                  (cc_status),
-//     .cc_payload                 (cc_payload),
-//     .cc_last                    (cc_last),
-
-//     .rq_ready                   (rq_ready),
-//     .rq_valid                   (ul_rq_valid),
-//     .rq_type                    (ul_rq_type),
-//     .rq_payload_sop             (),
-//     .rq_payload_last            (ul_rq_payload_last),
-//     .rq_addr                    (ul_rq_addr),
-//     .rq_payload_dw_count        (ul_rq_payload_dw_count),
-//     .rq_tag                     (ul_rq_tag),
-//     .rq_tc                      (ul_rq_tc),
-//     .rq_payload                 (ul_rq_payload),
-
-//     .rc_lower_addr              (rc_lower_addr),
-//     .rc_err_code                (rc_err_code),
-//     .rc_payload_byte_count      (rc_payload_byte_count),
-//     .rc_request_completed       (rc_request_completed),
-//     .rc_requester_id            (rc_requester_id),
-//     .rc_tag                     (rc_tag),
-//     .rc_valid                   (rc_valid),
-//     .rc_payload_last            (rc_payload_last),
-//     .rc_payload                 (rc_payload),
-//     .rc_payload_dw_keep         (rc_payload_dw_keep),
-//     .rc_posioned                (rc_posioned),
-//     .rc_payload_dw_count        (rc_payload_dw_count),
-
-//     .cfg_max_payload            (cfg_max_payload),
-//     .cfg_max_read_req           (cfg_max_read_req),
-//     .pcie_requester_id          (pcie_requester_id),
-//     .o_rx_ring_base_addr        (rx_dma_ring_base_addr),
-//     .o_rx_ring_size             (rx_dma_ring_size),
-//     .o_rx_ring_ctrl             (rx_dma_ring_ctrl),
-//     .o_rx_ring_cons_ptr         (rx_dma_ring_cons_ptr),
-//     .i_rx_ring_prod_ptr         (rx_dma_ring_prod_ptr),
-//     .i_rx_ring_drop_count       (rx_dma_ring_drop_count),
-//     .i_rx_ring_status           (rx_dma_ring_status)
-// );
+rx_dma_config #(
+    .DATA_WIDTH      (DATA_WIDTH),
+    .BAR0_SIZE       (BAR0_SIZE),
+    .RX_QUE_COUNT (2)
+) rx_dma_config_inst (
+    .user_clk                (user_clk_250),
+    .user_reset_p            (user_reset_p),
+    .cq_valid                (cq_valid),
+    .cq_type                 (cq_type),
+    .cq_reg_addr             (cq_reg_addr),
+    .cq_payload              (cq_payload),
+    .cq_requester_id         (cq_requester_id),
+    .cq_tag                  (cq_tag),
+    .cq_tc                   (cq_tc),
+    .cq_lower_addr           (cq_lower_addr),
+    .cq_payload_dw_count     (cq_payload_dw_count),
+    .cc_ready                (cc_ready),
+    .cc_valid                (cc_valid),
+    .cc_requester_id         (cc_requester_id),
+    .cc_tag                  (cc_tag),
+    .cc_tc                   (cc_tc),
+    .cc_lower_addr           (cc_lower_addr),
+    .cc_dword_count          (cc_dword_count),
+    .cc_status               (cc_status),
+    .cc_payload              (cc_payload),
+    .cc_last                 (cc_last),
+    .o_rx_que_base_addr     (rx_dma_que_base_addr),
+    .o_rx_que_slot_num    (rx_dma_que_slot_num),
+    .o_rx_que_enable          (rx_dma_que_enable),
+    .o_rx_que_cons_ptr      (rx_dma_que_cons_ptr),
+    .i_rx_que_prod_ptr      (rx_dma_que_prod_ptr),
+    .i_rx_que_drop_count    (rx_dma_que_drop_count),
+    .i_rx_que_status        (rx_dma_que_status)
+);
 
 
 wire    w_xgmii_clk;
@@ -335,8 +295,6 @@ wire         w_axi_rx_valid   ;
 wire [7:0]   w_axi_rx_keep    ;
 wire         w_axi_rx_last     ;
 wire         w_axi_rx_ready    ;
-wire         w_axi_rx_frame_start;
-wire [63:0]  w_axi_rx_ingress_tick;
 
 // Control-plane outputs for parser settings
 wire [47:0]             o_ctl_mac_addr;
@@ -351,7 +309,6 @@ wire                    axi_rx_ready;
 wire                    done;
 wire                    msg_valid;
 wire [63:0]             seq_num;
-wire [63:0]             rx_ingress_tick;
 wire [47:0]             timestamp;
 wire [15:0]             msg_len;
 wire [7:0]              msg_type;
@@ -361,24 +318,24 @@ wire [63:0]             new_order_ref_num;
 wire [7:0]              buy_sell;
 wire [31:0]             shares;
 wire [31:0]             price;
-localparam EVENT_PAYLOAD_W = 274;
+localparam EVENT_PAYLOAD_W = 208;
 localparam EVENT_CDC_DEPTH = 64;
-localparam RX_RING_SYMBOL_NUM = 2;
+localparam QUE_NUM = 2;
 
-wire [RX_RING_SYMBOL_NUM-1:0] builder_event_valid;
-wire [RX_RING_SYMBOL_NUM*EVENT_PAYLOAD_W-1:0] builder_event_payload;
-wire [RX_RING_SYMBOL_NUM-1:0] event_cdc_wr_full;
-wire [RX_RING_SYMBOL_NUM-1:0] event_cdc_rd_en;
-wire [RX_RING_SYMBOL_NUM-1:0] event_cdc_rd_empty;
-wire [RX_RING_SYMBOL_NUM-1:0] event_cdc_rd_valid;
-wire [RX_RING_SYMBOL_NUM*EVENT_PAYLOAD_W-1:0] event_cdc_rd_data;
-wire [RX_RING_SYMBOL_NUM*64-1:0] rx_dma_ring_base_addr;
-wire [RX_RING_SYMBOL_NUM*64-1:0] rx_dma_ring_size;
-wire [RX_RING_SYMBOL_NUM*64-1:0] rx_dma_ring_ctrl;
-wire [RX_RING_SYMBOL_NUM*64-1:0] rx_dma_ring_cons_ptr;
-wire [RX_RING_SYMBOL_NUM*64-1:0] rx_dma_ring_prod_ptr;
-wire [RX_RING_SYMBOL_NUM*64-1:0] rx_dma_ring_drop_count;
-wire [RX_RING_SYMBOL_NUM*64-1:0] rx_dma_ring_status;
+wire [QUE_NUM-1:0]                  builder_event_valid     ;
+wire [QUE_NUM*EVENT_PAYLOAD_W-1:0]  builder_event_payload   ;
+wire [QUE_NUM-1:0]                  event_cdc_wr_full       ;
+wire [QUE_NUM-1:0]                  event_cdc_rd_en         ;
+wire [QUE_NUM-1:0]                  event_cdc_rd_empty      ;
+wire [QUE_NUM-1:0]                  event_cdc_rd_valid      ;
+wire [QUE_NUM*EVENT_PAYLOAD_W-1:0]  event_cdc_rd_data       ;
+wire [QUE_NUM*64-1:0]               rx_dma_que_base_addr    ;
+wire [QUE_NUM*64-1:0]               rx_dma_que_slot_num   ;
+wire [QUE_NUM*64-1:0]               rx_dma_que_enable         ;
+wire [QUE_NUM*64-1:0]               rx_dma_que_cons_ptr     ;
+wire [QUE_NUM*64-1:0]               rx_dma_que_prod_ptr     ;
+wire [QUE_NUM*64-1:0]               rx_dma_que_drop_count   ;
+wire [QUE_NUM*64-1:0]               rx_dma_que_status       ;
 
 assign w_axi_rx_ready = axi_rx_ready;
 assign o_ctl_mac_addr      = 48'h0100_5E00_0001;
@@ -387,15 +344,15 @@ assign o_ctl_port          = 16'h04D2;
 assign o_ctl_promiscuous   = 1'b1;
 assign o_ctl_reg           = {BAR0_SIZE{1'b0}};
 assign o_sync_fire         = 1'b0;
-assign dma_rq_ready        = rq_ready && !ul_rq_valid;
-assign rq_valid            = ul_rq_valid ? 1'b1 : dma_rq_valid;
-assign rq_type             = ul_rq_valid ? ul_rq_type : dma_rq_type;
-assign rq_payload_last     = ul_rq_valid ? ul_rq_payload_last : dma_rq_payload_last;
-assign rq_addr             = ul_rq_valid ? ul_rq_addr : dma_rq_addr;
-assign rq_payload_dw_count = ul_rq_valid ? ul_rq_payload_dw_count : dma_rq_payload_dw_count;
-assign rq_tag              = ul_rq_valid ? ul_rq_tag : dma_rq_tag;
-assign rq_tc               = ul_rq_valid ? ul_rq_tc : dma_rq_tc;
-assign rq_payload          = ul_rq_valid ? ul_rq_payload : dma_rq_payload;
+assign dma_rq_ready        = rq_ready;
+assign rq_valid            = dma_rq_valid;
+assign rq_type             = dma_rq_type;
+assign rq_payload_last     = dma_rq_payload_last;
+assign rq_addr             = dma_rq_addr;
+assign rq_payload_dw_count = dma_rq_payload_dw_count;
+assign rq_tag              = dma_rq_tag;
+assign rq_tc               = dma_rq_tc;
+assign rq_payload          = dma_rq_payload;
 
 wire         ask_best_valid ;
 wire [31:0]  ask_best_price ;
@@ -418,89 +375,75 @@ MAC_layer_rx #(
     .o_axi_rx_valid   (w_axi_rx_valid   ),
     .o_axi_rx_keep    (w_axi_rx_keep    ),
     .o_axi_rx_last    (w_axi_rx_last    ),
-    .o_frame_start    (w_axi_rx_frame_start),
+    .o_frame_start    (),
     .i_axi_rx_ready   (w_axi_rx_ready   )
 );
 
-frame_timestamp #(
-    .COUNTER_WIDTH(64)
-) frame_timestamp_inst (
-    .i_clk            (w_xgmii_rx_clk),
-    .i_rst            (w_xgmii_rx_rst),
-    .i_event          (w_axi_rx_frame_start),
-    .o_event_timestamp(w_axi_rx_ingress_tick)
-);
-
 order_book_parser order_book_parser_inst (
-    .i_clk_156          (w_xgmii_rx_clk   ),
-    .i_rst              (w_xgmii_rx_rst   ),
-    .i_axi_rx_data      (w_axi_rx_data    ),
-    .i_axi_rx_valid     (w_axi_rx_valid   ),
-    .i_axi_rx_keep      (w_axi_rx_keep    ),
-    .i_axi_rx_last      (w_axi_rx_last    ),
-    .i_axi_rx_ingress_tick(w_axi_rx_ingress_tick),
-    .o_axi_rx_ready     (axi_rx_ready),
-    .o_msg_valid        (msg_valid),
-    .o_seq_num          (seq_num),
-    .o_rx_ingress_tick  (rx_ingress_tick),
-    .o_timestamp        (timestamp),
-    .o_msg_type         (msg_type),
-    .o_stock_locate     (stock_locate),
-    .o_order_ref_num    (order_ref_num),
-    .o_new_order_ref_num(new_order_ref_num),
-    .o_buy_sell         (buy_sell), 
-    .o_shares           (shares),
-    .o_price            (price),
-    .i_ctl_dst_mac      (o_ctl_mac_addr),
-    .i_ctl_dst_ip       (o_ctl_ip_addr),
-    .i_ctl_dst_port     (o_ctl_port),
-    .i_promiscuous      (o_ctl_promiscuous),
-    .i_sync_fire        (o_sync_fire),
-    .i_ctl_reg          (o_ctl_reg)
+    .i_clk_156              (w_xgmii_rx_clk   ),
+    .i_rst                  (w_xgmii_rx_rst   ),
+    .i_axi_rx_data          (w_axi_rx_data    ),
+    .i_axi_rx_valid         (w_axi_rx_valid   ),
+    .i_axi_rx_keep          (w_axi_rx_keep    ),
+    .i_axi_rx_last          (w_axi_rx_last    ),
+    .o_axi_rx_ready         (axi_rx_ready),
+    .o_msg_valid            (msg_valid),
+    .o_seq_num              (seq_num),
+    .o_timestamp            (timestamp),
+    .o_msg_type             (msg_type),
+    .o_stock_locate         (stock_locate),
+    .o_order_ref_num        (order_ref_num),
+    .o_new_order_ref_num    (new_order_ref_num),
+    .o_buy_sell             (buy_sell), 
+    .o_shares               (shares),
+    .o_price                (price),
+    .i_ctl_dst_mac          (o_ctl_mac_addr),
+    .i_ctl_dst_ip           (o_ctl_ip_addr),
+    .i_ctl_dst_port         (o_ctl_port),
+    .i_promiscuous          (o_ctl_promiscuous),
+    .i_sync_fire            (o_sync_fire),
+    .i_ctl_reg              (o_ctl_reg)
 );
 
 order_book_builder order_book_builder_inst (
-    .i_clk_156          (w_xgmii_rx_clk     ),
-    .i_rst              (w_xgmii_rx_rst     ),
-    .i_msg_valid        (msg_valid          ),
-    .i_seq_num          (seq_num            ),
-    .i_rx_ingress_tick  (rx_ingress_tick    ),
-    .i_msg_type         (msg_type           ),
-    .i_stock_locate     (stock_locate       ),
-    .i_order_ref_num    (order_ref_num      ),
-    .i_new_order_ref_num(new_order_ref_num  ),
-    .i_buy_sell         (buy_sell           ),
-    .i_shares           (shares             ),
-    .i_price            (price              ),
-    .i_timestamp        (timestamp          ),
+    .i_clk_156          (w_xgmii_rx_clk        ),
+    .i_rst              (w_xgmii_rx_rst        ),
+    .i_msg_valid        (msg_valid             ),
+    .i_msg_type         (msg_type              ),
+    .i_stock_locate     (stock_locate          ),
+    .i_order_ref_num    (order_ref_num         ),
+    .i_new_order_ref_num(new_order_ref_num     ),
+    .i_buy_sell         (buy_sell              ),
+    .i_shares           (shares                ),
+    .i_price            (price                 ),
     .o_event_valid      (builder_event_valid   ),
     .o_event_payload    (builder_event_payload )
 );
 
 generate
     genvar cdc_idx;
-    for (cdc_idx = 0; cdc_idx < RX_RING_SYMBOL_NUM; cdc_idx = cdc_idx + 1) begin : g_event_cdc
+    for (cdc_idx = 0; cdc_idx < QUE_NUM; cdc_idx = cdc_idx + 1) begin : g_event_cdc
         async_fifo #(
             .DEPTH  (EVENT_CDC_DEPTH),
             .DATA_W (EVENT_PAYLOAD_W)
         ) event_cdc_inst (
-            .i_wr_clk    (w_xgmii_rx_clk),
-            .i_wr_rst    (w_xgmii_rx_rst),
-            .i_wr_en     (builder_event_valid[cdc_idx]),
-            .i_wr_data   (builder_event_payload[cdc_idx*EVENT_PAYLOAD_W +: EVENT_PAYLOAD_W]),
-            .o_wr_full   (event_cdc_wr_full[cdc_idx]),
-            .i_rd_clk    (user_clk_250),
-            .i_rd_rst    (user_reset_p),
-            .i_rd_en     (event_cdc_rd_en[cdc_idx]),
-            .o_rd_empty  (event_cdc_rd_empty[cdc_idx]),
-            .o_rd_valid  (event_cdc_rd_valid[cdc_idx]),
-            .o_rd_data   (event_cdc_rd_data[cdc_idx*EVENT_PAYLOAD_W +: EVENT_PAYLOAD_W])
+            .i_wr_clk    (w_xgmii_rx_clk                                                    ),
+            .i_wr_rst    (w_xgmii_rx_rst                                                    ),
+            .i_wr_en     (builder_event_valid[cdc_idx]                                      ),
+            .i_wr_data   (builder_event_payload[cdc_idx*EVENT_PAYLOAD_W +: EVENT_PAYLOAD_W] ),
+            .o_wr_full   (event_cdc_wr_full[cdc_idx]                                        ),
+            .i_rd_clk    (user_clk_250                                                      ),
+            .i_rd_rst    (user_reset_p                                                      ),
+            .i_rd_en     (event_cdc_rd_en[cdc_idx]                                          ),
+            .o_rd_empty  (event_cdc_rd_empty[cdc_idx]                                       ),
+            .o_rd_valid  (event_cdc_rd_valid[cdc_idx]                                       ),
+            .o_rd_data   (event_cdc_rd_data[cdc_idx*EVENT_PAYLOAD_W +: EVENT_PAYLOAD_W]     )
         );
     end
 endgenerate
 
 rx_dma_stage #(
-    .SYMBOL_NUM         (RX_RING_SYMBOL_NUM),
+    .SYMBOL_NUM         (QUE_NUM),
     .PAYLOAD_W          (EVENT_PAYLOAD_W)
 ) rx_dma_stage_inst (
     .i_clk              (user_clk_250),
@@ -509,13 +452,13 @@ rx_dma_stage #(
     .i_event_valid      (event_cdc_rd_valid),
     .i_event_payload    (event_cdc_rd_data),
     .o_event_pop        (event_cdc_rd_en),
-    .i_ring_base_addr   (rx_dma_ring_base_addr),
-    .i_ring_size        (rx_dma_ring_size),
-    .i_ring_ctrl        (rx_dma_ring_ctrl),
-    .i_ring_cons_ptr    (rx_dma_ring_cons_ptr),
-    .o_ring_prod_ptr    (rx_dma_ring_prod_ptr),
-    .o_ring_drop_count  (rx_dma_ring_drop_count),
-    .o_ring_status      (rx_dma_ring_status),
+    .i_que_base_addr    (rx_dma_que_base_addr),
+    .i_que_slot_num   (rx_dma_que_slot_num),
+    .i_que_enable         (rx_dma_que_enable),
+    .i_que_cons_ptr     (rx_dma_que_cons_ptr),
+    .o_que_prod_ptr     (rx_dma_que_prod_ptr),
+    .o_que_drop_count   (rx_dma_que_drop_count),
+    .o_que_status       (rx_dma_que_status),
     .i_rq_ready         (dma_rq_ready),
     .o_rq_valid         (dma_rq_valid),
     .o_rq_type          (dma_rq_type),

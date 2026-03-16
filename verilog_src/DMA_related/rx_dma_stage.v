@@ -1,6 +1,6 @@
 module rx_dma_stage #(
     parameter SYMBOL_NUM = 2,
-    parameter PAYLOAD_W  = 274
+    parameter PAYLOAD_W  = 256
 ) (
     input  wire                             i_clk,
     input  wire                             i_rst,
@@ -8,13 +8,13 @@ module rx_dma_stage #(
     input  wire [SYMBOL_NUM-1:0]            i_event_valid,
     input  wire [SYMBOL_NUM*PAYLOAD_W-1:0]  i_event_payload,
     output reg  [SYMBOL_NUM-1:0]            o_event_pop,
-    input  wire [SYMBOL_NUM*64-1:0]         i_ring_base_addr,
-    input  wire [SYMBOL_NUM*64-1:0]         i_ring_size,
-    input  wire [SYMBOL_NUM*64-1:0]         i_ring_ctrl,
-    input  wire [SYMBOL_NUM*64-1:0]         i_ring_cons_ptr,
-    output wire [SYMBOL_NUM*64-1:0]         o_ring_prod_ptr,
-    output wire [SYMBOL_NUM*64-1:0]         o_ring_drop_count,
-    output wire [SYMBOL_NUM*64-1:0]         o_ring_status,
+    input  wire [SYMBOL_NUM*64-1:0]         i_que_base_addr,
+    input  wire [SYMBOL_NUM*64-1:0]         i_que_slot_num,
+    input  wire [SYMBOL_NUM*64-1:0]         i_que_enable,
+    input  wire [SYMBOL_NUM*64-1:0]         i_que_cons_ptr,
+    output wire [SYMBOL_NUM*64-1:0]         o_que_prod_ptr,
+    output wire [SYMBOL_NUM*64-1:0]         o_que_drop_count,
+    output wire [SYMBOL_NUM*64-1:0]         o_que_status,
     input  wire                             i_rq_ready,
     output reg                              o_rq_valid,
     output reg  [3:0]                       o_rq_type,
@@ -27,14 +27,12 @@ module rx_dma_stage #(
 );
 
 localparam [3:0] TYPE_WRITE = 4'b0001;
-localparam [10:0] RECORD_DW_COUNT = 11'd16;
+localparam [10:0] RECORD_DW_COUNT = 11'd8;
 localparam [1:0] ST_IDLE      = 2'd0;
 localparam [1:0] ST_WAIT_FIFO = 2'd1;
-localparam [1:0] ST_SEND_0    = 2'd2;
-localparam [1:0] ST_SEND_1    = 2'd3;
+localparam [1:0] ST_SEND      = 2'd2;
 
-function integer clog2;
-    input integer value;
+function integer clog2 (input integer value);
     integer idx;
     begin
         clog2 = 0;
@@ -43,161 +41,158 @@ function integer clog2;
     end
 endfunction
 
-function [511:0] pack_record;
-    input [PAYLOAD_W-1:0] payload;
+function [255:0] pack_record (input [PAYLOAD_W-1:0] payload);
     begin
-        pack_record = 512'd0;
+        pack_record = 256'd0; // 256 bits is 32 bytes.
         pack_record[PAYLOAD_W-1:0] = payload;
     end
 endfunction
 
-function [63:0] calc_write_addr;
-    input [63:0] base_addr;
-    input [63:0] ring_size_slots;
-    input [63:0] prod_ptr;
-    reg   [63:0] slot_index;
+function [63:0] calc_write_addr (input [63:0] base_addr, input [63:0] slot_index);
     begin
-        if (ring_size_slots == 64'd0)
-            slot_index = 64'd0;
+        calc_write_addr = base_addr + (slot_index << 5); // per slot is 32 bytes, this converts slot index to bytes
+    end
+endfunction
+
+function [63:0] calc_next_slot_index (input [63:0] slot_index, input [63:0] que_slot_num);
+    begin
+        if (que_slot_num <= 64'd1)
+            calc_next_slot_index = 64'd0;
+        else if (slot_index + 64'd1 >= que_slot_num)
+            calc_next_slot_index = 64'd0;
         else
-            slot_index = prod_ptr % ring_size_slots;
-        calc_write_addr = base_addr + (slot_index << 6);
+            calc_next_slot_index = slot_index + 64'd1;
     end
 endfunction
 
 localparam CL_SYMBOL_NUM = (SYMBOL_NUM > 1) ? clog2(SYMBOL_NUM) : 1;
 
-reg [63:0] ring_prod_ptr [0:SYMBOL_NUM-1];
-reg [63:0] ring_drop_count [0:SYMBOL_NUM-1];
+reg [63:0] que_prod_ptr [0:SYMBOL_NUM-1];
+reg [63:0] que_slot_index [0:SYMBOL_NUM-1];
+reg [63:0] que_drop_count [0:SYMBOL_NUM-1];
 
-reg [1:0]                state_reg;
-reg [CL_SYMBOL_NUM-1:0]  current_ring_reg;
-reg [CL_SYMBOL_NUM-1:0]  rr_pointer_reg;
-reg                      drop_current_reg;
-reg [511:0]              record_buffer_reg;
-reg [63:0]               write_addr_reg;
+reg [1:0]                state;
+reg [CL_SYMBOL_NUM-1:0]  current_que_idx;
+reg                      drop_current; // drop the queue entry or not.
+reg [255:0]              record_que;
+reg [63:0]               write_addr;
 
-reg                      selected_valid_reg;
-reg [CL_SYMBOL_NUM-1:0]  selected_ring_reg;
-reg                      selected_drop_reg;
+wire                     selected_valid;
+wire [CL_SYMBOL_NUM-1:0] selected_que_idx;
+wire                     selected_accept;
+wire                     selected_drop;
+wire [SYMBOL_NUM-1:0]    que_request_vec;
 
-wire [SYMBOL_NUM-1:0] ring_full_vec;
-wire [SYMBOL_NUM-1:0] ring_enabled_vec;
-wire [SYMBOL_NUM-1:0] ring_clear_vec;
-wire [SYMBOL_NUM-1:0] ring_busy_vec;
+wire [SYMBOL_NUM-1:0]   que_full_vec;
+wire [SYMBOL_NUM-1:0]   que_enabled_vec;
+wire [SYMBOL_NUM-1:0]   que_clear_vec;
+wire [SYMBOL_NUM-1:0]   que_busy_vec;
 
-integer ring_idx;
-integer rr_offset;
-integer candidate_ring;
-reg [63:0] ring_size_value;
-reg [63:0] ring_cons_value;
-reg [63:0] ring_outstanding;
-reg        ring_enabled;
-reg        ring_full;
+integer que_idx;
 
 generate
     genvar gi;
-    for (gi = 0; gi < SYMBOL_NUM; gi = gi + 1) begin : g_ring_status
-        assign o_ring_prod_ptr[gi*64 +: 64]   = ring_prod_ptr[gi];
-        assign o_ring_drop_count[gi*64 +: 64] = ring_drop_count[gi];
-        assign ring_enabled_vec[gi]           = i_ring_ctrl[gi*64];
-        assign ring_clear_vec[gi]             = i_ring_ctrl[gi*64 + 1];
-        assign ring_full_vec[gi]              =
-            (i_ring_size[gi*64 +: 64] == 64'd0) ? 1'b1 :
-            ((ring_prod_ptr[gi] - i_ring_cons_ptr[gi*64 +: 64]) >= i_ring_size[gi*64 +: 64]);
-        assign ring_busy_vec[gi]              = (state_reg != ST_IDLE) && (current_ring_reg == gi[CL_SYMBOL_NUM-1:0]);
-        assign o_ring_status[gi*64 +: 64]     =
-            {60'd0, ring_clear_vec[gi], ring_busy_vec[gi], ring_full_vec[gi], ring_enabled_vec[gi]};
+    for (gi = 0; gi < SYMBOL_NUM; gi = gi + 1) begin : g_que_status
+        assign o_que_prod_ptr[gi*64 +: 64]      = que_prod_ptr[gi];
+        assign o_que_drop_count[gi*64 +: 64]    = que_drop_count[gi];
+        assign que_enabled_vec[gi]              = i_que_enable[gi*64];
+        assign que_clear_vec[gi]                = i_que_enable[gi*64 + 1];
+        assign que_full_vec[gi]                 =
+            (i_que_slot_num[gi*64 +: 64] == 64'd0) ? 1'b1 :
+            ((que_prod_ptr[gi] - i_que_cons_ptr[gi*64 +: 64]) >= i_que_slot_num[gi*64 +: 64]);
+        assign que_busy_vec[gi]              = (state != ST_IDLE) && (current_que_idx == gi[CL_SYMBOL_NUM-1:0]);
+        assign o_que_status[gi*64 +: 64]   =
+            {60'd0, que_clear_vec[gi], que_busy_vec[gi], que_full_vec[gi], que_enabled_vec[gi]};
     end
 endgenerate
 
-always @(*) begin
-    selected_valid_reg = 1'b0;
-    selected_ring_reg  = rr_pointer_reg;
-    selected_drop_reg  = 1'b0;
+assign que_request_vec = ~i_event_empty;
+assign selected_accept = (state == ST_IDLE) && selected_valid;
 
-    for (rr_offset = 0; rr_offset < SYMBOL_NUM; rr_offset = rr_offset + 1) begin
-        candidate_ring = rr_pointer_reg + rr_offset;
-        if (candidate_ring >= SYMBOL_NUM)
-            candidate_ring = candidate_ring - SYMBOL_NUM;
+arbiter #(
+    .SYMBOL_NUM (SYMBOL_NUM)
+) que_arbiter_inst (
+    .i_clk     (i_clk),
+    .i_rst     (i_rst),
+    .i_req     (que_request_vec),
+    .i_accept  (selected_accept),
+    .o_valid   (selected_valid),
+    .o_que_idx (selected_que_idx)
+);
 
-        ring_size_value = i_ring_size[candidate_ring*64 +: 64];
-        ring_cons_value = i_ring_cons_ptr[candidate_ring*64 +: 64];
-        ring_outstanding = ring_prod_ptr[candidate_ring] - ring_cons_value;
-        ring_enabled = i_ring_ctrl[candidate_ring*64] && !i_ring_ctrl[candidate_ring*64 + 1];
-        ring_full = (ring_size_value == 64'd0) || (ring_outstanding >= ring_size_value);
 
-        if (!selected_valid_reg && !i_event_empty[candidate_ring]) begin
-            selected_valid_reg = 1'b1;
-            selected_ring_reg  = candidate_ring[CL_SYMBOL_NUM-1:0];
-            selected_drop_reg  = !ring_enabled || ring_full;
-        end
-    end
-end
+assign selected_drop            = selected_valid ? (!que_enabled || que_full) : 1'b0;
+wire [63:0] que_slot_num_value= i_que_slot_num[selected_que_idx*64 +: 64];
+wire [63:0] que_cons_value      = i_que_cons_ptr[selected_que_idx*64 +: 64];
+wire [63:0] que_outstanding     = que_prod_ptr[selected_que_idx] - que_cons_value;
+wire        que_enabled         = i_que_enable[selected_que_idx*64] && !i_que_enable[selected_que_idx*64 + 1];
+wire        que_full            = (que_slot_num_value == 64'd0) || (que_outstanding >= que_slot_num_value);
+
+
+
+
 
 always @(posedge i_clk or posedge i_rst) begin
     if (i_rst) begin
-        state_reg        <= ST_IDLE;
-        current_ring_reg <= {CL_SYMBOL_NUM{1'b0}};
-        rr_pointer_reg   <= {CL_SYMBOL_NUM{1'b0}};
-        drop_current_reg <= 1'b0;
-        record_buffer_reg <= 512'd0;
-        write_addr_reg   <= 64'd0;
-        o_event_pop       <= {SYMBOL_NUM{1'b0}};
+        state           <= ST_IDLE;
+        current_que_idx <= {CL_SYMBOL_NUM{1'b0}};
+        drop_current    <= 1'b0;
+        record_que      <= 256'd0;
+        write_addr      <= 64'd0;
+        o_event_pop     <= {SYMBOL_NUM{1'b0}};
 
-        for (ring_idx = 0; ring_idx < SYMBOL_NUM; ring_idx = ring_idx + 1) begin
-            ring_prod_ptr[ring_idx]   <= 64'd0;
-            ring_drop_count[ring_idx] <= 64'd0;
+        for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
+            que_prod_ptr[que_idx]   <= 64'd0;
+            que_slot_index[que_idx] <= 64'd0;
+            que_drop_count[que_idx] <= 64'd0;
         end
     end else begin
         o_event_pop <= {SYMBOL_NUM{1'b0}};
 
-        for (ring_idx = 0; ring_idx < SYMBOL_NUM; ring_idx = ring_idx + 1) begin
-            if (ring_clear_vec[ring_idx]) begin
-                ring_prod_ptr[ring_idx]   <= 64'd0;
-                ring_drop_count[ring_idx] <= 64'd0;
+        for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
+            if (que_clear_vec[que_idx]) begin
+                que_prod_ptr[que_idx]   <= 64'd0;
+                que_slot_index[que_idx] <= 64'd0;
+                que_drop_count[que_idx] <= 64'd0;
             end
         end
 
-        case (state_reg)
+        case (state)
             ST_IDLE: begin
-                if (selected_valid_reg) begin
-                    current_ring_reg <= selected_ring_reg;
-                    drop_current_reg <= selected_drop_reg;
-                    o_event_pop[selected_ring_reg] <= 1'b1;
-                    state_reg <= ST_WAIT_FIFO;
+                if (selected_valid) begin
+                    current_que_idx                 <= selected_que_idx;
+                    drop_current                    <= selected_drop;
+                    o_event_pop[selected_que_idx]   <= 1'b1;
+                    state                           <= ST_WAIT_FIFO;
                 end
             end
             ST_WAIT_FIFO: begin
-                if (i_event_valid[current_ring_reg]) begin
-                    if (drop_current_reg) begin
-                        ring_drop_count[current_ring_reg] <= ring_drop_count[current_ring_reg] + 64'd1;
-                        rr_pointer_reg <= current_ring_reg + {{(CL_SYMBOL_NUM-1){1'b0}}, 1'b1};
-                        state_reg <= ST_IDLE;
+                if (i_event_valid[current_que_idx]) begin
+                    if (drop_current) begin
+                        que_drop_count[current_que_idx] <= que_drop_count[current_que_idx] + 64'd1;
+                        state <= ST_IDLE;
                     end else begin
-                        record_buffer_reg <= pack_record(i_event_payload[current_ring_reg*PAYLOAD_W +: PAYLOAD_W]);
-                        write_addr_reg <= calc_write_addr(
-                            i_ring_base_addr[current_ring_reg*64 +: 64],
-                            i_ring_size[current_ring_reg*64 +: 64],
-                            ring_prod_ptr[current_ring_reg]
+                        record_que <= pack_record(i_event_payload[current_que_idx*PAYLOAD_W +: PAYLOAD_W]);
+                        write_addr <= calc_write_addr(
+                            i_que_base_addr[current_que_idx*64 +: 64],
+                            que_slot_index[current_que_idx]
                         );
-                        state_reg <= ST_SEND_0;
+                        state <= ST_SEND;
                     end
                 end
             end
-            ST_SEND_0: begin
-                if (i_rq_ready)
-                    state_reg <= ST_SEND_1;
-            end
-            ST_SEND_1: begin
+            ST_SEND: begin
                 if (i_rq_ready) begin
-                    ring_prod_ptr[current_ring_reg] <= ring_prod_ptr[current_ring_reg] + 64'd1;
-                    rr_pointer_reg <= current_ring_reg + {{(CL_SYMBOL_NUM-1){1'b0}}, 1'b1};
-                    state_reg <= ST_IDLE;
+                    que_prod_ptr[current_que_idx] <= que_prod_ptr[current_que_idx] + 64'd1;
+                    que_slot_index[current_que_idx] <= calc_next_slot_index(
+                        que_slot_index[current_que_idx],
+                        i_que_slot_num[current_que_idx*64 +: 64]
+                    );
+                    state <= ST_IDLE;
                 end
             end
             default: begin
-                state_reg <= ST_IDLE;
+                state <= ST_IDLE;
             end
         endcase
     end
@@ -213,24 +208,15 @@ always @(*) begin
     o_rq_tc               = 3'd0;
     o_rq_payload          = 256'd0;
 
-    case (state_reg)
-        ST_SEND_0: begin
-            o_rq_valid            = 1'b1;
-            o_rq_type             = TYPE_WRITE;
-            o_rq_payload_last     = 1'b0;
-            o_rq_addr             = write_addr_reg;
-            o_rq_payload_dw_count = RECORD_DW_COUNT;
-            o_rq_tag              = 8'h40 | current_ring_reg;
-            o_rq_payload          = record_buffer_reg[255:0];
-        end
-        ST_SEND_1: begin
+    case (state)
+        ST_SEND: begin
             o_rq_valid            = 1'b1;
             o_rq_type             = TYPE_WRITE;
             o_rq_payload_last     = 1'b1;
-            o_rq_addr             = write_addr_reg;
+            o_rq_addr             = write_addr;
             o_rq_payload_dw_count = RECORD_DW_COUNT;
-            o_rq_tag              = 8'h40 | current_ring_reg;
-            o_rq_payload          = record_buffer_reg[511:256];
+            o_rq_tag              = 8'h40 | current_que_idx;
+            o_rq_payload          = record_que;
         end
         default: begin
             o_rq_valid            = 1'b0;

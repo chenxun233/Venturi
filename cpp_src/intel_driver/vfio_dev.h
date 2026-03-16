@@ -23,19 +23,19 @@ class Intel82599Dev : public BasicDev{
     public:
         Intel82599Dev(std::string pci_addr, uint8_t max_bar_index);
         ~Intel82599Dev();
-        bool        initHardware()                override;
-        bool        initializeInterrupt(const int interrupt_interval, const uint32_t timeout_ms)        override;
-        bool        enableDevQueues()                                         override;
-        bool        enableDevInterrupt()                                      override;
+        bool        initHardware();
+        bool        initializeInterrupt(const int interrupt_interval, const uint32_t timeout_ms);
+        bool        enableDevQueues();
+        bool        enableDevInterrupt();
         bool        setRxRingBuffers(uint16_t num_tx_queues,uint32_t num_buf, uint32_t buf_size)     override;
         bool        setTxRingBuffers(uint16_t num_tx_queues,uint32_t num_buf, uint32_t buf_size)     override;
-        bool        sendOnQueue(uint8_t* p_data, size_t size, uint16_t queue_id)                     override;
+        bool        sendOnQueue(uint8_t* p_data, size_t size, uint16_t queue_id)                     ;
         void        loopSendTest(uint32_t num_buf);
         void        capturePackets(uint16_t batch_size,int64_t n_packets, std::string file_name);
         void        infoNIC_Tx(uint16_t tail_index);
         void        infoNIC_Rx(uint16_t tail_index);
-        bool        setPromisc(bool enable)                             override;
-        bool        wait4Link()                                         override;
+        bool        setPromisc(bool enable)                             ;
+        bool        wait4Link();
     private:
         // _getFD() and _getBARAddr() are now inherited from BasicDev
         bool        _enableDMA()                                             override;
