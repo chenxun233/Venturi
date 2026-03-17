@@ -194,7 +194,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         o_price             <= 0;
         o_timestamp         <= 0;
         o_msg_valid         <= 0;
-        buffered_bytes        <= 7'd8;  // the buffered_bytes is pure sequential logic, while cur_buff is a mix. To catch up, the it should start from 8.
+        buffered_bytes      <= 7'd8;  // the buffered_bytes is pure sequential logic, while cur_buff is a mix. To catch up, the it should start from 8.
         prev_buff           <= 0;
         msg_count           <= 0;
         peeked_type         <= 0;

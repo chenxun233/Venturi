@@ -86,7 +86,6 @@ wire [SYMBOL_NUM-1:0]    que_request_vec;
 
 wire [SYMBOL_NUM-1:0]   que_full_vec;
 wire [SYMBOL_NUM-1:0]   que_enabled_vec;
-wire [SYMBOL_NUM-1:0]   que_clear_vec;
 wire [SYMBOL_NUM-1:0]   que_busy_vec;
 
 integer que_idx;
@@ -97,13 +96,12 @@ generate
         assign o_que_prod_ptr[gi*64 +: 64]      = que_prod_ptr[gi];
         assign o_que_drop_count[gi*64 +: 64]    = que_drop_count[gi];
         assign que_enabled_vec[gi]              = i_que_enable[gi*64];
-        assign que_clear_vec[gi]                = i_que_enable[gi*64 + 1];
         assign que_full_vec[gi]                 =
             (i_que_slot_num[gi*64 +: 64] == 64'd0) ? 1'b1 :
             ((que_prod_ptr[gi] - i_que_cons_ptr[gi*64 +: 64]) >= i_que_slot_num[gi*64 +: 64]);
         assign que_busy_vec[gi]              = (state != ST_IDLE) && (current_que_idx == gi[CL_SYMBOL_NUM-1:0]);
         assign o_que_status[gi*64 +: 64]   =
-            {60'd0, que_clear_vec[gi], que_busy_vec[gi], que_full_vec[gi], que_enabled_vec[gi]};
+            {61'd0, que_busy_vec[gi], que_full_vec[gi], que_enabled_vec[gi]};
     end
 endgenerate
 
@@ -123,10 +121,10 @@ arbiter #(
 
 
 assign selected_drop            = selected_valid ? (!que_enabled || que_full) : 1'b0;
-wire [63:0] que_slot_num_value= i_que_slot_num[selected_que_idx*64 +: 64];
+wire [63:0] que_slot_num_value  = i_que_slot_num[selected_que_idx*64 +: 64];
 wire [63:0] que_cons_value      = i_que_cons_ptr[selected_que_idx*64 +: 64];
 wire [63:0] que_outstanding     = que_prod_ptr[selected_que_idx] - que_cons_value;
-wire        que_enabled         = i_que_enable[selected_que_idx*64] && !i_que_enable[selected_que_idx*64 + 1];
+wire        que_enabled         = i_que_enable[selected_que_idx*64];
 wire        que_full            = (que_slot_num_value == 64'd0) || (que_outstanding >= que_slot_num_value);
 
 
@@ -156,13 +154,6 @@ always @(posedge i_clk or posedge i_rst) begin
     end
     else begin
         o_event_pop <= {SYMBOL_NUM{1'b0}};
-        for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
-            if (que_clear_vec[que_idx]) begin
-                que_prod_ptr[que_idx]   <= 64'd0;
-                que_slot_index[que_idx] <= 64'd0;
-                que_drop_count[que_idx] <= 64'd0;
-            end
-        end
 
         case (state)
             ST_IDLE: begin

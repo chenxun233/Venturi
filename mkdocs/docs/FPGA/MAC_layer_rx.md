@@ -1,12 +1,14 @@
 # MAC_layer_rx
-`MAC_layer_rx` converts a 64-bit XGMII receive stream into a simplified AXI-Stream style interface for the parser pipeline. The implementation lives in `verilog_src/MAC_layer/MAC_layer_rx.v`.
+`MAC_layer_rx` converts a 64-bit XGMII receive stream into a simplified AXI-Stream style interface for the parser pipeline. It also does the reversion **from little-endian to big-endian**. The implementation lives in `verilog_src/MAC_layer/MAC_layer_rx.v`.
 
+It also strip the preamble and SFD at the start of each frame.
+
+This is a module you can find in literally every NIC-related FPGA logic.
 
 ## Design logic
-
 From XGMII to MAC layer, the number of cases is limited, and the data is streaming. Thus, we can prepare data for all the possible situations and treat the situations as a switch, output the data when the corresponding situation is true.
 
-There can be three states: `IDLE`, `SOF` and `TERM`. `SOF` means not only the start of the frame, but also the receiving process. In each state, different location of sof and eof can end up with different outputs, these are what we prepared.
+There can be three states: `IDLE`, `SOF` and `TERM`. `SOF` means not only the start of the frame, but also the receiving process. In each state, different location of `sof` and `eof` can end up with different outputs, these are what we are going to prepare.
 
 Combinational logic is widely used for the data preparing.
 
@@ -19,9 +21,9 @@ Combinational logic is widely used for the data preparing.
 - `i_axi_rx_ready` is **not true backpressure**. If the downstream is not ready, the current frame is dropped because XGMII itself cannot stall.
 ### Outputs
 - `o_axi_rx_data`, `o_axi_rx_valid`, `o_axi_rx_keep`, and `o_axi_rx_last` form the downstream receive stream.
-- `o_frame_start` pulses when a new frame is accepted; `Top.v` uses it to timestamp ingress.
+- `o_frame_start` pulses when a new frame is accepted (not used now);
 ## Start and End Detection
-1. **Start indication** can only be at zeroth or fourth place (from left) in `i_xgmii_rxc`.
+1. **Start indication** can only be at 0th or 4th place (from left) in `i_xgmii_rxc`.
 2. **End indication** can be any bit in `i_xgmii_rxc`.
 3. They are using **combinational logic**, so once there is valid bit in `i_xgmii_rxc`, the corresponding sof or eof bit will be asserted at the same time.
 ```verilog

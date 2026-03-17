@@ -27,21 +27,6 @@ The tradeoff is the same as with ordinary FPGA BRAM: both reads and writes are *
 Unlike the order-table BRAM in [book_builder/bram.md](../book_builder/bram.md), this memory does not store full order state. Each row stores only the **aggregated shares** of one price level.
 
 ## Read And Write Behavior
-Each port can independently request `IDLE`, `READ`, or `WRITE`:
-
-- `WRITE`: on the rising edge, the selected row is updated from the corresponding `i_data_*`
-- `READ`: on the rising edge, the selected row is copied into `o_data_*`
-- `IDLE`: the output for that port is driven to zero on the next clock if reset is not asserted
-
-So the module behaves like a **synchronous dual-port BRAM** with two independently controlled ports.
-
-## Reset Behavior
-Two reset-related details matter:
-
-1. The `initial` block fills the whole memory array with zeros.
-2. Runtime `i_rst` only clears `o_data_a` and `o_data_b`; it does not walk through the entire memory and erase every row.
-
-So if the design wants to clear one price level during normal operation, it must explicitly write zero into that row.
 
 ## Limits
 - There is no byte enable or partial write path.

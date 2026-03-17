@@ -59,15 +59,3 @@ On the logic side, `RQ_formatter` uses a `valid/ready` style interface. Below gi
 ## Relation To RQ_gearbox256
 [RQ_gearbox256](RQ_gearbox256.md) performs the actual beat-level packing for the PCIe `RQ` stream.
 
-Its job is to:
-
-- combine the `128-bit` descriptor with payload data
-- generate the correct `tkeep`
-- drive `tlast`
-- handle cases where the final payload portion needs an extra output beat
-
-So the division of work is:
-
-- `RQ_formatter`: descriptor generation
-- [RQ_gearbox256](RQ_gearbox256.md): stream packing
-

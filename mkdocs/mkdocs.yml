@@ -8,6 +8,7 @@ nav:
   - Home: index.md
   - FPGA:
       - Overview: FPGA/overview.md
+      - pcs_pma_wrapper: FPGA/pcs_pma_wrapper.md
       - MAC_layer_rx: FPGA/MAC_layer_rx.md
       - order_book_parser: FPGA/order_book_parser.md
       - order_book_builder:
@@ -25,7 +26,11 @@ nav:
               - aligner: FPGA/order_book_builder/symbol_book/qty_book_wrapper/aligner.md
               - bram_dp: FPGA/order_book_builder/symbol_book/qty_book_wrapper/bram_dp.md
       - async_fifo: FPGA/async_fifo.md
-      - rx_dma_stage: FPGA/rx_dma_stage.md
+      - frame_timestamp: FPGA/frame_timestamp.md
+      - rx_dma_config: FPGA/rx_dma_config.md
+      - rx_dma_stage: 
+          - Overview: FPGA/rx_dma_stage/overview.md
+          - arbiter: FPGA/rx_dma_stage/arbiter.md
       - pcie_wrapper: 
           - Overview: FPGA/pcie_wrapper/overview.md
           - CC_formatter: FPGA/pcie_wrapper/CC_formatter.md

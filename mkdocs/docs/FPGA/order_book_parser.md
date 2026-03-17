@@ -1,10 +1,9 @@
 # order_book_parser
-Parse Ethernet/IPv4/UDP payload data from [MAC_layer_rx](MAC_layer_rx.md) into a compact event interface. The module first walks fixed packet headers, then peeks message count and message type, and finally extracts fields such as `stock_locate`, `order_ref_num`, `shares`, and `price`.
+Parse order messages packed in ITCH 5.0 in the payload from [MAC_layer_rx](MAC_layer_rx.md). It also drops unrelated messages.
 
 ## Design Logic
-
+The module first walks through fixed packet headers, then peeks message count and message type, and finally extracts fields such as `stock_locate`, `order_ref_num`, `shares`, and `price`, as parallel signals to the next module.
 ### The header
-
 Before pasing the messages, we have to deal with Ethernet head, IP header and UDP/TCP header (The preabmle+SFD has already been filtered out in MAC layer), as illustrated below:
 
 ![Ethernet frame](../figures/FPGA/order_book_parser/frame_structure.png)
@@ -13,7 +12,7 @@ The lengths of headers are always fixed. The parsing of them is easy. We use a *
 
 ### The messages
 
-For each message, parsing is not finised until we hit the end from `i_axi_rx_data`. Thus, we have to wait for it (use a buffer). However, The end of the previous message and the start of the next message may be mixed in one `i_axi_rx_data`. So, we need another **counter** (`buffed_bytes`).
+For each message, parsing is not finised until we hit the end from `i_axi_rx_data`. Thus, we have to wait for it (use a buffer). However, The end of the previous message and the start of the next message may be **mixed** in one `i_axi_rx_data`. So, we need another **counter** (`buffed_bytes`).
 
 ### States
 In the big picture, as stated above, the parsing can be divided into two phases:
@@ -21,13 +20,13 @@ In the big picture, as stated above, the parsing can be divided into two phases:
 1. **header parsing**.
 2. **message parsing**.
 
-which is shown below:
+**header parsing** triggers **message parsing**. The flow chart is shown below:
 
 ![State machine of the header parsing and message parsing phase](../figures/FPGA/order_book_parser/order_book_parser_states.png)
 
 1. At the begining, **header parsing** will be kicked off when `i_axi_rx_valid == 1`, from which `head_counter` starts to `+1`. 
-2. When it reaches `6`, it kicks off the **message parsing** phase, It gets `msg_count` and start to buffer. 
-3. Every time when `msg_count !=1`, it peeks the type and wait until the buffer is enough. 
+2. When it reaches `6`, it triggers the **message parsing** phase, It gets `msg_count` and start to buffer. 
+3. Every time when `msg_count !=1`, it peeks the type and wait until the buffer has enough bytes. 
 4. Once it parsed the message, `msg_count <= msg_count -1;` and `buffered_bytes` will also be subtracted corresponding length.  
 5. The peak type -> data to buffer -> parse loop will be exectued again, until `msg_count == 0`. 
 6. For unknown types, the `default` case will do nothing except subtract `msg_count` and `buffered_bytes`.
@@ -57,6 +56,9 @@ wire [511:0] cur_buff = {prev_buff[447:0], i_axi_rx_data};
 wire [6:0] valid_bytes = buffed_bytes < 7'd6 ? 7'd0 : buffed_bytes - 7'd6;
 ```
 `prev_buff` is sequential state. `cur_buff` mixes the previous window with the current beat, which lets the parser read the next field one cycle earlier. `valid_bytes` accounts for the fixed 6-byte gap between the current parse boundary and the start of the valid window.
+
+here the `-7'd6` is because the time we parse the message body, we are actually at the half of `seq_num` (`header_counter` is `7`), which is 3 bytes. Plus the `message_count` field, we have total `6 bytes` offset from the buffer starting point.
+
 
 ## State Machine
 The body parser is a 5-state machine.

@@ -274,9 +274,9 @@ rx_dma_config #(
     .cc_last                 (cc_last),
     .o_rx_que_base_addr     (rx_dma_que_base_addr),
     .o_rx_que_slot_num      (rx_dma_que_slot_num),
-    .o_rx_que_enable          (rx_dma_que_enable),
+    .o_rx_que_enable        (rx_dma_que_enable),
     .o_rx_que_cons_ptr      (rx_dma_que_cons_ptr),
-    .o_reg_reset          (rx_dma_reg_reset),
+    .o_reg_reset            (rx_dma_reg_reset),
     .i_rx_que_prod_ptr      (rx_dma_que_prod_ptr),
     .i_rx_que_drop_count    (rx_dma_que_drop_count),
     .i_rx_que_status        (rx_dma_que_status)

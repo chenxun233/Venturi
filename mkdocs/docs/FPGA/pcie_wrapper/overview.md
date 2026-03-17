@@ -1,20 +1,15 @@
 # pcie_wrapper
 This module connects the Xilinx UltraScale PCIe Gen3 IP core to the rest of the design. It is the top-level PCIe integration block and exposes a simpler logic-side interface for MMIO and requester traffic.
-## Introduction
+
+## Design Logic
 The implementation is in `verilog_src/PCIe_related/pcie_wrapper.v`.
 
-This wrapper mainly does three things:
+The main function is to separate the descriptors from the payloads, as they are packed together by the PCIe GEN3 IP core originally.
 
-1. instantiates the PCIe IP core and connects the external PCIe pins
-2. routes the four PCIe AXI-Stream channels to parser or formatter submodules
-3. exports the PCIe user clock, reset, and a few configuration signals to the rest of the logic
-## Design Logic
-`pcie_wrapper` is mostly an integration layer. It does not contain much protocol-specific processing by itself. Instead, it connects each PCIe channel to a dedicated helper module and keeps the top-level wiring manageable.
+There are four paths from the IP core:
 
-At a high level:
-
-- `CQ` and `CC` are used for MMIO-style **control** transactions
-- `RQ` and `RC` are used for requester **traffic** such as DMA-style transfers
+- `CQ` and `CC` are used for MMIO-style **control** transactions, where the host (PC side, CPU core) is the initiator
+- `RQ` and `RC` are used for requester **traffic** such as DMA-style transfers, where the user logic (FPGA side) is the initiator.
 
 The detailed behavior of each path is documented in the corresponding subpages.
 ## Hierarchy
@@ -36,8 +31,4 @@ The PCIe IP generates the user-side signals exported by the wrapper:
 - `o_user_reset_p`
 
 This `250 MHz` clock domain is used by the PCIe-side logic in the design.
-## How It Is Used In Top
-In `verilog_src/Top.v`, `pcie_wrapper` sits between the external PCIe pins and the internal control/data path.
 
-- the `CQ/CC` path connects to the control-plane logic
-- the `RQ/RC` path connects to requester-side data movement logic

@@ -1,22 +1,42 @@
 # symbol_book
+`symbol_book` is the per-symbol order-book engine used by [order_book_builder](../overview.md).
+## Introduction
+The implementation is in `verilog_src/order_book_related/dependencies/symbol_book.v`.
+## Design Logic
+Each instance tracks one configured `STOCK_LOCATE`.
 
-This module is the key to realize multiple symbol order book building. Each `symbol_book` only manages one symbol. Inside, it contains:
+The incoming parser message is always present on `i_parser_msg`, but only matching traffic is allowed to update the internal order table because `book_builder` receives `i_stock_valid`.
 
-1. one [book_builder](book_builder/overview.md)
-      - It maintains a live order book inside. It also sends operations and data to [ask_wrapper_inst](qty_book_wrapper/overview.md) and [bid_wrapper_inst](qty_book_wrapper/overview.md) to guide them how to operate the price level book.
-      - The `stock_locate` signal in the incoming message will be checked before it inputs to [book_builder](book_builder/overview.md). Unmatched messages will be discarded.
+The module has four active blocks:
 
-2. one [ask_wrapper_inst](qty_book_wrapper/overview.md)
-      - It maintains a live price level book on ask side. It also has a tree structure, which constantly updates the best price now. It outputs the best ask and the corresponding shares to the fifo once there is an event.
+1. [book_builder](book_builder/overview.md): maintains the order-reference table and emits compact quantity updates.
+2. ask-side [qty_book_wrapper](qty_book_wrapper/overview.md): tracks ask price levels.
+3. bid-side [qty_book_wrapper](qty_book_wrapper/overview.md): tracks bid price levels.
+4. `frame_timestamp`: captures a timestamp used in the exported event payload.
 
-3. one [bid_wrapper_inst](qty_book_wrapper/overview.md)
-      - Bid version of above
+`symbol_book` also compares the latest best bid and ask against the previous cycle. When either side changes and the aligned `op_done` pulse says the update is complete, `o_event_found` pulses and `o_payload` carries the new snapshot.
 
-4. one [event_fifo_inst](fifo.md)
-      - As there can be multiple `symbol_book`s in one [order_book_builder](../overview.md), an [arbiter](../../arbiter.md) is used to schedule the output of `symbol_book`s. The output of `symbol_book` will be saved in to their [event_fifo_inst](fifo.md) first, [arbiter](../../arbiter.md) decides which `symbol_book` gets popped out.
+Below gives the inside structure:
 
-## Hierarchy
+![symbol_book_inside](../../../figures/FPGA/order_book_builder/hierarchy_symbol_book.png)
 
-symbol_book is a little be complex, below gives the inside structure for better understanding.
+## Payload
+The exported symbol payload is:
 
-![symbol_book structure](../../../figures/FPGA/order_book_builder/hierarchy_symbol_book.png)
+```text
+{ask_price[31:0], ask_shares[31:0], bid_price[31:0], bid_shares[31:0], event_timestamp[63:0], stock_locate[15:0]}
+```
+
+An empty side is represented by zero shares, and with the current `PRICE_BASE = 0` integration the corresponding price also collapses to zero.
+## Why The Output Is Atomic
+`book_builder` may need multiple internal cycles to complete one parser message. `qty_book_wrapper` and `tree_builder` add more latency on the price-level path.
+
+The exported event path uses the aligned `op_done` pulse from the ask or bid wrapper:
+
+- internal quantity updates can take several cycles
+- the final outward `o_event_found` pulse appears only when the aligned result is ready
+
+That is why the host-visible event stream behaves atomically even though the internal update pipeline is multi-cycle.
+## Limits
+
+- The module exports only top-of-book state, not the full order table or all price levels.

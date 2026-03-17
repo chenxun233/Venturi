@@ -16,3 +16,4 @@ verilator_src/
 .codex/
 obj_dir/
 corundum_exanic_x10/
+.cache2/
