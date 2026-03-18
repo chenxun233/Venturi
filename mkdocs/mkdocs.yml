@@ -26,7 +26,7 @@ nav:
               - aligner: FPGA/order_book_builder/symbol_book/qty_book_wrapper/aligner.md
               - bram_dp: FPGA/order_book_builder/symbol_book/qty_book_wrapper/bram_dp.md
       - async_fifo: FPGA/async_fifo.md
-      - frame_timestamp: FPGA/frame_timestamp.md
+      - timestamper: FPGA/timestamper.md
       - rx_dma_config: FPGA/rx_dma_config.md
       - rx_dma_stage: 
           - Overview: FPGA/rx_dma_stage/overview.md

@@ -983,14 +983,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../frame_timestamp/" class="md-nav__link">
+      <a href="../timestamper/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    frame_timestamp
+    timestamper
   
 
     
@@ -1748,6 +1748,10 @@
 <p>It performs the parsing and building of order books from the incoming UDP frames, where NASDAQ ITCH 5.0 protocol is used. It outputs the best ask/bid prices as well as the corresponding shares per symbol.</p>
 <p>Below gives the hierarchy of the FPGA side design:</p>
 <p><img alt="FPGA_hierarchy" src="../../figures/FPGA/top%20level/overview.png" /></p>
+<p>The setup is also given here:
+<img alt="setup" src="../../figures/FPGA/top%20level/setup.png" /></p>
+<p>The jtag wires were soldered to an adapter to the golden fingers in Exanic x10, which does not have a standard jtag interface. The soldering procedure can be found in this link:
+<a href="https://www.youtube.com/watch?v=wPZafeahZwY&amp;t=52s">Connect gold fingers to JTAG</a>.</p>
 <h2 id="main-modules">Main Modules</h2>
 <ul>
 <li><a href="../pcs_pma_wrapper/">PCS_PMA_wrapper</a>: converts the UDP frames to xgmii interface. (this one I copied from the official design example.)</li>
@@ -1755,7 +1759,7 @@
 <li><a href="../order_book_parser/">order_book_parser</a>: decodes ITCH messages from the received payload stream.</li>
 <li><a href="../order_book_builder/overview/">order_book_builder</a>: tracks top-of-book state per symbol.</li>
 <li><a href="../async_fifo/">async_fifo</a>: crosses event payloads from the RX clock into the PCIe clock.</li>
-<li><a href="../frame_timestamp/">frame_timestamp</a>: generates the exported event timestamp (Actually there should be one stamp at the mac layer).</li>
+<li><a href="../timestamper/">timestamper</a>: generates the exported event timestamp (Actually there should be one stamp at the mac layer).</li>
 <li><a href="../rx_dma_config/">rx_dma_config</a>: MMIO register block for queue programming.</li>
 <li><a href="../rx_dma_stage/overview/">rx_dma_stage</a>: DMA write engine for fixed-size host records.</li>
 <li><a href="../pcie_wrapper/overview/">pcie_wrapper</a>: PCIe integration shell and AXI-Stream channel wiring.</li>

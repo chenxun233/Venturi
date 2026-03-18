@@ -11,14 +11,14 @@ The present FPGA design is split into two main clock domains:
 
 At a high level, the pipeline is:
 
-`pcs_pma_wrapper -> MAC_layer_rx -> order_book_parser -> order_book_builder -> frame_timestamp -> async_fifo -> rx_dma_stage -> pcie_wrapper`
+`pcs_pma_wrapper -> MAC_layer_rx -> order_book_parser -> order_book_builder -> timestamper -> async_fifo -> rx_dma_stage -> pcie_wrapper`
 ## FPGA Data Path
 - [FPGA overview](FPGA/overview.md): top-level summary of the active FPGA hierarchy.
 - [pcs_pma_wrapper](FPGA/pcs_pma_wrapper.md): converts the Ethernet PHY-side interface into the XGMII stream used by the receive logic.
 - [MAC_layer_rx](FPGA/MAC_layer_rx.md): strips preamble/SFD and converts XGMII RX traffic into a simpler streaming interface.
 - [order_book_parser](FPGA/order_book_parser.md): walks the Ethernet/IP/UDP headers and decodes supported ITCH 5.0 message types.
 - [order_book_builder](FPGA/order_book_builder/overview.md): updates per-symbol order-book state and produces event payloads for downstream export.
-- [frame_timestamp](FPGA/frame_timestamp.md): provides the event timestamp carried with parsed data.
+- [timestamper](FPGA/timestamper.md): provides the event timestamp carried with parsed data.
 - [async_fifo](FPGA/async_fifo.md): crosses event payloads from the receive clock domain into the PCIe user clock domain.
 - [rx_dma_config](FPGA/rx_dma_config.md): exposes the RX queue programming and status registers to host software over MMIO.
 - [rx_dma_stage](FPGA/rx_dma_stage/overview.md): selects a non-empty event queue, checks host ring availability, and issues fixed-size PCIe DMA writes.

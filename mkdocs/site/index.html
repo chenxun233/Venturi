@@ -1012,14 +1012,14 @@
   
   
     <li class="md-nav__item">
-      <a href="FPGA/frame_timestamp/" class="md-nav__link">
+      <a href="FPGA/timestamper/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    frame_timestamp
+    timestamper
   
 
     
@@ -1815,7 +1815,7 @@
 <li><strong>PCIe path at 250 MHz</strong>: those events cross into the PCIe user clock domain, where software-programmed RX queues are serviced by a DMA write engine.</li>
 </ol>
 <p>At a high level, the pipeline is:</p>
-<p><code>pcs_pma_wrapper -&gt; MAC_layer_rx -&gt; order_book_parser -&gt; order_book_builder -&gt; frame_timestamp -&gt; async_fifo -&gt; rx_dma_stage -&gt; pcie_wrapper</code></p>
+<p><code>pcs_pma_wrapper -&gt; MAC_layer_rx -&gt; order_book_parser -&gt; order_book_builder -&gt; timestamper -&gt; async_fifo -&gt; rx_dma_stage -&gt; pcie_wrapper</code></p>
 <h2 id="fpga-data-path">FPGA Data Path</h2>
 <ul>
 <li><a href="FPGA/overview/">FPGA overview</a>: top-level summary of the active FPGA hierarchy.</li>
@@ -1823,7 +1823,7 @@
 <li><a href="FPGA/MAC_layer_rx/">MAC_layer_rx</a>: strips preamble/SFD and converts XGMII RX traffic into a simpler streaming interface.</li>
 <li><a href="FPGA/order_book_parser/">order_book_parser</a>: walks the Ethernet/IP/UDP headers and decodes supported ITCH 5.0 message types.</li>
 <li><a href="FPGA/order_book_builder/overview/">order_book_builder</a>: updates per-symbol order-book state and produces event payloads for downstream export.</li>
-<li><a href="FPGA/frame_timestamp/">frame_timestamp</a>: provides the event timestamp carried with parsed data.</li>
+<li><a href="FPGA/timestamper/">timestamper</a>: provides the event timestamp carried with parsed data.</li>
 <li><a href="FPGA/async_fifo/">async_fifo</a>: crosses event payloads from the receive clock domain into the PCIe user clock domain.</li>
 <li><a href="FPGA/rx_dma_config/">rx_dma_config</a>: exposes the RX queue programming and status registers to host software over MMIO.</li>
 <li><a href="FPGA/rx_dma_stage/overview/">rx_dma_stage</a>: selects a non-empty event queue, checks host ring availability, and issues fixed-size PCIe DMA writes.</li>

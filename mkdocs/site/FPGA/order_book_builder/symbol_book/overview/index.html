@@ -1020,14 +1020,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../../frame_timestamp/" class="md-nav__link">
+      <a href="../../../timestamper/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    frame_timestamp
+    timestamper
   
 
     
@@ -1824,7 +1824,7 @@
 <li><a href="../book_builder/overview/">book_builder</a>: maintains the order-reference table and emits compact quantity updates.</li>
 <li>ask-side <a href="../qty_book_wrapper/overview/">qty_book_wrapper</a>: tracks ask price levels.</li>
 <li>bid-side <a href="../qty_book_wrapper/overview/">qty_book_wrapper</a>: tracks bid price levels.</li>
-<li><code>frame_timestamp</code>: captures a timestamp used in the exported event payload.</li>
+<li><code>timestamper</code>: captures a timestamp used in the exported event payload.</li>
 </ol>
 <p><code>symbol_book</code> also compares the latest best bid and ask against the previous cycle. When either side changes and the aligned <code>op_done</code> pulse says the update is complete, <code>o_event_found</code> pulses and <code>o_payload</code> carries the new snapshot.</p>
 <p>Below gives the inside structure:</p>

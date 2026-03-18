@@ -1,7 +1,7 @@
-# frame_timestamp
-`frame_timestamp` is the local timestamp source used by the exported order-book event payload.
+# timestamper
+`timestamper` is the local timestamp source used by the exported order-book event payload.
 ## Introduction
-The implementation is in `verilog_src/frame_timestamp.v`.
+The implementation is in `verilog_src/timestamper.v`.
 ## Design Logic
 The module increments a free-running `tick_counter` on every clock cycle.
 

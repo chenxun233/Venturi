@@ -12,7 +12,7 @@ The module has four active blocks:
 1. [book_builder](book_builder/overview.md): maintains the order-reference table and emits compact quantity updates.
 2. ask-side [qty_book_wrapper](qty_book_wrapper/overview.md): tracks ask price levels.
 3. bid-side [qty_book_wrapper](qty_book_wrapper/overview.md): tracks bid price levels.
-4. `frame_timestamp`: captures a timestamp used in the exported event payload.
+4. `timestamper`: captures a timestamp used in the exported event payload.
 
 `symbol_book` also compares the latest best bid and ask against the previous cycle. When either side changes and the aligned `op_done` pulse says the update is complete, `o_event_found` pulses and `o_payload` carries the new snapshot.
 
