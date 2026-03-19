@@ -1,8 +1,8 @@
 #pragma once
-#include "../common/basic_dev.h"
+#include "../../common/basic_dev.h"
 #include <cstdint>
 #include <vector>
-#include "../common/memory_pool.h"
+#include "../../common/memory_pool.h"
 #include "ixgbe_ring_buffer.h"
 
 #define PKT_SIZE 60
@@ -38,7 +38,7 @@ class Intel82599Dev : public BasicDev{
         bool        wait4Link();
     private:
         // _getFD() and _getBARAddr() are now inherited from BasicDev
-        bool        _enableDMA()                                             override;
+        bool        _enableDMA()                                                            ;
     private:    
         bool        _dev_disable_IRQ()                                                     ;
         bool        _dev_clear_interrupts()                                                ;

@@ -1826,7 +1826,7 @@
 <p>The implementation is in <code>verilog_src/timestamper.v</code>.</p>
 <h2 id="design-logic">Design Logic</h2>
 <p>The module increments a free-running <code>tick_counter</code> on every clock cycle.</p>
-<p>When <code>i_event</code> is high, it copies the current counter value into <code>o_event_timestamp</code>.</p>
+<p>When <code>i_event</code> is high, it copies the current counter value into <code>o_mac_timestamp</code>.</p>
 <p>In the current <a href="../order_book_builder/symbol_book/overview/">symbol_book</a> integration, <code>i_event</code> is tied high, so the module effectively publishes the current cycle counter every cycle. The event path then captures the timestamp that is present when the symbol snapshot is emitted.</p>
 <h2 id="interface">Interface</h2>
 <h3 id="inputs">Inputs</h3>
@@ -1837,7 +1837,7 @@
 </ul>
 <h3 id="outputs">Outputs</h3>
 <ul>
-<li><code>o_event_timestamp</code></li>
+<li><code>o_mac_timestamp</code></li>
 </ul>
 
 

@@ -2,9 +2,9 @@ module order_book_builder #(
     parameter STOCK_BITS       = 6,     // number of tracked stocks = 2^STOCK_BITS
     parameter PRICE_BITS       = 10,    // number of price levels per stock = 2^PRICE_BITS
     parameter SYMBOL_NUM       = 2,
-    parameter PARSER_MSG_BIT   = 1+8+16+64+64+2+32+32, // {msg_valid, msg_type, stock_locate, order_ref_num, new_order_ref_num, side, shares, price}
+    parameter PARSER_MSG_BIT   = 1+8+16+64+64+2+32+32+48, // {msg_valid, msg_type, stock_locate, order_ref_num, new_order_ref_num, side, shares, price, frame_ts}
     parameter EVENT_FIFO_DEPTH = 2,
-    parameter PAYLOAD_W        = 2*(32+32)+64+16
+    parameter PAYLOAD_W        = 2*(32+32)+48+16
 ) (
     // order book parser interface
     input   wire                            i_clk_156,
@@ -17,6 +17,7 @@ module order_book_builder #(
     input   wire [7:0]                      i_buy_sell,          // 'B' or 'S' for A/F
     input   wire [31:0]                     i_shares,
     input   wire [31:0]                     i_price,
+    input   wire [47:0]                     i_frame_ts,          
     output  wire [SYMBOL_NUM-1:0]           o_event_valid,
     output  wire [SYMBOL_NUM*PAYLOAD_W-1:0] o_event_payload
 );
@@ -41,7 +42,7 @@ wire                         hsbc_event_valid;
 wire [PAYLOAD_W-1:0]         hsbc_payload;
 
 
-wire [PARSER_MSG_BIT-1:0]       parser_msg   = {i_msg_valid, i_msg_type, i_stock_locate, i_order_ref_num, i_new_order_ref_num, side, i_shares, i_price};
+wire [PARSER_MSG_BIT-1:0]       parser_msg   = {i_msg_valid, i_msg_type, i_stock_locate, i_order_ref_num, i_new_order_ref_num, side, i_shares, i_price,i_frame_ts};
 
 symbol_book #(
     .QTY_PRICE_LVL_BIT  (8),
@@ -54,8 +55,8 @@ symbol_book #(
 ) symbol_book_AAPL (
     .i_clk_156          (i_clk_156          ),
     .i_rst              (i_rst              ),
-    .i_parser_msg       (parser_msg          ),
-    .o_event_found      (aapl_event_valid      ),
+    .i_parser_msg       (parser_msg         ),
+    .o_event_found      (aapl_event_valid   ),
     .o_payload          (aapl_payload       )
 );
 

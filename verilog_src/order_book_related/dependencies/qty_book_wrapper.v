@@ -1,5 +1,5 @@
 module qty_book_wrapper #(
-    parameter QTY_MSG_BIT       = 2+32+1+32,
+    parameter QTY_MSG_BIT       = 2+32+1+32+1+48, // {bid_ask, price, is_add, d_shares, op_done, timestamp}
     parameter QTY_PRICE_LVL_BIT = 10,
     parameter PRICE_BASE        = 32'd0,
     parameter BID_OR_ASK        = 2'b01 // 01 for ask, 10 for bid
@@ -9,7 +9,9 @@ module qty_book_wrapper #(
     input  wire [QTY_MSG_BIT-1:0]        i_qty_msg,
     output wire [31:0]                   o_best_price_aligned,
     output wire [31:0]                   o_best_shares,
-    output wire                          o_op_done_aligned
+    output wire                          o_op_done_aligned,
+    output wire [47:0]                   o_timestamp_aligned
+
 );
 
 wire [QTY_PRICE_LVL_BIT-1:0]  best_idx;
@@ -32,7 +34,8 @@ wire [31:0]     bram_i_data_b = {32{1'b0}};
 wire [31:0]     bram_o_data_b;
 wire                         op_done;
 wire                         t_op_done;
-
+wire [47:0]                 qty_time_stamp;
+wire [47:0]                 tree_timestamp;
 qty_builder #(
     .QTY_MSG_BIT       (QTY_MSG_BIT),
     .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
@@ -42,10 +45,11 @@ qty_builder #(
     .i_clk_156          (i_clk_156      ),
     .i_rst              (i_rst          ),
     .i_qty_msg          (i_qty_msg      ),
-    .i_bram_o_data      (bram_o_data_a),
-    .o_price_idx        (price_idx),
-    .o_price_change     (price_change),
-    .o_op_done          (op_done),
+    .i_bram_o_data      (bram_o_data_a  ),
+    .o_price_idx        (price_idx      ),
+    .o_price_change     (price_change   ),
+    .o_op_done          (op_done        ),
+    .o_timestamp        (qty_time_stamp),  
     .o_bram_addr        (bram_addr_a    ),
     .o_bram_op          (bram_op_a      ),
     .o_bram_i_data      (bram_i_data_a  )
@@ -55,13 +59,15 @@ tree_builder #(
     .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
     .BID_OR_ASK        (BID_OR_ASK)
 ) tree_builder_inst (
-    .i_clk              (i_clk_156),
-    .i_rst              (i_rst),
-    .i_price_idx        (price_idx),
+    .i_clk              (i_clk_156   ),
+    .i_rst              (i_rst       ),
+    .i_price_idx        (price_idx   ),
     .i_price_change     (price_change),
-    .i_op_done          (op_done),
-    .o_best_price_idx   (best_idx),
-    .o_op_done          (t_op_done)
+    .i_op_done          (op_done     ),
+    .i_timestamp        (qty_time_stamp ),
+    .o_timestamp        (tree_timestamp ),
+    .o_best_price_idx   (best_idx    ),
+    .o_op_done          (t_op_done   )
 );
 
 aligner #(
@@ -71,9 +77,11 @@ aligner #(
     .i_best_price          (best_price),
     .i_t_op_done           (t_op_done),
     .i_best_shares         (bram_o_data_b),
+    .i_timestamp           (tree_timestamp),
     .o_best_price_aligned  (o_best_price_aligned),
     .o_best_shares         (o_best_shares),
-    .o_op_done_aligned     (o_op_done_aligned)
+    .o_op_done_aligned     (o_op_done_aligned),
+    .o_timestamp_aligned   (o_timestamp_aligned)                   
 );
 
 // wire [31:0] temp_bram_o_data_b;

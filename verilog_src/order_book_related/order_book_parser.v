@@ -10,12 +10,11 @@ input   wire [DATA_WIDTH-1:0]       i_axi_rx_data           ,
 input   wire                        i_axi_rx_valid          ,
 input   wire [CTRL_WIDTH-1:0]       i_axi_rx_keep           ,
 input   wire                        i_axi_rx_last           ,
-// input   wire [63:0]                 i_axi_rx_ingress_tick   ,
+input   wire [47:0]                 i_frame_ts              ,
 output  wire                        o_axi_rx_ready          ,
 // order book interface
 output  reg                         o_msg_valid             , // 1 when all the parts are parsed.
 output  reg [63:0]                  o_seq_num               , // sequence number
-// output  reg [63:0]                  o_rx_ingress_tick       , // local monotonic RX ingress timestamp
 output  reg [7:0]                   o_msg_type              , //A, D, X, U, E, F
 output  reg [15:0]                  o_stock_locate          , // the stock ID
 output  reg [63:0]                  o_order_ref_num         , // (old, for type u)order reference number
@@ -23,7 +22,7 @@ output  reg [63:0]                  o_new_order_ref_num     , // used for type U
 output  reg [7:0]                   o_buy_sell              , // 
 output  reg [31:0]                  o_shares                ,
 output  reg [31:0]                  o_price                 ,
-output  reg [47:0]                  o_timestamp             , // timestamp from the packet.
+output  reg [47:0]                  o_frame_ts              , // frame time stamp from the logic, not the UDP payload.
 // settings
 input   wire [47:0]                 i_ctl_dst_mac           , // filter: only parse packets with this destination port
 input   wire [31:0]                 i_ctl_dst_ip            , // active high
@@ -67,6 +66,7 @@ reg         promiscuous                 ;
 reg [3:0]   head_counter                ;
 reg [511:0] prev_buff                   ;// saves previous and current i_axi_rx_data for message parsing, especially for variable-length fields that may cross the boundary of two i_axi_rx_data.
 wire [511:0] cur_buff = {prev_buff[447:0], i_axi_rx_data};  // mix of combinational and sequential logic, makes it one cycle faster than depending on prev_buff only. cur_buff[511:256] is the previous i_axi_rx_data, cur_buff[255:0] is the current i_axi_rx_data.
+reg [47:0]  latch_frame_ts             ;// latch the frame timestamp for the current message being parsed, since the timestamp in the payload is not used.
 
 reg [6:0]   buffered_bytes             ; //how many valid bytes are currently in your window
 wire [6:0]  valid_bytes = buffered_bytes < 7'd6 ? 7'd0 : buffered_bytes - 7'd6; // there is always a 6-byte gap between the prev_buff and the boundary to parse.
@@ -126,12 +126,14 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         session             <= 0;
         o_seq_num           <= 0;
         head_counter        <= 0;
+        latch_frame_ts     <= 0;
     end else if (i_axi_rx_valid && !i_axi_rx_last) begin
             case (head_counter)
             0: begin
                 // o_rx_ingress_tick   <= i_axi_rx_ingress_tick;
                 dst_mac_addr        <= i_axi_rx_data[63:24];
                 head_counter        <= head_counter + 1;
+                latch_frame_ts     <= i_frame_ts;
                 end
             1: begin
                 frame_type          <= i_axi_rx_data[31:16];
@@ -170,6 +172,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
             endcase
     end else if (i_axi_rx_last) begin
         head_counter <= 0;
+
     end
 end
 localparam   IDLE               = 5'b00000;
@@ -192,7 +195,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         o_buy_sell          <= 0;
         o_shares            <= 0;
         o_price             <= 0;
-        o_timestamp         <= 0;
+        o_frame_ts          <= 0;
         o_msg_valid         <= 0;
         buffered_bytes      <= 7'd8;  // the buffered_bytes is pure sequential logic, while cur_buff is a mix. To catch up, the it should start from 8.
         prev_buff           <= 0;
@@ -223,7 +226,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
             PEEKING_TYPE: begin
                 o_msg_valid         <= 0;
                 o_stock_locate      <= 0;
-                o_timestamp         <= 0;
+                o_frame_ts          <= 0;
                 o_order_ref_num     <= 0;
                 o_new_order_ref_num <= 0;
                 o_buy_sell          <= 0;
@@ -256,7 +259,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         // skip type field,     1 byte
                                         o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
                                         // skip tracking num, 2 bytes
-                                        o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                                        o_frame_ts      <= latch_frame_ts; // time stamp inside, instead of from the frame.
                                         o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
                                         o_buy_sell      <= take_data(cur_buff, valid_bytes-21, 1);
                                         o_shares        <= take_data(cur_buff, valid_bytes-22, 4);
@@ -271,7 +274,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         // skip type field,     1 byte
                                         o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
                                         // skip tracking num, 2 bytes
-                                        o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                                        o_frame_ts      <= latch_frame_ts; // time stamp inside, instead of from the frame.
                                         o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
                                         o_shares        <= take_data(cur_buff, valid_bytes-21, 4);
                                         msg_count       <= msg_count - 1;
@@ -283,7 +286,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         // skip type field,     1 byte
                                         o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
                                         // skip tracking num, 2 bytes
-                                        o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                                        o_frame_ts      <= latch_frame_ts; // time stamp inside, instead of from the frame.
                                         o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
                                         msg_count       <= msg_count - 1;
                                         o_msg_type      <= TYPE_D;
@@ -295,7 +298,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         // skip type field,     1 byte
                                         o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
                                         // skip tracking num, 2 bytes
-                                        o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                                        o_frame_ts      <= latch_frame_ts; // time stamp inside, instead of from the frame.
                                         o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8); // original order ref num
                                         o_new_order_ref_num <= take_data(cur_buff, valid_bytes-21, 8);
                                         o_shares        <= take_data(cur_buff, valid_bytes-29, 4);
@@ -309,7 +312,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         // skip type field,     1 byte
                                         o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
                                         // skip tracking num, 2 bytes
-                                        o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                                        o_frame_ts      <= latch_frame_ts; // time stamp inside, instead of from the frame.
                                         o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
                                         o_shares        <= take_data(cur_buff, valid_bytes-21, 4); // execution shares
                                         // skip match num, 8 bytes
@@ -322,7 +325,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         // skip type field,     1 byte
                                         o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
                                         // skip tracking num, 2 bytes
-                                        o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                                        o_frame_ts      <= latch_frame_ts; // time stamp inside, instead of from the frame.
                                         o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
                                         o_buy_sell      <= take_data(cur_buff, valid_bytes-21, 1);
                                         o_shares        <= take_data(cur_buff, valid_bytes-22, 4);
@@ -338,7 +341,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                         // skip type field,     1 byte
                                         o_stock_locate  <= take_data(cur_buff, valid_bytes-3, 2);
                                         // skip tracking num, 2 bytes
-                                        o_timestamp     <= take_data(cur_buff, valid_bytes-7, 6); 
+                                        o_frame_ts      <= latch_frame_ts; // time stamp inside, instead of from the frame.
                                         o_order_ref_num <= take_data(cur_buff, valid_bytes-13, 8);
                                         o_shares        <= take_data(cur_buff, valid_bytes-21, 4);
                                         //skip match number, 8 bytes
@@ -351,7 +354,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                                 default: begin
                                         o_msg_valid         <= 0;
                                         o_stock_locate      <= 0;
-                                        o_timestamp         <= 0; 
+                                        o_frame_ts          <= 0;
                                         o_order_ref_num     <= 0;
                                         o_new_order_ref_num <= 0;
                                         o_buy_sell          <= 0;
@@ -367,7 +370,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                             o_msg_valid         <= 0;
                             o_msg_type          <= 0;
                             o_stock_locate      <= 0;
-                            o_timestamp         <= 0;
+                            o_frame_ts          <= 0;
                             o_order_ref_num     <= 64'd0;
                             o_new_order_ref_num <= 64'd0;
                             o_buy_sell          <= 8'd0;

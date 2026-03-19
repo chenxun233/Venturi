@@ -17,7 +17,9 @@ module MAC_layer_rx #(
     output reg                      o_axi_rx_valid   ,
     output reg [CTRL_WIDTH-1:0]     o_axi_rx_keep    ,
     output reg                      o_axi_rx_last    ,
-    output reg                      o_frame_start    ,
+    output wire                     o_frame_started  ,
+    output wire [47:0]              o_frame_ts       ,
+    output wire [47:0]              o_dma_ts_gray    ,
     input  wire                     i_axi_rx_ready
 );
     
@@ -40,6 +42,22 @@ module MAC_layer_rx #(
         end
     endgenerate
 
+wire frame_started = (cur_state == IDLE) && (|sof_location) && i_rx_status && i_axi_rx_ready;
+
+assign o_frame_started = frame_started;
+
+timestamper #(
+    .COUNTER_WIDTH (48)
+) timestamp_inst (
+    .i_clk               (i_xgmii_rx_clk),
+    .i_rst               (i_xgmii_rx_rst),
+    .i_event             (frame_started),
+    .o_mac_timestamp     (o_frame_ts    ),
+    .o_dma_timestamp_gray(o_dma_ts_gray)
+);
+
+
+
 // ==== cur_state machine (placeholder: drive valid/keep/last) ===
     reg [63:0]  i_xgmii_rxd_1         ; // one cycle delay for data alignment in SOF_1 case
     reg [31:0]  data_saver            ; // one cycle delay for data alignment in SOF_4 case
@@ -61,9 +79,7 @@ module MAC_layer_rx #(
             cur_state       <=  IDLE;
             sof_reg         <=  2'd0;
             eof_reg         <=  8'd0;
-            o_frame_start    <=  1'b0;
         end else begin
-            o_frame_start    <=  1'b0;
             data_saver      <=  i_xgmii_rxd [63:32];
             i_xgmii_rxd_1   <=  i_xgmii_rxd;
             case (cur_state)
@@ -71,7 +87,6 @@ module MAC_layer_rx #(
                     if (| sof_location) begin
                         cur_state           <=  SOF;
                         sof_reg             <=  sof_location;
-                        o_frame_start        <=  1'b1;
                     end 
                     else begin
                         cur_state           <=  IDLE;

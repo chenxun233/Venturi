@@ -279,7 +279,8 @@ rx_dma_config #(
     .o_reg_reset            (rx_dma_reg_reset),
     .i_rx_que_prod_ptr      (rx_dma_que_prod_ptr),
     .i_rx_que_drop_count    (rx_dma_que_drop_count),
-    .i_rx_que_status        (rx_dma_que_status)
+    .i_rx_que_status        (rx_dma_que_status),
+    .i_dma_timestamp        (w_dma_ts_bin)
 );
 
 
@@ -298,6 +299,10 @@ wire         w_axi_rx_valid   ;
 wire [7:0]   w_axi_rx_keep    ;
 wire         w_axi_rx_last     ;
 wire         w_axi_rx_ready    ;
+wire [47:0]  w_frame_ts       ;
+wire [47:0]  w_dma_ts_gray_rx ;
+wire [47:0]  w_dma_ts_gray_dma;
+wire [47:0]  w_dma_ts_bin     ;
 
 // Control-plane outputs for parser settings
 wire [47:0]             o_ctl_mac_addr;
@@ -312,7 +317,7 @@ wire                    axi_rx_ready;
 wire                    done;
 wire                    msg_valid;
 wire [63:0]             seq_num;
-wire [47:0]             timestamp;
+wire [47:0]             msg_timestamp;
 wire [15:0]             msg_len;
 wire [7:0]              msg_type;
 wire [15:0]             stock_locate;
@@ -321,8 +326,8 @@ wire [63:0]             new_order_ref_num;
 wire [7:0]              buy_sell;
 wire [31:0]             shares;
 wire [31:0]             price;
-localparam EVENT_PAYLOAD_W = 208;
-localparam EVENT_CDC_DEPTH = 64;
+localparam EVENT_PAYLOAD_W = 192;
+localparam EVENT_CDC_DEPTH = 4;
 localparam QUE_NUM = 2;
 
 wire [QUE_NUM-1:0]                  builder_event_valid     ;
@@ -378,7 +383,8 @@ MAC_layer_rx #(
     .o_axi_rx_valid   (w_axi_rx_valid   ),
     .o_axi_rx_keep    (w_axi_rx_keep    ),
     .o_axi_rx_last    (w_axi_rx_last    ),
-    .o_frame_start    (),
+    .o_frame_ts       (w_frame_ts       ),
+    .o_dma_ts_gray    (w_dma_ts_gray_rx ),
     .i_axi_rx_ready   (w_axi_rx_ready   )
 );
 
@@ -389,10 +395,11 @@ order_book_parser order_book_parser_inst (
     .i_axi_rx_valid         (w_axi_rx_valid   ),
     .i_axi_rx_keep          (w_axi_rx_keep    ),
     .i_axi_rx_last          (w_axi_rx_last    ),
-    .o_axi_rx_ready         (axi_rx_ready),
-    .o_msg_valid            (msg_valid),
-    .o_seq_num              (seq_num),
-    .o_timestamp            (timestamp),
+    .i_frame_ts             (w_frame_ts       ),
+    .o_axi_rx_ready         (axi_rx_ready     ),
+    .o_msg_valid            (msg_valid        ),
+    .o_seq_num              (seq_num          ),
+    .o_frame_ts             (msg_timestamp    ),
     .o_msg_type             (msg_type),
     .o_stock_locate         (stock_locate),
     .o_order_ref_num        (order_ref_num),
@@ -419,8 +426,24 @@ order_book_builder order_book_builder_inst (
     .i_buy_sell         (buy_sell              ),
     .i_shares           (shares                ),
     .i_price            (price                 ),
+    .i_frame_ts         (msg_timestamp         ),
     .o_event_valid      (builder_event_valid   ),
     .o_event_payload    (builder_event_payload )
+);
+
+bit_synchronizer #(
+    .BIT_WIDTH (48)
+) dma_timestamp_sync_inst (
+    .i_clk  (user_clk_250       ),
+    .i_in   (w_dma_ts_gray_rx   ),
+    .o_out  (w_dma_ts_gray_dma  )
+);
+
+gray_to_binary #(
+    .WIDTH (48)
+) dma_timestamp_decode_inst (
+    .i_gray   (w_dma_ts_gray_dma),
+    .o_binary (w_dma_ts_bin     )
 );
 
 generate
@@ -451,13 +474,14 @@ rx_dma_stage #(
 ) rx_dma_stage_inst (
     .i_clk              (user_clk_250),
     .i_rst              (user_reset_p),
+    .i_dma_timestamp    (w_dma_ts_bin),
     .i_event_empty      (event_cdc_rd_empty),
     .i_event_valid      (event_cdc_rd_valid),
     .i_event_payload    (event_cdc_rd_data),
     .o_event_pop        (event_cdc_rd_en),
     .i_que_base_addr    (rx_dma_que_base_addr),
-    .i_que_slot_num   (rx_dma_que_slot_num),
-    .i_que_enable         (rx_dma_que_enable),
+    .i_que_slot_num     (rx_dma_que_slot_num),
+    .i_que_enable       (rx_dma_que_enable),
     .i_que_cons_ptr     (rx_dma_que_cons_ptr),
     .o_que_prod_ptr     (rx_dma_que_prod_ptr),
     .o_que_drop_count   (rx_dma_que_drop_count),
@@ -473,8 +497,6 @@ rx_dma_stage #(
     .o_rq_tc            (dma_rq_tc),
     .o_rq_payload       (dma_rq_payload)
 );
-
-
 
 
 

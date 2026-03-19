@@ -1,7 +1,7 @@
 module book_builder #(
     parameter BOOK_LEVEL_BIT      = 12,
-    parameter PARSER_MSG_BIT      = 1+8+16+64+64+2+32+32,
-    parameter QTY_MSG_BIT         = 2+32+1+32+1 // {bid_ask, price, is_add, d_shares, op_done}
+    parameter PARSER_MSG_BIT      = 1+8+16+64+64+2+32+32+48, // {msg_valid, msg_type, stock_locate, order_ref_num, new_order_ref_num, side, shares, price, frame_ts}
+    parameter QTY_MSG_BIT         = 2+32+1+32+1+48 // {bid_ask, price, is_add, d_shares, op_done, timestamp}
 ) (
     input   wire                        i_clk_156,
     input   wire                        i_rst,               // active high
@@ -18,7 +18,7 @@ reg  [31:0]                             qty_d_shares;
 reg                                     op_done; // indicating the completion, used for type U which has two steps of updating the book and qty.
 
 
-assign o_qty_msg = {qty_bid_ask, qty_price, qty_is_add, qty_d_shares,op_done};
+assign o_qty_msg = {qty_bid_ask, qty_price, qty_is_add, qty_d_shares,op_done, msg_timestamp};
 
 localparam ORDER_BOOK_WIDTH            = 67; // {valid, side, shares, price}
 localparam TYPE_A                      = 8'h41;
@@ -37,17 +37,18 @@ localparam WRITE                       = 2'b10;
 localparam BID                         = 2'b01;
 localparam ASK                         = 2'b10;
 
-wire [PARSER_MSG_BIT-1:0] ff_o_msg;
-wire                        ff_o_valid;
-wire                        ff_push;
-wire                        ff_pop;
-wire                        ff_not_empty;
-wire [7:0]    msg_type          = ff_o_msg[217:210];
-wire [63:0]   msg_order_ref_num = ff_o_msg[193:130];
-wire [63:0]   msg_new_order_ref = ff_o_msg[129:66];
-wire [1:0]    msg_side          = ff_o_msg[65:64];
-wire [31:0]   msg_shares        = ff_o_msg[63:32];
-wire [31:0]   msg_price         = ff_o_msg[31:0];
+wire [PARSER_MSG_BIT-1:0]       ff_o_msg;
+wire                            ff_o_valid;
+wire                            ff_push;
+wire                            ff_pop;
+wire                            ff_not_empty;
+wire [7:0]    msg_type          = ff_o_msg[265:258];
+wire [63:0]   msg_order_ref_num = ff_o_msg[241:178];
+wire [63:0]   msg_new_order_ref = ff_o_msg[177:114];
+wire [1:0]    msg_side          = ff_o_msg[113:112];
+wire [31:0]   msg_shares        = ff_o_msg[111:80];
+wire [31:0]   msg_price         = ff_o_msg[79:48];
+wire [47:0]   msg_timestamp     = ff_o_msg[47:0];
 
 assign ff_push = i_parser_msg[PARSER_MSG_BIT-1] && i_stock_valid;
 assign ff_pop  = ff_not_empty && (book_upd_state == IDLE) && !ff_o_valid;
@@ -111,10 +112,10 @@ always @(posedge i_clk_156 or posedge i_rst) begin
             IDLE: begin
                 case (msg_type)
                     TYPE_A,TYPE_F: begin
-                        book_op          <= WRITE;
-                        book_i_data      <= {1'b1, msg_side, msg_shares, msg_price};
-                        book_addr        <= cal_order_book_addr(msg_order_ref_num);
-                        book_upd_state   <= IDLE;
+                        book_op         <= WRITE;
+                        book_i_data     <= {1'b1, msg_side, msg_shares, msg_price};
+                        book_addr       <= cal_order_book_addr(msg_order_ref_num);
+                        book_upd_state  <= IDLE;
                         qty_bid_ask     <= msg_side;
                         qty_price       <= msg_price;
                         qty_is_add      <= 1'b1;

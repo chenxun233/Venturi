@@ -1,5 +1,5 @@
 module qty_builder #(
-    parameter QTY_MSG_BIT       = 2+32+1+32+1, // {side, price, is_add, d_shares, op_done}
+    parameter QTY_MSG_BIT       = 2+32+1+32+1+48, // {side, price, is_add, d_shares, op_done}
     parameter QTY_PRICE_LVL_BIT = 10,        // trace 2^QTY_PRICE_LVL_BIT price levels
     parameter PRICE_BASE        = 32'd0,
     parameter BID_OR_ASK        = 2'b01         // 01 for bid, 10 for ask
@@ -11,6 +11,7 @@ module qty_builder #(
     output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_price_idx,
     output  reg  [1:0]                    o_price_change,
     output  reg                           o_op_done,
+    output  reg  [47:0]                   o_timestamp,
     output  wire [QTY_PRICE_LVL_BIT-1:0]  o_bram_addr,
     output  wire [1:0]                    o_bram_op,
     output  wire [31:0]      o_bram_i_data
@@ -21,7 +22,7 @@ module qty_builder #(
 
 reg [1:0]                                qty_upd_state; // used for updating the price and corresponding shares in the book
 reg [1:0]                                qty_upd_op;
-reg [31:0]                  qty_i_shares;
+reg [31:0]                              qty_i_shares;
 
 localparam IDLE                          = 2'b00;
 localparam FIRST_CYCLE                   = 2'b01;
@@ -43,12 +44,14 @@ wire                        ff_o_valid;
 wire [31:0]                 qty_price           = ff_o_qty_msg[QTY_MSG_BIT-3:QTY_MSG_BIT-34];
 wire                        qty_is_add          = ff_o_qty_msg[QTY_MSG_BIT-35];
 wire [31:0]                 qty_d_shares        = ff_o_qty_msg[QTY_MSG_BIT-36:QTY_MSG_BIT-67];
-wire                        op_done             = ff_o_qty_msg[0];
+wire                        op_done             = ff_o_qty_msg[QTY_MSG_BIT-68];
+wire [47:0]                 qty_timestamp       = ff_o_qty_msg[QTY_MSG_BIT-69:0];
 
 reg [QTY_PRICE_LVL_BIT-1:0] latch_qty_prc_idx;
 reg                         latch_qty_is_add;
-reg [31:0]     latch_qty_d_shares;
+reg [31:0]                  latch_qty_d_shares;
 reg                         latch_op_done;
+reg [47:0]                  latch_timestamp;
 
 
 wire [31:0]    qty_cur             = i_bram_o_data;
@@ -83,11 +86,13 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         latch_qty_is_add     <= 1'b0;
         latch_qty_d_shares   <= {32{1'b0}};
         latch_op_done        <= 1'b0;
+        latch_timestamp      <= {48{1'b0}};
     end else if (ff_o_valid) begin
         latch_qty_prc_idx    <= cal_qty_book_addr(qty_price);
         latch_qty_is_add     <= qty_is_add;
         latch_qty_d_shares   <= qty_d_shares;
         latch_op_done        <= op_done;
+        latch_timestamp      <= qty_timestamp;
     end
 end
 
@@ -128,6 +133,7 @@ end
 always @(*) begin
     if (qty_upd_state == SECOND_CYCLE) begin
         o_op_done       = latch_op_done;
+        o_timestamp     = latch_timestamp;
         if (qty_cur == 0 && qty_new > 0) begin
             // empty -> non-empty
             o_price_idx     = qty_addr;
@@ -144,6 +150,7 @@ always @(*) begin
         o_price_idx         = 0;
         o_price_change      = IDLE;
         o_op_done           = 1'b0;
+        o_timestamp         = {48{1'b0}};
     end
 end
 

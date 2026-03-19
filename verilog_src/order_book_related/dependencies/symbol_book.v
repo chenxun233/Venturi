@@ -4,9 +4,9 @@ module symbol_book #(
     parameter BOOK_LEVEL_BIT         = 12,           // trace 2^BOOK_LEVEL_BIT orders in the order table
     parameter PRICE_BASE            = 32'd0,        // 
     parameter STOCK_LOCATE          = 16'h000d,      // stock locate for this symbol book, can be updated by control plane.
-    parameter PARSER_MSG_BIT        = 1+8+16+64+64+2+32+32,
+    parameter PARSER_MSG_BIT        = 1+8+16+64+64+2+32+32+48,
     parameter EVENT_FIFO_DEPTH      = 2,
-    parameter PAYLOAD_W             = 2*(32+32)+64+16
+    parameter PAYLOAD_W             = 2*(32+32)+48+16
 ) (
     // order book parser interface
     input   wire                                    i_clk_156,
@@ -16,20 +16,23 @@ module symbol_book #(
     output  wire [PAYLOAD_W-1:0]                    o_payload
 );
       
-localparam                      QTY_MSG_BIT                 = 2+32+1+32+1; // {bid_ask, price, is_add, d_shares, op_done}
-wire [31:0]                    o_ask_best_price    ;
-wire [31:0]                     o_ask_best_shares   ;
-wire [31:0]                    o_bid_best_price    ;
-wire [31:0]                     o_bid_best_shares   ;
+localparam                     QTY_MSG_BIT                 = 2+32+1+32+1+48; // {bid_ask, price, is_add, d_shares, op_done, timestamp}
+wire [31:0]                    o_ask_best_price       ;
+wire [31:0]                    o_ask_best_shares      ;
+wire [31:0]                    o_bid_best_price       ;
+wire [31:0]                    o_bid_best_shares      ;
 reg [31:0]                     prev_ask_best_price    ;
-reg [31:0]                      prev_ask_best_shares   ;
+reg [31:0]                     prev_ask_best_shares   ;
 reg [31:0]                     prev_bid_best_price    ;
-reg [31:0]                      prev_bid_best_shares   ;
+reg [31:0]                     prev_bid_best_shares   ;
 wire                           ff_push;
 wire [PAYLOAD_W-1:0]           payload;
 wire                           ask_changed;
 wire                           bid_changed;
-wire [63:0]                    event_timestamp;
+wire [47:0]                     event_timestamp;
+wire [47:0]                     ask_time_stamp;
+wire [47:0]                     bid_time_stamp;
+assign event_timestamp = ask_time_stamp | bid_time_stamp;
 
 
 always @(posedge i_clk_156) begin
@@ -71,7 +74,7 @@ assign o_payload = payload;
 
 
 wire [QTY_MSG_BIT-1:0] qty_msg;
-wire [15:0]            stock_locate = i_parser_msg[209:194];
+wire [15:0]            stock_locate = i_parser_msg[257:242];
 
 wire stock_valid = (stock_locate == STOCK_LOCATE);
 wire ask_op_done;
@@ -103,7 +106,8 @@ ask_wrapper_inst (
     .i_qty_msg              (qty_msg            ),
     .o_best_price_aligned   (o_ask_best_price   ),
     .o_best_shares          (o_ask_best_shares   ),
-    .o_op_done_aligned      (ask_op_done        )
+    .o_op_done_aligned      (ask_op_done        ),
+    .o_timestamp_aligned    (ask_time_stamp     )          
 
 );
 
@@ -120,16 +124,11 @@ bid_wrapper_inst (
     .i_qty_msg              (qty_msg            ),
     .o_best_price_aligned   (o_bid_best_price   ),
     .o_best_shares          (o_bid_best_shares  ),
-    .o_op_done_aligned      (bid_op_done        )
+    .o_op_done_aligned      (bid_op_done        ),
+    .o_timestamp_aligned    (bid_time_stamp     )
 );
 
 
-frame_timestamp timestamp_inst (
-    .i_clk              (i_clk_156        ),
-    .i_rst              (i_rst            ),
-    .i_event            (1'b1             ),
-    .o_event_timestamp  (event_timestamp  )
-);
 
 
 endmodule

@@ -57,8 +57,7 @@ Intel82599Dev::Intel82599Dev(std::string pci_addr, uint8_t max_bar_index) :
 BasicDev(pci_addr,max_bar_index)
 {
 	 		_getFD()     				&&
-			_getBARAddr (max_bar_index) &&
-			_enableDMA()                ;
+			_getBARAddr (max_bar_index) ;
 }
 
 Intel82599Dev::~Intel82599Dev(){

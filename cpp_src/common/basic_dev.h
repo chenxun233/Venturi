@@ -86,8 +86,6 @@ class BasicDev{
         bool                _addGroup2Container()                           ;
         bool                _getDeviceFD()                                  ;
 
-        virtual bool        _enableDMA()                                = 0 ;
-
         // Utility functions
         uint64_t            _monotonic_time()                               ;
         virtual void        _initStatus(DevStatus* stats)          = 0 ;

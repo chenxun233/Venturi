@@ -1,9 +1,10 @@
 module rx_dma_stage #(
     parameter SYMBOL_NUM = 2,
-    parameter PAYLOAD_W  = 256
+    parameter PAYLOAD_W  = 196
 ) (
     input  wire                             i_clk,
     input  wire                             i_rst,
+    input  wire [47:0]                      i_dma_timestamp,
     input  wire [SYMBOL_NUM-1:0]            i_event_empty,
     input  wire [SYMBOL_NUM-1:0]            i_event_valid,
     input  wire [SYMBOL_NUM*PAYLOAD_W-1:0]  i_event_payload,
@@ -32,6 +33,12 @@ localparam [10:0] RECORD_DW_COUNT = 11'd8;
 localparam [1:0] ST_IDLE      = 2'd0;
 localparam [1:0] ST_WAIT_FIFO = 2'd1;
 localparam [1:0] ST_SEND      = 2'd2;
+localparam integer RECORD_W   = 240;
+localparam integer EVENT_W    = 192;
+
+
+
+
 
 function integer clog2 (input integer value);
     integer idx;
@@ -42,10 +49,10 @@ function integer clog2 (input integer value);
     end
 endfunction
 
-function [255:0] pack_record (input [PAYLOAD_W-1:0] payload);
+function [255:0] pack_record (input [RECORD_W-1:0] payload);
     begin
         pack_record = 256'd0; // 256 bits is 32 bytes.
-        pack_record[PAYLOAD_W-1:0] = payload;
+        pack_record[RECORD_W-1:0] = payload;
     end
 endfunction
 
@@ -75,7 +82,7 @@ reg [63:0] que_drop_count [0:SYMBOL_NUM-1];
 reg [1:0]                state;
 reg [CL_SYMBOL_NUM-1:0]  current_que_idx;
 reg                      drop_current; // drop the queue entry or not.
-reg [255:0]              record_que;
+reg [EVENT_W-1:0]        record_que;
 reg [63:0]               write_addr;
 
 wire                     selected_valid;
@@ -88,7 +95,36 @@ wire [SYMBOL_NUM-1:0]   que_full_vec;
 wire [SYMBOL_NUM-1:0]   que_enabled_vec;
 wire [SYMBOL_NUM-1:0]   que_busy_vec;
 
+
+wire [31:0]   ask_best_price    = i_event_payload [PAYLOAD_W*current_que_idx+191 -: 32];
+wire [31:0]   ask_best_shares   = i_event_payload [PAYLOAD_W*current_que_idx+159 -: 32];
+wire [31:0]   bid_best_price    = i_event_payload [PAYLOAD_W*current_que_idx+127 -: 32];
+wire [31:0]   bid_best_shares   = i_event_payload [PAYLOAD_W*current_que_idx+95 -: 32];
+wire [47:0]   event_timestamp   = i_event_payload [PAYLOAD_W*current_que_idx+63 -: 48];
+wire [47:0]   event_latency     = i_dma_timestamp > event_timestamp ? i_dma_timestamp - event_timestamp : 48'd0;
+wire [15:0]   stock_locate      = i_event_payload [PAYLOAD_W*current_que_idx+15 -: 16];
+wire [47:0]   frame_latency     = latch_dma_timestamp > event_timestamp ? latch_dma_timestamp - event_timestamp : 48'd0;
+reg  [47:0]   latch_dma_timestamp;
+reg  [47:0]   pre_event_timestamp;
 integer que_idx;
+
+always @(posedge i_clk or posedge i_rst) begin
+    if (i_rst) begin
+        pre_event_timestamp <= 48'd0;
+    end else begin
+        pre_event_timestamp <= event_timestamp;
+    end
+end
+
+
+always @(posedge i_clk or posedge i_rst) begin
+    if (i_rst) begin
+        latch_dma_timestamp <= 48'd0;
+    end else if (pre_event_timestamp != event_timestamp) begin
+        latch_dma_timestamp <= i_dma_timestamp;
+    end
+end
+
 
 generate
     genvar gi;
@@ -133,12 +169,12 @@ wire        que_full            = (que_slot_num_value == 64'd0) || (que_outstand
 
 always @(posedge i_clk or posedge i_rst) begin
     if (i_rst) begin
-        state           <= ST_IDLE;
-        current_que_idx <= {CL_SYMBOL_NUM{1'b0}};
-        drop_current    <= 1'b0;
-        record_que      <= 256'd0;
-        write_addr      <= 64'd0;
-        o_event_pop     <= {SYMBOL_NUM{1'b0}};
+        state               <= ST_IDLE;
+        current_que_idx     <= {CL_SYMBOL_NUM{1'b0}};
+        drop_current        <= 1'b0;
+        record_que          <= {EVENT_W{1'b0}};
+        write_addr          <= 64'd0;
+        o_event_pop         <= {SYMBOL_NUM{1'b0}};
 
         for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
             que_prod_ptr[que_idx]   <= 64'd0;
@@ -158,6 +194,7 @@ always @(posedge i_clk or posedge i_rst) begin
         case (state)
             ST_IDLE: begin
                 if (selected_valid) begin
+                    
                     current_que_idx                 <= selected_que_idx;
                     drop_current                    <= selected_drop;
                     o_event_pop[selected_que_idx]   <= 1'b1;
@@ -170,8 +207,8 @@ always @(posedge i_clk or posedge i_rst) begin
                         que_drop_count[current_que_idx] <= que_drop_count[current_que_idx] + 64'd1;
                         state <= ST_IDLE;
                     end else begin
-                        record_que <= pack_record(i_event_payload[current_que_idx*PAYLOAD_W +: PAYLOAD_W]);
-                        write_addr <= calc_write_addr(
+                        record_que          <= {ask_best_price, ask_best_shares, bid_best_price, bid_best_shares, event_latency, stock_locate};
+                        write_addr          <= calc_write_addr(
                             i_que_base_addr[current_que_idx*64 +: 64],
                             que_slot_index[current_que_idx]
                         );
@@ -214,7 +251,7 @@ always @(*) begin
             o_rq_addr             = write_addr;
             o_rq_payload_dw_count = RECORD_DW_COUNT;
             o_rq_tag              = 8'h40 | current_que_idx;
-            o_rq_payload          = record_que;
+            o_rq_payload          = pack_record({record_que[EVENT_W-1:16], frame_latency, record_que[15:0]});
         end
         default: begin
             o_rq_valid            = 1'b0;

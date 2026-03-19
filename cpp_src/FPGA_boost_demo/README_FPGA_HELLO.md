@@ -104,27 +104,27 @@ test_fpga_hello_v2.cpp
 
 ---
 
-## Register Map (Common to Both)
+## Register Map (Current FPGA RX Design)
 
-Both versions test the same FPGA register interface:
+The infrastructure-based test tracks the current FPGA RX BAR0 contract:
 
 | Offset | Name | Access | Description |
 |--------|------|--------|-------------|
-| 0x00 | SCRATCH | R/W | 64-bit scratch register for read/write testing |
-| 0x08 | ID | RO | Returns 0xDEADBEEF_CAFEBABE |
-| 0x10 | INT_CTRL | WO | Write any value to trigger MSI interrupt |
-| 0x18 | STATUS | RO | [0]: Link up, [31:16]: Interrupt count |
+| 0x00 | REG_RESET | WO | Reset RX queue configuration state |
+| 0x04 | REG_ID | RO | Returns `0x4d5f52585f434647` |
+| 0x0C | REG_SYNC_ENABLE | R/W | Enable sync/calibration behavior on `prod_ptr` reads |
+| 0x40 + n*0x40 | RX queue window | R/W/RO | Queue base, slot count, enable, consumer pointer, producer pointer, drop count, status |
 
 ---
 
 ## Test Sequence
 
-Both versions perform the same tests:
+The current infrastructure-based test executable provides:
 
-1. **ID Register Test**: Read and verify the magic ID value
-2. **Status Register Test**: Check PCIe link status and interrupt count
-3. **Scratch Register Test**: Write and read back various test patterns
-4. **Interrupt Test**: Trigger MSI and verify counter increment
+1. **Register + Sync Test**: Read `REG_ID`, read/write/readback `REG_SYNC_ENABLE`
+2. **Interrupt Placeholder**: Reserved for future interrupt testing
+3. **DMA Placeholder**: Reserved for legacy smoke testing
+4. **Replay Validator**: Poll both FPGA RX queues and compare events against the fixture-derived expected book updates while you drive traffic with `tcpreplay`
 
 ---
 
@@ -212,13 +212,17 @@ Before running either version:
 - PCIe communication issue
 - Check FPGA programming
 
+### "REG_SYNC_ENABLE readback failed"
+- Host-side code and current bitstream disagree on BAR0 offset `0x0C`
+- The FPGA may not be programmed with the current RX image
+- Check that the device is reachable through VFIO and BAR0 reads/writes work
+
 ---
 
 ## Future Extensions
 
 Version 2 (`FPGADev`) can be easily extended to add:
 
-- **DMA Support**: Implement `_enableDMA()` properly
 - **Ring Buffers**: Add TX/RX queues like Intel driver
 - **Interrupts**: Implement `initializeInterrupt()`
 - **Ethernet MAC**: Add packet send/receive functions
