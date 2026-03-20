@@ -21,18 +21,14 @@ static uint32_t diff_mbit(uint64_t bytes_new, uint64_t bytes_old, uint64_t pkts_
 		+ diff_mpps(pkts_new, pkts_old, nanos) * 20 * 8);
 }
 
-BasicDev::BasicDev(std::string pci_addr,uint8_t max_bar_index):
+BasicDev::BasicDev(std::string pci_addr):
 m_basic_para()
 {
     // initialize struct members in the constructor body
     m_basic_para.pci_addr = pci_addr;
-    m_basic_para.num_rx_queues = 0;
-    m_basic_para.num_tx_queues = 0;
-    m_basic_para.max_bar_index = max_bar_index;
-    m_basic_para.interrupt_timeout_ms = 100; 
-    for (auto& addr : m_basic_para.p_bar_addr) {
-        addr = nullptr;
-    }
+    m_basic_para.rx_que_num = 0;
+    m_basic_para.tx_que_num = 0;
+    m_basic_para.bar0_addr = nullptr;
 }
 
 
@@ -42,9 +38,6 @@ uint64_t BasicDev::_monotonic_time(){
     return static_cast<uint64_t>(ts.tv_sec) * 1000000000 + static_cast<uint64_t>(ts.tv_nsec);
 }
 
-basic_para_type BasicDev::get_basic_para(){
-    return m_basic_para;
-}
 
 
 void BasicDev::_print_stats_diff(DevStatus* stats_new, DevStatus* stats_old, uint64_t nanos){
@@ -179,38 +172,109 @@ bool BasicDev::_getDeviceFD() {
     return true;
 }
 
-bool BasicDev::_getBARAddr(uint8_t bar_index) {
-    m_basic_para.max_bar_index = bar_index;
-    if (m_basic_para.max_bar_index > VFIO_PCI_BAR5_REGION_INDEX) {
-        warn("BAR index %d is out of range", m_basic_para.max_bar_index);
+void BasicDev::_writeReg64(uint32_t offset, uint64_t value) {
+    if (m_basic_para.bar0_addr == nullptr) {
+        warn("BAR0 not mapped");
+        return;
+    }
+    __asm__ volatile("" ::: "memory");
+    volatile uint64_t* reg = reinterpret_cast<volatile uint64_t*>(m_basic_para.bar0_addr + offset);
+    *reg = value;
+}
+
+uint64_t BasicDev::_readReg64(uint32_t offset) const {
+    if (m_basic_para.bar0_addr == nullptr) {
+        warn("BAR0 not mapped");
+        return 0;
+    }
+    __asm__ volatile("" ::: "memory");
+    volatile uint64_t* reg = reinterpret_cast<volatile uint64_t*>(m_basic_para.bar0_addr + offset);
+    return *reg;
+}
+
+void BasicDev::_writeReg32(uint32_t offset, uint32_t value) {
+    if (m_basic_para.bar0_addr == nullptr) {
+        warn("BAR0 not mapped");
+        return;
+    }
+    __asm__ volatile("" ::: "memory");
+    volatile uint32_t* reg = reinterpret_cast<volatile uint32_t*>(m_basic_para.bar0_addr + offset);
+    *reg = value;
+}
+
+uint32_t BasicDev::_readReg32(uint32_t offset) const {
+    if (m_basic_para.bar0_addr == nullptr) {
+        warn("BAR0 not mapped");
+        return 0;
+    }
+    __asm__ volatile("" ::: "memory");
+    volatile uint32_t* reg = reinterpret_cast<volatile uint32_t*>(m_basic_para.bar0_addr + offset);
+    return *reg;
+}
+
+bool BasicDev::_readReg128(uint32_t offset, uint64_t& low_qword, uint64_t& high_qword) const {
+    if (m_basic_para.bar0_addr == nullptr) {
+        warn("BAR0 not mapped");
         return false;
     }
+
+    struct alignas(16) Mmio128 {
+        uint64_t low;
+        uint64_t high;
+    };
+
+    __asm__ volatile("" ::: "memory");
+    const volatile Mmio128* reg = reinterpret_cast<const volatile Mmio128*>(m_basic_para.bar0_addr + offset);
+    low_qword = reg->low;
+    high_qword = reg->high;
+    return true;
+}
+
+bool BasicDev::_getBARAddr() {
+    constexpr uint32_t kBarIndex = VFIO_PCI_BAR0_REGION_INDEX;
     if (this->m_fds.device_fd == -1) {
         warn("Device fd is invalid");
         return false;
     }
-    for (int i = 0; i <= m_basic_para.max_bar_index; i++) {
-        struct vfio_region_info region_info = {};
-        region_info.argsz = sizeof(region_info);
-        region_info.index = i;
-        int ret = ioctl(this->m_fds.device_fd, VFIO_DEVICE_GET_REGION_INFO, &region_info);
-        if (ret == -1) {
-            warn("Failed to get region info for BAR %d: %s", i, strerror(errno));
-            return false;
-        }
-        if (region_info.size == 0) {
-            info("BAR%d size is 0, skipping", i);
-            continue;
-        }
-        uint8_t* temp_addr = static_cast<uint8_t*>(mmap(NULL, region_info.size, PROT_READ | PROT_WRITE,
-                                                         MAP_SHARED, this->m_fds.device_fd, region_info.offset));
-        if (temp_addr == MAP_FAILED) {
-            warn("Failed to mmap BAR %d: %s", i, strerror(errno));
-            return false;
-        }
-        m_basic_para.p_bar_addr[i] = temp_addr;
-        info("BAR%d mapped at %p (size: 0x%llx)", i, (void*)temp_addr,
-             (unsigned long long)region_info.size);
+    struct vfio_region_info region_info = {};
+    region_info.argsz = sizeof(region_info);
+    region_info.index = kBarIndex;
+    int ret = ioctl(this->m_fds.device_fd, VFIO_DEVICE_GET_REGION_INFO, &region_info);
+    if (ret == -1) {
+        warn("Failed to get region info for BAR0: %s", strerror(errno));
+        return false;
+    }
+    if (region_info.size == 0) {
+        warn("BAR0 size is 0");
+        return false;
+    }
+    uint8_t* temp_addr = static_cast<uint8_t*>(mmap(NULL, region_info.size, PROT_READ | PROT_WRITE,
+                                                     MAP_SHARED, this->m_fds.device_fd, region_info.offset));
+    if (temp_addr == MAP_FAILED) {
+        warn("Failed to mmap BAR0: %s", strerror(errno));
+        return false;
+    }
+    m_basic_para.bar0_addr = temp_addr;
+    info("BAR0 mapped at %p (size: 0x%llx)", (void*)temp_addr,
+         (unsigned long long)region_info.size);
+    return true;
+}
+
+bool BasicDev::_initDMAMemoryAllocator() {
+    if (m_fds.container_fd < 0) {
+        warn("Cannot initialize DMA allocator without a valid container fd");
+        return false;
+    }
+    if (!m_dma_allocator) {
+        m_dma_allocator = std::make_unique<DMAMemoryAllocator>(m_fds.container_fd);
     }
     return true;
+}
+
+DMAMemoryAllocator& BasicDev::_getDMAAllocator() {
+    return *m_dma_allocator;
+}
+
+const DMAMemoryAllocator& BasicDev::_getDMAAllocator() const {
+    return *m_dma_allocator;
 }

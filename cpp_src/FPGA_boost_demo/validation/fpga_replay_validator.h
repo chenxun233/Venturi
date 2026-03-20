@@ -60,6 +60,6 @@ private:
 
 private:
     FPGADev& m_device;
-    FpgaRxAdapter m_adapter;
+    FPGARxDataAdaptor m_adapter;
     std::vector<QueueValidationState> m_queues;
 };

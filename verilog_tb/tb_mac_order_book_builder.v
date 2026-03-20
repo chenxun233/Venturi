@@ -60,7 +60,7 @@ module tb_mac_order_book_builder;
     wire [SYMBOL_NUM*PAYLOAD_W-1:0] event_cdc_rd_data;
     wire [47:0]             w_dma_ts_gray_dma;
     wire [47:0]             w_dma_ts_bin;
-    reg  [SYMBOL_NUM*64-1:0] rx_dma_que_base_addr;
+    reg  [SYMBOL_NUM*64-1:0] rx_dma_que_iova_addr;
     reg  [SYMBOL_NUM*64-1:0] rx_dma_que_slot_num;
     reg  [SYMBOL_NUM*64-1:0] rx_dma_que_enable;
     reg  [SYMBOL_NUM*64-1:0] rx_dma_que_cons_ptr;
@@ -234,7 +234,7 @@ module tb_mac_order_book_builder;
         .i_event_valid      (event_cdc_rd_valid),
         .i_event_payload    (event_cdc_rd_data),
         .o_event_pop        (event_cdc_rd_en),
-        .i_que_base_addr    (rx_dma_que_base_addr),
+        .i_que_iova_addr    (rx_dma_que_iova_addr),
         .i_que_slot_num     (rx_dma_que_slot_num),
         .i_que_enable       (rx_dma_que_enable),
         .i_que_cons_ptr     (rx_dma_que_cons_ptr),
@@ -550,7 +550,7 @@ module tb_mac_order_book_builder;
         last_w_dma_ts_gray_rx = 48'd0;
         expected_aapl_frame_ts = 48'd0;
         expected_hsbc_frame_ts = 48'd0;
-        rx_dma_que_base_addr = {HSBC_DMA_BASE, AAPL_DMA_BASE};
+        rx_dma_que_iova_addr = {HSBC_DMA_BASE, AAPL_DMA_BASE};
         rx_dma_que_slot_num  = {64'd16, 64'd16};
         rx_dma_que_enable    = {64'd1, 64'd1};
         rx_dma_que_cons_ptr  = {64'd0, 64'd0};

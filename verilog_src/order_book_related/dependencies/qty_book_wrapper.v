@@ -1,12 +1,12 @@
 module qty_book_wrapper #(
     parameter QTY_MSG_BIT       = 2+32+1+32+1+48, // {bid_ask, price, is_add, d_shares, op_done, timestamp}
     parameter QTY_PRICE_LVL_BIT = 10,
-    parameter PRICE_BASE        = 32'd0,
     parameter BID_OR_ASK        = 2'b01 // 01 for ask, 10 for bid
 ) (
     input  wire                          i_clk_156,
     input  wire                          i_rst,
     input  wire [QTY_MSG_BIT-1:0]        i_qty_msg,
+    input  wire [31:0]                   i_price_base,
     output wire [31:0]                   o_best_price_aligned,
     output wire [31:0]                   o_best_shares,
     output wire                          o_op_done_aligned,
@@ -15,7 +15,7 @@ module qty_book_wrapper #(
 );
 
 wire [QTY_PRICE_LVL_BIT-1:0]  best_idx;
-wire [31:0]                   best_price = PRICE_BASE + ({24'd0, best_idx} << 2);
+wire [31:0]                   best_price = i_price_base + ({24'd0, best_idx} << 2);
 
 localparam IDLE  = 2'b00;
 localparam READ  = 2'b01;
@@ -39,12 +39,12 @@ wire [47:0]                 tree_timestamp;
 qty_builder #(
     .QTY_MSG_BIT       (QTY_MSG_BIT),
     .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
-    .PRICE_BASE        (PRICE_BASE),
     .BID_OR_ASK        (BID_OR_ASK)
 ) qty_builder_inst (
     .i_clk_156          (i_clk_156      ),
     .i_rst              (i_rst          ),
     .i_qty_msg          (i_qty_msg      ),
+    .i_price_base       (i_price_base   ),
     .i_bram_o_data      (bram_o_data_a  ),
     .o_price_idx        (price_idx      ),
     .o_price_change     (price_change   ),

@@ -2,8 +2,6 @@
 module symbol_book #(
     parameter QTY_PRICE_LVL_BIT     = 12,           // trace 2^QTY_PRICE_LVL_BIT price levels
     parameter BOOK_LEVEL_BIT         = 12,           // trace 2^BOOK_LEVEL_BIT orders in the order table
-    parameter PRICE_BASE            = 32'd0,        // 
-    parameter STOCK_LOCATE          = 16'h000d,      // stock locate for this symbol book, can be updated by control plane.
     parameter PARSER_MSG_BIT        = 1+8+16+64+64+2+32+32+48,
     parameter EVENT_FIFO_DEPTH      = 2,
     parameter PAYLOAD_W             = 2*(32+32)+48+16
@@ -11,6 +9,8 @@ module symbol_book #(
     // order book parser interface
     input   wire                                    i_clk_156,
     input   wire                                    i_rst,               // active high
+    input   wire [15:0]                             i_stock_locate_cfg,
+    input   wire [31:0]                             i_price_base_cfg,
     input   wire [PARSER_MSG_BIT-1:0]               i_parser_msg,
     output  wire                                    o_event_found,
     output  wire [PAYLOAD_W-1:0]                    o_payload
@@ -66,7 +66,7 @@ assign payload =  {
     o_bid_best_price,
     o_bid_best_shares,
     event_timestamp,
-    STOCK_LOCATE
+    i_stock_locate_cfg
 };
 
 assign o_payload = payload;
@@ -76,7 +76,7 @@ assign o_payload = payload;
 wire [QTY_MSG_BIT-1:0] qty_msg;
 wire [15:0]            stock_locate = i_parser_msg[257:242];
 
-wire stock_valid = (stock_locate == STOCK_LOCATE);
+wire stock_valid = (stock_locate == i_stock_locate_cfg);
 wire ask_op_done;
 wire bid_op_done;
 wire op_done = ask_op_done | bid_op_done;
@@ -97,13 +97,13 @@ book_builder #(
 qty_book_wrapper #(
     .QTY_MSG_BIT            (QTY_MSG_BIT          ),
     .QTY_PRICE_LVL_BIT      (QTY_PRICE_LVL_BIT    ),
-    .PRICE_BASE             (PRICE_BASE           ),
     .BID_OR_ASK             (2'b10) //  01 for bid, 10 for ask
 )
 ask_wrapper_inst (
     .i_clk_156              (i_clk_156          ),
     .i_rst                  (i_rst              ),
     .i_qty_msg              (qty_msg            ),
+    .i_price_base           (i_price_base_cfg   ),
     .o_best_price_aligned   (o_ask_best_price   ),
     .o_best_shares          (o_ask_best_shares   ),
     .o_op_done_aligned      (ask_op_done        ),
@@ -115,13 +115,13 @@ ask_wrapper_inst (
 qty_book_wrapper #(
     .QTY_MSG_BIT            (QTY_MSG_BIT          ),
     .QTY_PRICE_LVL_BIT      (QTY_PRICE_LVL_BIT    ),
-    .PRICE_BASE             (PRICE_BASE           ),
     .BID_OR_ASK             (2'b01) //  01 for bid, 10 for ask
 )
 bid_wrapper_inst (
     .i_clk_156              (i_clk_156          ),
     .i_rst                  (i_rst              ),
     .i_qty_msg              (qty_msg            ),
+    .i_price_base           (i_price_base_cfg   ),
     .o_best_price_aligned   (o_bid_best_price   ),
     .o_best_shares          (o_bid_best_shares  ),
     .o_op_done_aligned      (bid_op_done        ),

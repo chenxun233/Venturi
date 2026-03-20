@@ -15,7 +15,7 @@ module tb_dual_domain_timestamper;
     reg                  event_empty;
     reg                  event_valid;
     reg  [PAYLOAD_W-1:0] event_payload;
-    reg  [63:0]          que_base_addr;
+    reg  [63:0]          que_iova_addr;
     reg  [63:0]          que_slot_num;
     reg  [63:0]          que_enable;
     reg  [63:0]          que_cons_ptr;
@@ -81,7 +81,7 @@ module tb_dual_domain_timestamper;
         .i_event_valid      (event_valid),
         .i_event_payload    (event_payload),
         .o_event_pop        (event_pop),
-        .i_que_base_addr    (que_base_addr),
+        .i_que_iova_addr    (que_iova_addr),
         .i_que_slot_num     (que_slot_num),
         .i_que_enable       (que_enable),
         .i_que_cons_ptr     (que_cons_ptr),
@@ -178,7 +178,7 @@ module tb_dual_domain_timestamper;
         event_empty         = 1'b1;
         event_valid         = 1'b0;
         event_payload       = {PAYLOAD_W{1'b0}};
-        que_base_addr       = 64'h0000_0000_1000_0000;
+        que_iova_addr       = 64'h0000_0000_1000_0000;
         que_slot_num        = 64'd16;
         que_enable          = 64'd1;
         que_cons_ptr        = 64'd0;

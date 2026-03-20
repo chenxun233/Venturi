@@ -3,42 +3,21 @@
 
 #include <cstring>
 
-namespace {
-
-uint16_t read_le16(const uint8_t* bytes, std::size_t offset) {
-    return static_cast<uint16_t>(static_cast<uint16_t>(bytes[offset]) |
-                                 (static_cast<uint16_t>(bytes[offset + 1]) << 8));
-}
-
-uint32_t read_le32(const uint8_t* bytes, std::size_t offset) {
-    return static_cast<uint32_t>(bytes[offset]) |
-           (static_cast<uint32_t>(bytes[offset + 1]) << 8) |
-           (static_cast<uint32_t>(bytes[offset + 2]) << 16) |
-           (static_cast<uint32_t>(bytes[offset + 3]) << 24);
-}
-
-uint64_t read_le48(const uint8_t* bytes, std::size_t offset) {
-    uint64_t value = 0;
-    for (int byte_idx = 0; byte_idx < 6; ++byte_idx) {
-        value |= (static_cast<uint64_t>(bytes[offset + byte_idx]) << (8 * byte_idx));
-    }
-    return value;
-}
-
-} // namespace
+    // m_rx_queues.resize(m_basic_para.rx_que_num);
+    // m_rx_queues[0].symbol_name = "AAPL";
+    // m_rx_queues[0].stock_locate = 0x000d;
+    // m_rx_queues[1].symbol_name = "HSBC";
+    // m_rx_queues[1].stock_locate = 0x0ee8;
 
 FPGADev::FPGADev(std::string pci_addr)
-    : BasicDev(std::move(pci_addr), 1) {
-    m_rx_queues[0].symbol_name = "AAPL";
-    m_rx_queues[0].stock_locate = 0x000d;
-    m_rx_queues[1].symbol_name = "HSBC";
-    m_rx_queues[1].stock_locate = 0x0ee8;
+    : BasicDev(std::move(pci_addr)) {
+
 }
 
 FPGADev::~FPGADev() = default;
 
 bool FPGADev::initHardware() {
-    if (m_hw_ready && m_basic_para.p_bar_addr[0] != nullptr) {
+    if (m_hw_ready && m_basic_para.bar0_addr != nullptr) {
         return true;
     }
 
@@ -48,308 +27,258 @@ bool FPGADev::initHardware() {
         warn("Failed to get VFIO device file descriptor");
         return false;
     }
-
-    if (!_getBARAddr(0)) {
+    if (!_initDMAMemoryAllocator()) {
+        warn("Failed to initialize DMA memory allocator");
+        return false;
+    }
+    if (!_getBARAddr()) {
         warn("Failed to map BAR0");
         return false;
     }
-
-    if (m_basic_para.p_bar_addr[0] == nullptr) {
+    if (m_basic_para.bar0_addr == nullptr) {
         warn("BAR0 not mapped");
         return false;
     }
-
-    write_reg32(REG_RESET, 1);
-    (void)read_reg32(REG_SYNC_ENABLE);
+    _writeReg32(REG_RESET, 1);
+    (void)_readReg32(REG_SYNC_ENABLE);
+    _readSymbolNum();
     m_hw_ready = true;
     return true;
 }
 
-bool FPGADev::setRxRingBuffers(uint16_t num_rx_queues, uint32_t num_pckt, uint32_t pckt_size) {
+bool FPGADev::setRxRingBuffers(uint16_t rx_que_num, uint32_t slot_num, uint32_t slot_size) {
     if (!m_hw_ready && !initHardware()) {
+        error("FPGA hardware is not initialized");
         return false;
     }
-
-    if (num_rx_queues != kRxQueueCount) {
-        warn("Current FPGA image expects exactly %u RX queues, got %u", kRxQueueCount, num_rx_queues);
+    (void)rx_que_num;
+    (void)slot_size;
+    if (slot_num == 0) {
+        error("RX queue slot count must be non-zero");
         return false;
     }
-
-    if (num_pckt == 0) {
-        warn("RX queue slot count must be non-zero");
+    if (slot_num == 0 || (slot_num & (slot_num - 1)) != 0) {
+        error("RX queue slot count %u is not a power of 2, which may cause issues with the current FPGA design", slot_num);
         return false;
     }
-
-    if (pckt_size != kRxRecordBytes) {
-        warn("Ignoring requested RX record size %u and using fixed %u-byte FPGA records", pckt_size, kRxRecordBytes);
-    }
-
-    auto& allocator = DMAMemoryAllocator::getInstance();
-    for (uint16_t que_idx = 0; que_idx < kRxQueueCount; ++que_idx) {
-        QueueRuntime& queue = m_rx_queues[que_idx];
-        queue.slot_num = num_pckt;
-        queue.slot_size_bytes = kRxRecordBytes;
-        queue.host_cons_ptr = 0;
+    auto& allocator = _getDMAAllocator();
+    for (uint16_t que_idx = 0; que_idx < m_basic_para.rx_que_num; ++que_idx) {
+        QueueConfig& queue = m_rx_queues[que_idx];
+        queue.slot_num = slot_num;
 
         const std::size_t queue_bytes = static_cast<std::size_t>(queue.slot_num) * queue.slot_size_bytes;
-        queue.dma_memory = allocator.allocDMAMemory(queue_bytes, m_fds.container_fd);
-        if (queue.dma_memory.virt == nullptr || queue.dma_memory.iova == 0) {
+        queue.dma_memory = allocator.allocate(queue_bytes);
+        if (!queue.dma_memory.valid()) {
             warn("Failed to allocate DMA memory for queue %u", que_idx);
             return false;
         }
+        std::memset(queue.dma_memory.virt(), 0, queue_bytes);
+        _writeReg64(_getRegAddr(que_idx, REG_RX_IOVA_OFFSET), queue.dma_memory.iova());
+        _writeReg64(_getRegAddr(que_idx, REG_RX_QUE_SLOT_NUM_OFFSET), queue.slot_num);
+        _writeReg64(_getRegAddr(que_idx, REG_RX_QUE_CONS_PTR_OFFSET), 0);
 
-        std::memset(queue.dma_memory.virt, 0, queue_bytes);
-
-        write_reg64(_queueRegOffset(que_idx, REG_RX_IOVA_OFFSET), queue.dma_memory.iova);
-        write_reg64(_queueRegOffset(que_idx, REG_RX_QUE_SLOT_NUM_OFFSET), queue.slot_num);
-        write_reg64(_queueRegOffset(que_idx, REG_RX_QUE_CONS_PTR_OFFSET), 0);
-
-        info("Configured RX queue %u (%s): IOVA=0x%016llx slots=%u slot_bytes=%u",
+        info("Configured RX queue %u: IOVA=0x%016llx slots_num=%u slot_bytes=%u",
              que_idx,
-             queue.symbol_name.c_str(),
-             static_cast<unsigned long long>(queue.dma_memory.iova),
+             static_cast<unsigned long long>(queue.dma_memory.iova()),
              queue.slot_num,
              queue.slot_size_bytes);
     }
-
-    m_basic_para.num_rx_queues = num_rx_queues;
     return true;
 }
 
-bool FPGADev::setTxRingBuffers(uint16_t num_tx_queues, uint32_t num_pckt, uint32_t pckt_size) {
-    (void)num_tx_queues;
-    (void)num_pckt;
-    (void)pckt_size;
+bool FPGADev::setTxRingBuffers(uint16_t tx_que_num, uint32_t slot_num, uint32_t slot_size) {
+    (void)tx_que_num;
+    (void)slot_num;
+    (void)slot_size;
     info("TX rings are not used by the current FPGA RX flow");
     return true;
 }
 
-void FPGADev::write_reg64(uint32_t offset, uint64_t value) {
-    if (m_basic_para.p_bar_addr[0] == nullptr) {
-        warn("BAR0 not mapped");
-        return;
-    }
-    __asm__ volatile("" ::: "memory");
-    volatile uint64_t* reg = reinterpret_cast<volatile uint64_t*>(m_basic_para.p_bar_addr[0] + offset);
-    *reg = value;
-}
 
-uint64_t FPGADev::read_reg64(uint32_t offset) {
-    if (m_basic_para.p_bar_addr[0] == nullptr) {
-        warn("BAR0 not mapped");
-        return 0;
-    }
-    __asm__ volatile("" ::: "memory");
-    volatile uint64_t* reg = reinterpret_cast<volatile uint64_t*>(m_basic_para.p_bar_addr[0] + offset);
-    return *reg;
-}
 
-void FPGADev::write_reg32(uint32_t offset, uint32_t value) {
-    if (m_basic_para.p_bar_addr[0] == nullptr) {
-        warn("BAR0 not mapped");
-        return;
-    }
-    __asm__ volatile("" ::: "memory");
-    volatile uint32_t* reg = reinterpret_cast<volatile uint32_t*>(m_basic_para.p_bar_addr[0] + offset);
-    *reg = value;
-}
-
-uint32_t FPGADev::read_reg32(uint32_t offset) {
-    if (m_basic_para.p_bar_addr[0] == nullptr) {
-        warn("BAR0 not mapped");
-        return 0;
-    }
-    __asm__ volatile("" ::: "memory");
-    volatile uint32_t* reg = reinterpret_cast<volatile uint32_t*>(m_basic_para.p_bar_addr[0] + offset);
-    return *reg;
-}
-
-uint16_t FPGADev::rxQueueCount() const {
-    return kRxQueueCount;
-}
-
-uint64_t FPGADev::rxQueueProdPtr(uint16_t que_idx) {
-    if (_queueForIndex(que_idx) == nullptr) {
-        warn("Invalid queue index %u", que_idx);
-        return 0;
-    }
-    return read_reg64(_queueRegOffset(que_idx, REG_RX_QUE_PROD_OFFSET));
-}
-
-uint64_t FPGADev::rxQueueDropCount(uint16_t que_idx) {
-    if (_queueForIndex(que_idx) == nullptr) {
-        warn("Invalid queue index %u", que_idx);
-        return 0;
-    }
-    return read_reg64(_queueRegOffset(que_idx, REG_RX_QUE_DROP_OFFSET));
-}
-
-bool FPGADev::setSyncEnable(bool enable) {
-    write_reg64(REG_SYNC_ENABLE, enable ? 1ULL : 0ULL);
-    bool readback = false;
-    if (!readSyncEnable(readback)) {
+bool  FPGADev::setSymbolLocate(uint16_t que_idx, uint16_t stock_locate) {
+    if (!m_hw_ready) {
+        warn("FPGA hardware is not initialized");
         return false;
     }
-    return readback == enable;
+    if (que_idx < m_rx_queues.size()) {
+        m_rx_queues[que_idx].stock_locate = stock_locate;
+        _writeReg64(_getRegAddr(que_idx, REG_RX_QUE_SYMBOL_LOC_OFFSET), stock_locate);
+        return true;
+    }
+    warn("Queue index %u more than available %u in setSymbolLocate", que_idx, static_cast<uint16_t>(m_rx_queues.size()));
+    return false;
 }
 
-bool FPGADev::readSyncEnable(bool& enabled) {
-    const uint64_t value = read_reg64(REG_SYNC_ENABLE);
+bool FPGADev::setPriceBase(uint16_t que_idx, uint64_t price_base) {
+    if (!m_hw_ready) {
+        warn("FPGA hardware is not initialized");
+        return false;
+    }
+    if (que_idx < m_rx_queues.size()) {
+        m_rx_queues[que_idx].price_base = price_base;
+        _writeReg64(_getRegAddr(que_idx, REG_RX_QUE_PRICE_BASE_OFFSET), price_base);
+        return true;
+    }
+    warn("Queue index %u more than available %u in setPriceBase", que_idx, static_cast<uint16_t>(m_rx_queues.size()));
+    return false;
+}
+
+bool FPGADev::validateRxQueue() const {
+    if (!m_hw_ready || m_basic_para.bar0_addr == nullptr) {
+        warn("FPGA hardware is not initialized");
+        return false;
+    }
+    const uint64_t symbol_num   = _readReg64(REG_RX_SYMBOL_NUM);
+    const bool reg_sync_enabled =_readReg64(REG_SYNC_ENABLE) & 0x1ULL;
+    if (reg_sync_enabled != m_sync_enable) {
+        warn("Device sync enable mismatch: expected %s but read %s",
+            m_sync_enable ? "enabled" : "disabled",
+            reg_sync_enabled ? "enabled" : "disabled");
+        return false;
+    }
+    if (symbol_num != m_basic_para.rx_que_num || symbol_num != m_rx_queues.size()) {
+        warn("Device symbol number mismatch: expected %llu but read %llu",
+                static_cast<unsigned long long>(m_basic_para.rx_que_num),
+                static_cast<unsigned long long>(symbol_num));
+        return false;
+    }
+    for (auto que_idx = 0; que_idx < m_basic_para.rx_que_num; ++que_idx) {
+        const uint64_t iova         = _readReg64(_getRegAddr(que_idx, REG_RX_IOVA_OFFSET));
+        const uint64_t slot_num     = _readReg64(_getRegAddr(que_idx, REG_RX_QUE_SLOT_NUM_OFFSET));
+        const uint64_t cons_ptr     = _readReg64(_getRegAddr(que_idx, REG_RX_QUE_CONS_PTR_OFFSET));
+        const uint64_t prod_ptr     = _readReg64(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET));
+        const uint64_t drop_count   = _readReg64(_getRegAddr(que_idx, REG_RX_QUE_DROP_OFFSET));
+        const uint64_t symbol_loc   = _readReg64(_getRegAddr(que_idx, REG_RX_QUE_SYMBOL_LOC_OFFSET));
+        const uint64_t price_base   = _readReg64(_getRegAddr(que_idx, REG_RX_QUE_PRICE_BASE_OFFSET));
+        if (iova != m_rx_queues[que_idx].dma_memory.iova()) {
+            warn("Queue %u IOVA mismatch: expected 0x%016llx but read 0x%016llx",
+                 que_idx,
+                 static_cast<unsigned long long>(m_rx_queues[que_idx].dma_memory.iova()),
+                 static_cast<unsigned long long>(iova));
+            return false;
+        }
+        if (slot_num != m_rx_queues[que_idx].slot_num) {
+            warn("Queue %u slot_num mismatch: expected %llu but read %llu",
+                 que_idx,
+                 static_cast<unsigned long long>(m_rx_queues[que_idx].slot_num),
+                 static_cast<unsigned long long>(slot_num));
+            return false;
+        }
+        if (cons_ptr != 0) {
+            warn("Queue %u cons_ptr expected to be 0 but read %llu", que_idx, static_cast<unsigned long long>(cons_ptr));
+            return false;
+        }
+        if (prod_ptr != 0) {
+            warn("Queue %u prod_ptr expected to be 0 but read %llu", que_idx, static_cast<unsigned long long>(prod_ptr));
+            return false;
+        }
+        if (drop_count != 0) {
+            warn("Queue %u drop_count expected to be 0 but read %llu", que_idx, static_cast<unsigned long long>(drop_count));
+            return false;
+        }
+        if (symbol_loc != m_rx_queues[que_idx].stock_locate) {
+            warn("Queue %u stock_locate mismatch: expected 0x%04x but read 0x%04llx",
+                 que_idx,
+                 m_rx_queues[que_idx].stock_locate,
+                 static_cast<unsigned long long>(symbol_loc));
+            return false;
+        }
+        if (price_base != m_rx_queues[que_idx].price_base) {
+            warn("Queue %u price_base mismatch: expected %llu but read %llu",
+                 que_idx,
+                 static_cast<unsigned long long>(m_rx_queues[que_idx].price_base),
+                 static_cast<unsigned long long>(price_base));
+            return false;
+        }
+    }
+    return true;
+}
+
+void FPGADev::_readSymbolNum() {
+    m_basic_para.rx_que_num = static_cast<uint8_t>(_readReg64(REG_RX_SYMBOL_NUM));
+    m_rx_queues.resize(m_basic_para.rx_que_num);
+    info("Device reports %llu symbols", static_cast<unsigned long long>(m_basic_para.rx_que_num));
+    return;
+}
+
+uint64_t FPGADev::_readProdPtr(uint16_t que_idx) const {
+    return _readReg64(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET));
+}
+
+void FPGADev::_writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) {
+    _writeReg64(_getRegAddr(que_idx, REG_RX_QUE_CONS_PTR_OFFSET), cons_ptr);
+}
+
+uint64_t FPGADev::_readDropCount(uint16_t que_idx) const {
+    return _readReg64(_getRegAddr(que_idx, REG_RX_QUE_DROP_OFFSET));
+}
+
+void FPGADev::setSync(bool enable) {
+    _writeReg64(REG_SYNC_ENABLE, enable ? 1ULL : 0ULL);
+    m_sync_enable = enable;
+}
+
+void FPGADev::_readSyncEnable(bool& enabled) {
+    const uint64_t value = _readReg64(REG_SYNC_ENABLE);
     enabled = (value & 0x1ULL) != 0;
-    return true;
 }
 
-bool FPGADev::pollDecodedRecord(uint16_t que_idx, FPGAEventDesc& out) {
-    return pollDecodedRecords(que_idx, &out, 1) == 1;
+
+void FPGADev::_readFPGATickAndProdPtr(uint16_t que_idx, uint64_t& prod_ptr, uint64_t& fpga_tick) const {
+    _readReg128(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET), prod_ptr,fpga_tick);
 }
 
-std::size_t FPGADev::pollDecodedRecords(uint16_t que_idx, FPGAEventDesc* out, std::size_t max_records) {
-    if (out == nullptr || max_records == 0) {
+
+std::size_t FPGADev::pollRawRecords(uint16_t que_idx,
+                                    uint64_t cons_ptr,
+                                    const uint8_t** out,
+                                    std::size_t max_records) const {
+
+    const auto* dma_base = static_cast<const uint8_t*>(m_rx_queues[que_idx].dma_memory.virt());
+
+    const uint64_t prod_ptr = _readProdPtr(que_idx);
+    if (cons_ptr >= prod_ptr) {
         return 0;
     }
-
-    QueueRuntime* queue = nullptr;
-    if (que_idx >= kRxQueueCount) {
-        warn("Invalid queue index %u", que_idx);
-        return 0;
-    }
-    queue = &m_rx_queues[que_idx];
-
-    if (queue->dma_memory.virt == nullptr || queue->slot_num == 0) {
-        warn("Queue %u is not configured", que_idx);
-        return 0;
-    }
-
-    uint64_t prod_ptr = 0;
-    if (!_queueAvailable(que_idx, prod_ptr)) {
-        return 0;
-    }
-
     std::size_t record_count = 0;
-    while (record_count < max_records && queue->host_cons_ptr < prod_ptr) {
-        const std::size_t slot_index = static_cast<std::size_t>(queue->host_cons_ptr % queue->slot_num);
-        const uint8_t* slot_bytes = static_cast<const uint8_t*>(queue->dma_memory.virt) +
-                                    slot_index * queue->slot_size_bytes;
+    uint64_t current_cons_ptr = cons_ptr;
+    while (record_count < max_records && current_cons_ptr < prod_ptr) {
+        const std::size_t slot_index = static_cast<std::size_t>(current_cons_ptr & (m_rx_queues[que_idx].slot_num - 1));
+        out[record_count] = dma_base + slot_index * m_rx_queues[que_idx].slot_size_bytes;
 
-        out[record_count] = _decodeSlotBytes(que_idx, slot_bytes);
-
-        ++queue->host_cons_ptr;
+        ++current_cons_ptr;
         ++record_count;
-    }
-
-    if (record_count != 0) {
-        write_reg64(_queueRegOffset(que_idx, REG_RX_QUE_CONS_PTR_OFFSET), queue->host_cons_ptr);
     }
 
     return record_count;
 }
 
-bool FPGADev::pollRawRecord(uint16_t que_idx, FpgaRawRxRecord& out) {
-    return pollRawRecords(que_idx, &out, 1) == 1;
-}
 
-std::size_t FPGADev::pollRawRecords(uint16_t que_idx, FpgaRawRxRecord* out, std::size_t max_records) {
-    if (out == nullptr || max_records == 0) {
+std::size_t FPGADev::pollRawRecordsSync(uint16_t que_idx,
+                                    uint64_t cons_ptr,
+                                    const uint8_t** out,
+                                    uint64_t& FPGA_tick,
+                                    std::size_t max_records) const {
+
+    const auto* dma_base = static_cast<const uint8_t*>(m_rx_queues[que_idx].dma_memory.virt());
+    uint64_t prod_ptr;
+    _readFPGATickAndProdPtr(que_idx, prod_ptr, FPGA_tick);
+    if (cons_ptr >= prod_ptr) {
         return 0;
     }
-
-    QueueRuntime* queue = nullptr;
-    if (que_idx >= kRxQueueCount) {
-        warn("Invalid queue index %u", que_idx);
-        return 0;
-    }
-    queue = &m_rx_queues[que_idx];
-
-    if (queue->dma_memory.virt == nullptr || queue->slot_num == 0) {
-        warn("Queue %u is not configured", que_idx);
-        return 0;
-    }
-
-    uint64_t prod_ptr = 0;
-    if (!_queueAvailable(que_idx, prod_ptr)) {
-        return 0;
-    }
-
     std::size_t record_count = 0;
-    while (record_count < max_records && queue->host_cons_ptr < prod_ptr) {
-        const std::size_t slot_index = static_cast<std::size_t>(queue->host_cons_ptr % queue->slot_num);
-        const uint8_t* slot_bytes = static_cast<const uint8_t*>(queue->dma_memory.virt) +
-                                    slot_index * queue->slot_size_bytes;
+    uint64_t current_cons_ptr = cons_ptr;
+    while (record_count < max_records && current_cons_ptr < prod_ptr) {
+        const std::size_t slot_index = static_cast<std::size_t>(current_cons_ptr & (m_rx_queues[que_idx].slot_num - 1));
+        out[record_count] = dma_base + slot_index * m_rx_queues[que_idx].slot_size_bytes;
 
-        out[record_count].queue_id = que_idx;
-        out[record_count].sequence = queue->host_cons_ptr;
-        std::memcpy(out[record_count].bytes.data(), slot_bytes, out[record_count].bytes.size());
-
-        ++queue->host_cons_ptr;
+        ++current_cons_ptr;
         ++record_count;
     }
-
-    if (record_count != 0) {
-        write_reg64(_queueRegOffset(que_idx, REG_RX_QUE_CONS_PTR_OFFSET), queue->host_cons_ptr);
-    }
-
     return record_count;
 }
 
-FPGAEventDesc FPGADev::decodeRawRecord(const FpgaRawRxRecord& record) const {
-    return _decodeSlotBytes(record.queue_id, record.bytes.data());
-}
-
-FPGAEventDesc FPGADev::_decodeSlotBytes(uint16_t que_idx, const uint8_t* slot_bytes) const {
-    FPGAEventDesc event;
-    event.queue_id = que_idx;
-    event.stock_locate = read_le16(slot_bytes, 0);
-    event.frame_latency = read_le48(slot_bytes, 2);
-    event.event_latency = read_le48(slot_bytes, 8);
-    event.bid_shares = read_le32(slot_bytes, 14);
-    event.bid_price = read_le32(slot_bytes, 18);
-    event.ask_shares = read_le32(slot_bytes, 22);
-    event.ask_price = read_le32(slot_bytes, 26);
-    return event;
-}
-
-bool FPGADev::test_register() {
-    if (!m_hw_ready && !initHardware()) {
-        return false;
-    }
-
-    const uint64_t module_id = read_reg64(REG_ID);
-    bool sync_enable = false;
-    if (!readSyncEnable(sync_enable)) {
-        warn("Failed to read REG_SYNC_ENABLE");
-        return false;
-    }
-    info("rx_dma_config ID register: 0x%016llx", static_cast<unsigned long long>(module_id));
-    info("rx_dma_config sync enable register: %u", sync_enable ? 1U : 0U);
-
-    if (module_id != RX_DMA_CFG_ID) {
-        warn("Unexpected module ID, expected 0x%016llx", static_cast<unsigned long long>(RX_DMA_CFG_ID));
-        return false;
-    }
-
-    if (!setSyncEnable(true)) {
-        warn("Failed to set REG_SYNC_ENABLE to 1");
-        return false;
-    }
-
-    if (!setSyncEnable(false)) {
-        warn("Failed to set REG_SYNC_ENABLE back to 0");
-        return false;
-    }
-
-    success("FPGA BAR0 ID and REG_SYNC_ENABLE access work");
-    return true;
-}
-
-bool FPGADev::trigger_interrupt() {
-    warn("Interrupt test is not implemented for the current polling-based RX design");
-    return false;
-}
-
-bool FPGADev::test_dma_write() {
-    warn("Legacy DMA write smoke test is not implemented for the current RX flow");
-    return false;
-}
 
 void FPGADev::_initStatus(DevStatus* stats) {
     if (stats == nullptr) {
@@ -358,23 +287,7 @@ void FPGADev::_initStatus(DevStatus* stats) {
     std::memset(stats, 0, sizeof(DevStatus));
 }
 
-uint32_t FPGADev::_queueRegOffset(uint16_t que_idx, uint32_t reg_offset) const {
-    return REG_RX_QUE_BASE0 + static_cast<uint32_t>(que_idx) * REG_RX_QUE_STRIDE + reg_offset;
-}
 
-bool FPGADev::_queueAvailable(uint16_t que_idx, uint64_t& prod_ptr) const {
-    const QueueRuntime* queue = _queueForIndex(que_idx);
-    if (queue == nullptr) {
-        return false;
-    }
-
-    prod_ptr = const_cast<FPGADev*>(this)->rxQueueProdPtr(que_idx);
-    return queue->host_cons_ptr < prod_ptr;
-}
-
-const FPGADev::QueueRuntime* FPGADev::_queueForIndex(uint16_t que_idx) const {
-    if (que_idx >= kRxQueueCount) {
-        return nullptr;
-    }
-    return &m_rx_queues[que_idx];
+uint32_t FPGADev::_getRegAddr(uint16_t que_idx, uint32_t reg_offset) const {
+    return REG_RX_QUE_IOVA + static_cast<uint32_t>(que_idx) * REG_RX_QUE_STRIDE + reg_offset;
 }

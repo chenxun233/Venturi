@@ -37,12 +37,14 @@ cpp_src/
    - Provides abstract interfaces (`BasicDev`)
    - Implements shared functionality (DMA, memory pools, ring buffers)
    - Hardware-agnostic VFIO utilities
+   - Keeps only the state shared by both FPGA and Intel drivers
    - Used by all drivers
 
 2. **Driver Layer** (`intel_driver/`, `fpga_driver/`)
    - Hardware-specific implementations
    - Inherits from `BasicDev` abstract class
    - Implements device-specific register access
+   - Owns vendor-specific state such as interrupt bookkeeping
    - Provides vendor-specific optimizations
 
 3. **Application Layer** (test applications)
@@ -169,7 +171,7 @@ sudo ./test_fpga_hello_v2 0000:03:00.0
    - `initHardware()`
    - `enableDevQueues()`
    - `sendOnQueue()` / receive methods
-   - VFIO setup (`_getFD()`, `_getBARAddr()`, etc.)
+   - VFIO setup (`_getFD()`, BAR0 mapping via `_getBARAddr()`, etc.)
 4. Add build target to CMakeLists.txt
 5. Write test applications
 

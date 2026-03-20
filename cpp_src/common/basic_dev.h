@@ -2,21 +2,10 @@
 #ifndef BASIC_DEV_H
 #define BASIC_DEV_H
 #include <cstdint>
-#include <string>
-#include <vector>
-#include <array>
 #include <memory>
+#include <string>
 #include <linux/vfio.h>
-
-#define MOVING_AVERAGE_RANGE 5
-#define IRQ_SET_BUF_LEN (sizeof(struct vfio_irq_set) + sizeof(int))
-#define MAX_INTERRUPT_VECTORS 32
-#define MSIX_IRQ_SET_BUF_LEN (sizeof(struct vfio_irq_set) + sizeof(int) * (MAX_INTERRUPT_VECTORS + 1))
-
-//6-byte MAC address structure
-struct __attribute__((__packed__)) MacAddress {
-	uint8_t	addr[6];
-};
+#include "dma_memory_allocator.h"
 
 struct DevStatus {
     uint64_t    rx_pkts;
@@ -24,34 +13,12 @@ struct DevStatus {
     uint64_t    rx_bytes;
     uint64_t    tx_bytes;
 };
-// this struct is used for dynamic interrupt moderation
-// to be used in the future.
-struct interrupt_moving_avg {
-	uint32_t index; // The current index
-	uint32_t length; // The moving average length
-	uint64_t sum; // The moving average sum
-	uint64_t measured_rates[MOVING_AVERAGE_RANGE]; // The moving average window
-};
-// interrupt queue structure
-struct InterruptQueue {
-	int vfio_event_fd; // event fd
-	int vfio_epoll_fd; // epoll fd
-	bool interrupt_enabled {true}; // Whether interrupt for this queue is enabled or not
-	uint64_t last_time_checked; // Last time the interrupt flag was checked
-	uint64_t instr_counter; // Instruction counter to avoid unnecessary calls to monotonic_time
-	uint64_t rx_pkts; // The number of received packets since the last check
-	uint64_t interval; // The interval to check the interrupt flag
-    uint32_t  timeout_ms{100}; // interrupt timeout in milliseconds
-	struct interrupt_moving_avg moving_avg; // The moving average of the hybrid interrupt
-};
+
 struct basic_para_type{
-	std::string   pci_addr; //the pci address you can find in lspci
-    uint8_t    max_bar_index; // the maximum bar index supported by the device
-	uint16_t   num_rx_queues; // the number of rx queues
-	uint16_t   num_tx_queues;
-    uint16_t   interrupt_timeout_ms; 
-    std::array<uint8_t*,6>      p_bar_addr; // the BAR address
-    MacAddress            mac_address;
+	std::string             pci_addr; //the pci address you can find in lspci
+	uint16_t                rx_que_num; // the number of rx queues
+	uint16_t                tx_que_num;
+    uint8_t*                bar0_addr; // BAR0 address
 };
 
 struct VfioFd{
@@ -61,40 +28,44 @@ struct VfioFd{
     int        device_fd;
 };
 
-struct interruptPara{
-    uint32_t  itr_rate{0x028}; // interrupt throttling rate. Default is 
-    std::vector<InterruptQueue>   interrupt_queues;
-    uint8_t   interrupt_type; // MSI or MSIX currently
-};
-
 class BasicDev{
     public:
-           BasicDev(std::string pci_addr,uint8_t max_bar_index )            ;
-        virtual             ~BasicDev()   = default                         ;
-        virtual bool        initHardware()                = 0 ;
-        virtual bool        setRxRingBuffers(uint16_t num_rx_queues,uint32_t num_buf, uint32_t buf_size)          = 0 ;
-        virtual bool        setTxRingBuffers(uint16_t num_tx_queues,uint32_t num_buf, uint32_t buf_size)          = 0 ;
-        basic_para_type     get_basic_para()                                ;
+        BasicDev(std::string pci_addr )           ;
+        virtual             ~BasicDev()   = default;
+        virtual bool        initHardware()= 0 ;
+        virtual bool        setRxRingBuffers(uint16_t rx_que_num,uint32_t num_buf, uint32_t buf_size) = 0 ;
+        virtual bool        setTxRingBuffers(uint16_t tx_que_num,uint32_t num_buf, uint32_t buf_size) = 0 ;
+
+
+
     protected:
         // Common VFIO setup functions (shared by all PCIe drivers)
         bool                _getFD()                                        ;
-        bool                _getBARAddr (uint8_t bar_index)                 ;
+        bool                _getBARAddr ()                                  ;
+        bool                _initDMAMemoryAllocator()                       ;
+    protected:
         // VFIO helper functions (hardware-agnostic)
         bool                _getGroupID()                                   ;
         bool                _getContainerFD()                               ;
         bool                _getGroupFD()                                   ;
         bool                _addGroup2Container()                           ;
         bool                _getDeviceFD()                                  ;
-
-        // Utility functions
+        void                _writeReg64(uint32_t offset, uint64_t value) ;
+        uint64_t            _readReg64(uint32_t offset) const            ;
+        void                _writeReg32(uint32_t offset, uint32_t value) ;
+        uint32_t            _readReg32(uint32_t offset) const            ;
+        bool                _readReg128(uint32_t offset,
+                                           uint64_t& low_qword,
+                                           uint64_t& high_qword) const      ;
         uint64_t            _monotonic_time()                               ;
-        virtual void        _initStatus(DevStatus* stats)          = 0 ;
+        DMAMemoryAllocator& _getDMAAllocator()                              ;
+        const DMAMemoryAllocator& _getDMAAllocator() const                  ;
+        virtual void        _initStatus(DevStatus* stats)= 0 ;
         void                _print_stats_diff(DevStatus* stats_new, DevStatus* stats_old, uint64_t nanos);
     protected:
         basic_para_type     m_basic_para                                    ;
         DevStatus           m_dev_stats{0,0,0,0}                            ;
         VfioFd              m_fds{-1,-1,-1,-1}                              ;  
-        interruptPara       m_interrupt_para                                ;
+        std::unique_ptr<DMAMemoryAllocator> m_dma_allocator                 ;
 };
 #endif // BASIC_DEV_H
-

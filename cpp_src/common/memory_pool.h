@@ -23,9 +23,9 @@ class DMAMemoryPool{
         /// \p pkt_buf is the pkt_buf structure defined above, used inside the RAM.
         /// \param num_buf Number of pkt_buf structures to allocate.
         /// \param buf_size Size of each pkt_buf structure including data buffer.
-        /// \param container_fd VFIO container fd for VFIO_IOMMU_MAP_DMA.
-        DMAMemoryPool(uint32_t num_buf, uint32_t buf_size, int container_fd = -1);
-        ~DMAMemoryPool();
+        /// \param allocator Shared VFIO DMA allocator for the active device/container.
+        DMAMemoryPool(uint32_t num_buf, uint32_t buf_size, DMAMemoryAllocator& allocator);
+        ~DMAMemoryPool() = default;
         struct pkt_buf*             popOutOnePktBufFromTop();
         uint32_t                    popOutMultiPktBuf(struct pkt_buf** v_p_bufs, uint32_t num_bufs);
         void                        freePktBuf(struct pkt_buf* buf);
@@ -39,8 +39,8 @@ class DMAMemoryPool{
         uint32_t                    m_num_bufs{0};
         uint32_t                    m_buf_size{0};
         uint32_t                    m_free_stack_top{0};
-        int                         m_container_fd{-1} ;   
+        DMAMemoryAllocator*         m_allocator{nullptr};
         std::vector<uint32_t>       v_free_stack;
-        DMAMemoryPair               m_DMA_mem_pair; 
+        DMABuffer                   m_dma_memory;
 
 };

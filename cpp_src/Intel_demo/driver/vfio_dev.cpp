@@ -50,14 +50,14 @@ typedef struct pcaprec_hdr_s {
 	uint32_t orig_len;      /* actual length of packet */
 } __attribute__((packed)) pcaprec_hdr_t;
 
-Intel82599Dev::Intel82599Dev(std::string pci_addr, uint8_t max_bar_index) :
+Intel82599Dev::Intel82599Dev(std::string pci_addr) :
 // get file descriptors of the 1. container, 2. group, 3. device
 // get the BAR address
 // enable DMA in terms of the NIC hardware register.
-BasicDev(pci_addr,max_bar_index)
+BasicDev(pci_addr)
 {
-	 		_getFD()     				&&
-			_getBARAddr (max_bar_index) ;
+ 	 		_getFD()     				&&
+			_getBARAddr () ;
 }
 
 Intel82599Dev::~Intel82599Dev(){
@@ -117,38 +117,39 @@ bool Intel82599Dev::enableDevQueues() {
 }
 
 
-bool Intel82599Dev::setRxRingBuffers(uint16_t num_rx_queues,uint32_t num_buf, uint32_t buf_size){
+bool Intel82599Dev::setRxRingBuffers(uint16_t rx_que_num,uint32_t num_buf, uint32_t buf_size){
 	info("settingRxRingBuffers");
-    m_basic_para.num_rx_queues = num_rx_queues;
+    m_basic_para.rx_que_num = rx_que_num;
     m_num_rx_bufs = num_buf;
     m_buf_rx_size = buf_size;
-    for (uint16_t i = 0; i < m_basic_para.num_rx_queues; i++) {
-		// p_mempool.push_back(new DMAMemoryPool(num_buf, buf_size, m_fds.container_fd));
+    auto& allocator = _getDMAAllocator();
+    for (uint16_t i = 0; i < m_basic_para.rx_que_num; i++) {
         p_rx_ring_buffers.push_back(new IXGBE_RxRingBuffer);
-        p_rx_ring_buffers[i]->linkMemoryPool(new DMAMemoryPool(num_buf, buf_size, m_fds.container_fd));
-		p_rx_ring_buffers[i]->createDescriptorRing(m_fds.container_fd,m_basic_para.p_bar_addr[0],num_buf,sizeof(union ixgbe_adv_rx_desc),i);
+        p_rx_ring_buffers[i]->linkMemoryPool(new DMAMemoryPool(num_buf, buf_size, allocator));
+		p_rx_ring_buffers[i]->createDescriptorRing(allocator,m_basic_para.bar0_addr,num_buf,sizeof(union ixgbe_adv_rx_desc),i);
 		p_rx_ring_buffers[i]->fillDescRing(num_buf);
     }
     return true;
 }
 
-bool Intel82599Dev::setTxRingBuffers(uint16_t num_tx_queues,uint32_t num_buf, uint32_t buf_size){
-    m_basic_para.num_tx_queues = num_tx_queues;
+bool Intel82599Dev::setTxRingBuffers(uint16_t tx_que_num,uint32_t num_buf, uint32_t buf_size){
+    m_basic_para.tx_que_num = tx_que_num;
     m_num_tx_bufs = num_buf;
     m_buf_tx_size = buf_size;
-    for (uint16_t i = 0; i < m_basic_para.num_tx_queues; i++) {
+    auto& allocator = _getDMAAllocator();
+    for (uint16_t i = 0; i < m_basic_para.tx_que_num; i++) {
         p_tx_ring_buffers.push_back(new IXGBE_TxRingBuffer);
-		p_tx_ring_buffers[i]->linkMemoryPool(new DMAMemoryPool(num_buf, buf_size, m_fds.container_fd));
-		p_tx_ring_buffers[i]->createDescriptorRing(m_fds.container_fd,m_basic_para.p_bar_addr[0],num_buf,sizeof(union ixgbe_adv_tx_desc),i);
+		p_tx_ring_buffers[i]->linkMemoryPool(new DMAMemoryPool(num_buf, buf_size, allocator));
+		p_tx_ring_buffers[i]->createDescriptorRing(allocator,m_basic_para.bar0_addr,num_buf,sizeof(union ixgbe_adv_tx_desc),i);
     }
     return true;
 }
 
 DevStatus Intel82599Dev::_readStatus(){
-	uint32_t rx_pkts = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_GPRC);
-	uint32_t tx_pkts = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_GPTC);
-	uint64_t rx_bytes = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_GORCL) + (((uint64_t) get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_GORCH)) << 32);
-	uint64_t tx_bytes = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_GOTCL) + (((uint64_t) get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_GOTCH)) << 32);
+	uint32_t rx_pkts = _readReg32(IXGBE_GPRC);
+	uint32_t tx_pkts = _readReg32(IXGBE_GPTC);
+	uint64_t rx_bytes = _readReg32(IXGBE_GORCL) + (((uint64_t) _readReg32(IXGBE_GORCH)) << 32);
+	uint64_t tx_bytes = _readReg32(IXGBE_GOTCL) + (((uint64_t) _readReg32(IXGBE_GOTCH)) << 32);
 
 	m_dev_stats.rx_pkts  += rx_pkts;
 	m_dev_stats.tx_pkts  += tx_pkts;
@@ -159,7 +160,7 @@ DevStatus Intel82599Dev::_readStatus(){
 
 
 bool Intel82599Dev::_dev_disable_IRQ(){
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EIMS, 0x00000000);
+	_writeReg32(IXGBE_EIMS, 0x00000000);
 	_dev_clear_interrupts();
 	return true;
 }
@@ -167,21 +168,21 @@ bool Intel82599Dev::_dev_disable_IRQ(){
 bool Intel82599Dev::_dev_clear_interrupts(){
 	// Clear interrupt mask
 	// Clear interrupt mask to stop from interrupts being generated
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EIMC, IXGBE_IRQ_CLEAR_MASK);
-	get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EICR);
+	_writeReg32(IXGBE_EIMC, IXGBE_IRQ_CLEAR_MASK);
+	(void)_readReg32(IXGBE_EICR);
 	return true;
 }
 
 bool Intel82599Dev::_dev_rst_hardware(){
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_CTRL, IXGBE_CTRL_RST_MASK);
-	wait_clear_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_CTRL, IXGBE_CTRL_RST_MASK);
+	_writeReg32(IXGBE_CTRL, IXGBE_CTRL_RST_MASK);
+	wait_clear_bar_reg32(m_basic_para.bar0_addr, IXGBE_CTRL, IXGBE_CTRL_RST_MASK);
 	return true;
 }
 
 bool Intel82599Dev::_get_mac_address(){
 	MacAddress mac;
-	uint32_t rar_low = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RAL(0));
-	uint32_t rar_high = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RAH(0));
+	uint32_t rar_low = _readReg32(IXGBE_RAL(0));
+	uint32_t rar_high = _readReg32(IXGBE_RAH(0));
 
 	mac.addr[0] = rar_low;
 	mac.addr[1] = rar_low >> 8;
@@ -189,23 +190,23 @@ bool Intel82599Dev::_get_mac_address(){
 	mac.addr[3] = rar_low >> 24;
 	mac.addr[4] = rar_high;
 	mac.addr[5] = rar_high >> 8;
-    m_basic_para.mac_address = mac;
+    m_mac_address = mac;
     return true;
 }
 
 bool Intel82599Dev::_init_eeprom_n_dma(){
 	// section 4.6.3 - Wait for EEPROM auto read completion
-	wait_set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EEC, IXGBE_EEC_ARD);
+	wait_set_bar_reg32(m_basic_para.bar0_addr, IXGBE_EEC, IXGBE_EEC_ARD);
 	// section 4.6.3 - Wait for DMA initialization done (RDRXCTL.DMAIDONE)
-	wait_set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RDRXCTL, IXGBE_RDRXCTL_DMAIDONE);
+	wait_set_bar_reg32(m_basic_para.bar0_addr, IXGBE_RDRXCTL, IXGBE_RDRXCTL_DMAIDONE);
     return true;
 }
 bool Intel82599Dev::_init_link_nego(){
 	// should already be set by the eeprom config, maybe we shouldn't override it here to support weirdo nics?
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_AUTOC, (get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_AUTOC) & ~IXGBE_AUTOC_LMS_MASK) | IXGBE_AUTOC_LMS_10G_SERIAL);
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_AUTOC, (get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_AUTOC) & ~IXGBE_AUTOC_10G_PMA_PMD_MASK) | IXGBE_AUTOC_10G_XAUI);
+	_writeReg32(IXGBE_AUTOC, (_readReg32(IXGBE_AUTOC) & ~IXGBE_AUTOC_LMS_MASK) | IXGBE_AUTOC_LMS_10G_SERIAL);
+	_writeReg32(IXGBE_AUTOC, (_readReg32(IXGBE_AUTOC) & ~IXGBE_AUTOC_10G_PMA_PMD_MASK) | IXGBE_AUTOC_10G_XAUI);
 	// negotiate link
-	set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_AUTOC, IXGBE_AUTOC_AN_RESTART);
+	set_bar_flags32(m_basic_para.bar0_addr, IXGBE_AUTOC, IXGBE_AUTOC_AN_RESTART);
 	// datasheet wants us to wait for the link here, but we can continue and wait afterwards
 	return true;
 }
@@ -240,14 +241,14 @@ uint16_t Intel82599Dev::_calc_ip_checksum(uint8_t* data, uint32_t len) {
 
 
 bool Intel82599Dev::_enableDevRxQueue(){
-	for (uint16_t queue_id = 0; queue_id < m_basic_para.num_rx_queues; queue_id++){
+	for (uint16_t queue_id = 0; queue_id < m_basic_para.rx_que_num; queue_id++){
 		// enable queue and wait if necessary
-		set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_RXDCTL(queue_id), IXGBE_RXDCTL_ENABLE);
-		wait_set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RXDCTL(queue_id), IXGBE_RXDCTL_ENABLE);
+		set_bar_flags32(m_basic_para.bar0_addr, IXGBE_RXDCTL(queue_id), IXGBE_RXDCTL_ENABLE);
+		wait_set_bar_reg32(m_basic_para.bar0_addr, IXGBE_RXDCTL(queue_id), IXGBE_RXDCTL_ENABLE);
 		// rx queue starts out full
-		set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RDH(queue_id), 0);
+		_writeReg32(IXGBE_RDH(queue_id), 0);
 		// was set to 0 before in the init function
-		set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RDT(queue_id), m_num_rx_bufs - 1);
+		_writeReg32(IXGBE_RDT(queue_id), m_num_rx_bufs - 1);
 		// Implementation of RX queue preparation
 	}
 
@@ -255,14 +256,14 @@ bool Intel82599Dev::_enableDevRxQueue(){
 }
 
 bool Intel82599Dev::_enableDevTxQueue(){
-	for (uint16_t queue_id = 0; queue_id < m_basic_para.num_tx_queues; queue_id++){
+	for (uint16_t queue_id = 0; queue_id < m_basic_para.tx_que_num; queue_id++){
 		debug("starting tx queue %d", queue_id);
 		// tx queue starts out empty
-		set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_TDH(queue_id), 0);
-		set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_TDT(queue_id), 0);
+		_writeReg32(IXGBE_TDH(queue_id), 0);
+		_writeReg32(IXGBE_TDT(queue_id), 0);
 		// enable queue and wait if necessary
-		set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_TXDCTL(queue_id), IXGBE_TXDCTL_ENABLE);
-		wait_set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_TXDCTL(queue_id), IXGBE_TXDCTL_ENABLE);
+		set_bar_flags32(m_basic_para.bar0_addr, IXGBE_TXDCTL(queue_id), IXGBE_TXDCTL_ENABLE);
+		wait_set_bar_reg32(m_basic_para.bar0_addr, IXGBE_TXDCTL(queue_id), IXGBE_TXDCTL_ENABLE);
 		// Implementation of TX queue preparation
         debug("finished tx queue %d", queue_id);
 	}
@@ -271,7 +272,7 @@ bool Intel82599Dev::_enableDevTxQueue(){
 void Intel82599Dev::_enableDevMSIInterrupt(uint16_t queue_id){
 	// Step 1: The software driver associates between Tx and Rx interrupt causes and the EICR
 	// register by setting the IVAR[n] registers.
-	set_ivar(m_basic_para.p_bar_addr[0], 0, queue_id, 0);
+	set_ivar(m_basic_para.bar0_addr, 0, queue_id, 0);
 
 	// Step 2: Program SRRCTL[n].RDMTS (per receive queue) if software uses the receive
 	// descriptor minimum threshold interrupt
@@ -279,31 +280,31 @@ void Intel82599Dev::_enableDevMSIInterrupt(uint16_t queue_id){
 
 	// Step 3: All interrupts should be set to 0b (no auto clear in the EIAC register). Following an
 	// interrupt, software might read the EICR register to check for the interrupt causes.
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EIAC, 0x00000000);
+	_writeReg32(IXGBE_EIAC, 0x00000000);
 
 	// Step 4: Set the auto mask in the EIAM register according to the preferred mode of operation.
 	// In our case we prefer not auto-masking the interrupts
 
 	// Step 5: Set the interrupt throttling in EITR[n] and GPIE according to the preferred mode of operation.
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EITR(queue_id), m_interrupt_para.itr_rate);
+	_writeReg32(IXGBE_EITR(queue_id), m_interrupt_para.itr_rate);
 
 	// Step 6: Software clears EICR by writing all ones to clear old interrupt causes
 	_dev_clear_interrupts();
 
 	// Step 7: Software enables the required interrupt causes by setting the EIMS register
-	u32 mask = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EIMS);
+	u32 mask = _readReg32(IXGBE_EIMS);
 	mask |= (1 << queue_id);
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EIMS, mask);
+	_writeReg32(IXGBE_EIMS, mask);
 	debug("Using MSI interrupts");
 }
 
 void Intel82599Dev::_enableDevMSIxInterrupt(uint16_t queue_id){
 	// Step 1: The software driver associates between interrupt causes and MSI-X vectors and the
 	// throttling timers EITR[n] by programming the IVAR[n] and IVAR_MISC registers.
-	uint32_t gpie = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_GPIE);
+	uint32_t gpie = _readReg32(IXGBE_GPIE);
 	gpie |= IXGBE_GPIE_MSIX_MODE | IXGBE_GPIE_PBA_SUPPORT | IXGBE_GPIE_EIAME;
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_GPIE, gpie);
-	set_ivar(m_basic_para.p_bar_addr[0], 0, queue_id, queue_id);
+	_writeReg32(IXGBE_GPIE, gpie);
+	set_ivar(m_basic_para.bar0_addr, 0, queue_id, queue_id);
 
 	// Step 2: Program SRRCTL[n].RDMTS (per receive queue) if software uses the receive
 	// descriptor minimum threshold interrupt
@@ -312,7 +313,7 @@ void Intel82599Dev::_enableDevMSIxInterrupt(uint16_t queue_id){
 	// Step 3: The EIAC[n] registers should be set to auto clear for transmit and receive interrupt
 	// causes (for best performance). The EIAC bits that control the other and TCP timer
 	// interrupt causes should be set to 0b (no auto clear).
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EIAC, IXGBE_EIMS_RTX_QUEUE);
+	_writeReg32(IXGBE_EIAC, IXGBE_EIMS_RTX_QUEUE);
 
 	// Step 4: Set the auto mask in the EIAM register according to the preferred mode of operation.
 	// In our case we prefer to not auto-mask the interrupts
@@ -334,24 +335,24 @@ void Intel82599Dev::_enableDevMSIxInterrupt(uint16_t queue_id){
 	// 0xE10 (900us) => 1080 INT/s
 	// 0xFA7 (1000us) => 980 INT/s
 	// 0xFFF (1024us) => 950 INT/s
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EITR(queue_id), m_interrupt_para.itr_rate);
+	_writeReg32(IXGBE_EITR(queue_id), m_interrupt_para.itr_rate);
 
 	// Step 6: Software enables the required interrupt causes by setting the EIMS register
-	u32 mask = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EIMS);
+	u32 mask = _readReg32(IXGBE_EIMS);
 	mask |= (1 << queue_id);
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_EIMS, mask);
+	_writeReg32(IXGBE_EIMS, mask);
 	debug("Using MSIX interrupts");
 }
 
 bool Intel82599Dev::enableDevInterrupt(){
     debug("entered Intel82599Dev::enableDevInterrupt");
-    if (m_interrupt_para.interrupt_queues.size() != m_basic_para.num_rx_queues) {
+    if (m_interrupt_para.interrupt_queues.size() != m_basic_para.rx_que_num) {
         error("Interrupt queues size %d does not match number of rx queues %d", 
             (int)m_interrupt_para.interrupt_queues.size(), 
-            m_basic_para.num_rx_queues);
+            m_basic_para.rx_que_num);
         return false;
     }
-	for (uint16_t queue_id = 0; queue_id < m_basic_para.num_rx_queues; queue_id++)
+	for (uint16_t queue_id = 0; queue_id < m_basic_para.rx_que_num; queue_id++)
 	{
 		if (!m_interrupt_para.interrupt_queues[queue_id].interrupt_enabled) {
             warn("Interrupt queue %d not properly initialized", queue_id);
@@ -376,10 +377,10 @@ bool Intel82599Dev::enableDevInterrupt(){
 bool Intel82599Dev::setPromisc(bool enable){
 	if (enable) {
 		info("enabling promisc mode");
-		set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_FCTRL, IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE);
+		set_bar_flags32(m_basic_para.bar0_addr, IXGBE_FCTRL, IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE);
 	} else {
 		info("disabling promisc mode");
-		clear_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_FCTRL, IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE);
+		clear_bar_flags32(m_basic_para.bar0_addr, IXGBE_FCTRL, IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE);
 	}
 	return true;
 }
@@ -495,7 +496,7 @@ bool Intel82599Dev::_setupIRQQueues(const int interrupt_interval, const uint32_t
 	debug("entered Intel82599Dev::_setupIRQQueues");
 	switch (m_interrupt_para.interrupt_type) {	
 		case VFIO_PCI_MSIX_IRQ_INDEX: {
-			for (uint32_t rx_queue = 0; rx_queue < m_basic_para.num_rx_queues; rx_queue++) {
+			for (uint32_t rx_queue = 0; rx_queue < m_basic_para.rx_que_num; rx_queue++) {
 				int vfio_event_fd = _injectEventFdToVFIODev_msix(rx_queue);
 				int vfio_epoll_fd = _vfio_epoll_ctl(vfio_event_fd);
     			InterruptQueue   interrupt_queue;
@@ -512,7 +513,7 @@ bool Intel82599Dev::_setupIRQQueues(const int interrupt_interval, const uint32_t
 		case VFIO_PCI_MSI_IRQ_INDEX: {
 			int vfio_event_fd = _injectEventFdToVFIODev_msi();
 			int vfio_epoll_fd = _vfio_epoll_ctl(vfio_event_fd);
-			for (uint32_t rx_queue = 0; rx_queue < m_basic_para.num_rx_queues; rx_queue++) {
+			for (uint32_t rx_queue = 0; rx_queue < m_basic_para.rx_que_num; rx_queue++) {
     			InterruptQueue   interrupt_queue;
 				interrupt_queue.vfio_event_fd = vfio_event_fd;
 				interrupt_queue.vfio_epoll_fd = vfio_epoll_fd;
@@ -532,7 +533,7 @@ bool Intel82599Dev::_setupIRQQueues(const int interrupt_interval, const uint32_t
 
 
 uint32_t Intel82599Dev::_get_link_speed(){
-	uint32_t links = get_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_LINKS);
+	uint32_t links = _readReg32(IXGBE_LINKS);
 	if (!(links & IXGBE_LINKS_UP)) {
 		return 0;
 	}
@@ -563,54 +564,54 @@ bool Intel82599Dev::wait4Link(){
 bool Intel82599Dev::_initRxDescRingRegs(){
 		// make sure that rx is disabled while re-configuring it
 	// the datasheet also wants us to disable some crypto-offloading related rx paths (but we don't care about them)
-	clear_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
+	clear_bar_flags32(m_basic_para.bar0_addr, IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
 	// no fancy dcb or vt, just a single 128kb packet buffer for us
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RXPBSIZE(0), IXGBE_RXPBSIZE_128KB);
+	_writeReg32(IXGBE_RXPBSIZE(0), IXGBE_RXPBSIZE_128KB);
 	for (int i = 1; i < 8; i++) {
-		set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RXPBSIZE(i), 0);
+		_writeReg32(IXGBE_RXPBSIZE(i), 0);
 	}
 
 	// always enable CRC offloading
-	set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_HLREG0, IXGBE_HLREG0_RXCRCSTRP);
-	set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_RDRXCTL, IXGBE_RDRXCTL_CRCSTRIP);
+	set_bar_flags32(m_basic_para.bar0_addr, IXGBE_HLREG0, IXGBE_HLREG0_RXCRCSTRP);
+	set_bar_flags32(m_basic_para.bar0_addr, IXGBE_RDRXCTL, IXGBE_RDRXCTL_CRCSTRIP);
 
 	// accept broadcast packets
-	set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_FCTRL, IXGBE_FCTRL_BAM);
+	set_bar_flags32(m_basic_para.bar0_addr, IXGBE_FCTRL, IXGBE_FCTRL_BAM);
 	// last step is to set some magic bits mentioned in the last sentence in 4.6.7
-	set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_CTRL_EXT, IXGBE_CTRL_EXT_NS_DIS);
+	set_bar_flags32(m_basic_para.bar0_addr, IXGBE_CTRL_EXT, IXGBE_CTRL_EXT_NS_DIS);
 	// this flag probably refers to a broken feature: it's reserved and initialized as '1' but it must be set to '0'
 	// there isn't even a constant in ixgbe_types.h for this flag
-	for (uint16_t i = 0; i < m_basic_para.num_rx_queues; i++) {
-		clear_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_DCA_RXCTRL(i), 1 << 12);
+	for (uint16_t i = 0; i < m_basic_para.rx_que_num; i++) {
+		clear_bar_flags32(m_basic_para.bar0_addr, IXGBE_DCA_RXCTRL(i), 1 << 12);
 	}
 	// start RX
-	set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
+	set_bar_flags32(m_basic_para.bar0_addr, IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
 	return true;
 }
 
 bool Intel82599Dev::_initTxDescRingRegs(){
 	// crc offload and small packet padding
-	set_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_HLREG0, IXGBE_HLREG0_TXCRCEN | IXGBE_HLREG0_TXPADEN);
+	set_bar_flags32(m_basic_para.bar0_addr, IXGBE_HLREG0, IXGBE_HLREG0_TXCRCEN | IXGBE_HLREG0_TXPADEN);
 
 	// set default buffer size allocations
 	// see also: section 4.6.11.3.4, no fancy features like DCB and VTd
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_TXPBSIZE(0), IXGBE_TXPBSIZE_40KB);
+	_writeReg32(IXGBE_TXPBSIZE(0), IXGBE_TXPBSIZE_40KB);
 	for (int i = 1; i < 8; i++) {
-		set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_TXPBSIZE(i), 0);
+		_writeReg32(IXGBE_TXPBSIZE(i), 0);
 	}
 	// required when not using DCB/VTd
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_DTXMXSZRQ, 0xFFFF);
-	clear_bar_flags32(m_basic_para.p_bar_addr[0], IXGBE_RTTDCS, IXGBE_RTTDCS_ARBDIS);
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_DMATXCTL, IXGBE_DMATXCTL_TE);
+	_writeReg32(IXGBE_DTXMXSZRQ, 0xFFFF);
+	clear_bar_flags32(m_basic_para.bar0_addr, IXGBE_RTTDCS, IXGBE_RTTDCS_ARBDIS);
+	_writeReg32(IXGBE_DMATXCTL, IXGBE_DMATXCTL_TE);
 	return true;
 }
 // this function sends packets in [TDH, TDT).
 void Intel82599Dev::infoNIC_Tx(uint16_t tail_index){
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_TDT(0), tail_index);
+	_writeReg32(IXGBE_TDT(0), tail_index);
 }
 
 void        Intel82599Dev::infoNIC_Rx(uint16_t tail_index){
-	set_bar_reg32(m_basic_para.p_bar_addr[0], IXGBE_RDT(0), tail_index);
+	_writeReg32(IXGBE_RDT(0), tail_index);
 }
 
 

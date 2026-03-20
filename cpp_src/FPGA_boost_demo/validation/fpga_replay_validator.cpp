@@ -123,13 +123,16 @@ bool FpgaReplayValidator::run() {
         return false;
     }
 
+    const uint16_t rx_queue_count = m_device.rxQueueCount();
+    if (rx_queue_count != m_queues.size()) {
+        warn("Validator expects %zu RX queues but hardware reports %u", m_queues.size(), rx_queue_count);
+        return false;
+    }
+
     if (!validateSyncEnable()) {
         return false;
     }
 
-    if (!m_device.setRxRingBuffers(FPGADev::kRxQueueCount, 128, FPGADev::kRxRecordBytes)) {
-        return false;
-    }
 
     if (!loadExpectedPayloads()) {
         return false;
@@ -144,9 +147,9 @@ bool FpgaReplayValidator::run() {
     info("Starting one polling thread per FPGA RX queue through the adapter...");
 
     std::atomic<bool> validation_ok(true);
-    std::array<std::thread, FPGADev::kRxQueueCount> threads;
+    std::vector<std::thread> threads(rx_queue_count);
 
-    for (uint16_t que_idx = 0; que_idx < FPGADev::kRxQueueCount; ++que_idx) {
+    for (uint16_t que_idx = 0; que_idx < rx_queue_count; ++que_idx) {
         threads[que_idx] = std::thread([this, que_idx, &validation_ok]() {
             if (!pollQueueAndValidate(que_idx)) {
                 validation_ok.store(false, std::memory_order_relaxed);
@@ -175,10 +178,15 @@ bool FpgaReplayValidator::loadExpectedPayloads() {
         const char* file_name;
     };
 
-    const std::array<FixtureSpec, FPGADev::kRxQueueCount> fixtures = {{
+    static const std::array<FixtureSpec, 2> fixtures = {{
         {0, "market_data/AAPL_13_B_payload_frames_hex.txt"},
         {1, "market_data/HSBC_3816_S_payload_frames_hex.txt"}
     }};
+
+    if (m_device.rxQueueCount() != fixtures.size() || m_queues.size() != fixtures.size()) {
+        warn("Fixture set expects %zu queues but runtime reports %u queues", fixtures.size(), m_device.rxQueueCount());
+        return false;
+    }
 
     for (const auto& fixture : fixtures) {
         std::vector<uint8_t> frame_bytes;
@@ -471,12 +479,12 @@ bool FpgaReplayValidator::validateSyncEnable() {
 
     info("REG_SYNC_ENABLE initial state: %u", initial_value ? 1U : 0U);
 
-    if (!m_device.setSyncEnable(true)) {
+    if (!m_device.setSync(true)) {
         warn("Failed to enable REG_SYNC_ENABLE during replay validation");
         return false;
     }
 
-    if (!m_device.setSyncEnable(initial_value)) {
+    if (!m_device.setSync(initial_value)) {
         warn("Failed to restore REG_SYNC_ENABLE to %u during replay validation", initial_value ? 1U : 0U);
         return false;
     }
@@ -527,7 +535,7 @@ bool FpgaReplayValidator::pollQueueAndValidate(uint16_t que_idx) {
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    const uint64_t final_prod_ptr = m_device.rxQueueProdPtr(que_idx);
+    const uint64_t final_prod_ptr = m_device.readProdPtr(que_idx);
     if (final_prod_ptr != queue.expected_events.size()) {
         warn("Queue %u (%s) produced %llu events, expected %zu",
              que_idx,
@@ -574,13 +582,13 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
              que_idx,
              m_queues[que_idx].symbol_name.c_str(),
              static_cast<unsigned long long>(event_idx));
-        warn("  actual  : locate=%04x ask=(%u,%u) bid=(%u,%u) event_latency=%llu frame_latency=%llu",
+        warn("  actual  : locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_ts=%llu frame_latency=%llu",
              actual.stock_locate,
              actual.ask_price,
              actual.ask_shares,
              actual.bid_price,
              actual.bid_shares,
-             static_cast<unsigned long long>(actual.event_latency),
+             static_cast<unsigned long long>(actual.frame_start_ts),
              static_cast<unsigned long long>(actual.frame_latency));
         warn("  expected: locate=%04x ask=(%u,%u) bid=(%u,%u)",
              expected.stock_locate,
@@ -591,7 +599,7 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
         return false;
     }
 
-    info("Queue %u (%s) event %llu validated: locate=%04x ask=(%u,%u) bid=(%u,%u) event_latency=%llu frame_latency=%llu",
+    info("Queue %u (%s) event %llu validated: locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_ts=%llu frame_latency=%llu",
          que_idx,
          m_queues[que_idx].symbol_name.c_str(),
          static_cast<unsigned long long>(event_idx),
@@ -600,7 +608,7 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
          actual.ask_shares,
          actual.bid_price,
          actual.bid_shares,
-         static_cast<unsigned long long>(actual.event_latency),
+         static_cast<unsigned long long>(actual.frame_start_ts),
          static_cast<unsigned long long>(actual.frame_latency));
     return true;
 }

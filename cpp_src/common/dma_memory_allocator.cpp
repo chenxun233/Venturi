@@ -1,86 +1,157 @@
 #include "dma_memory_allocator.h"
-#include <unistd.h>
-#include <sys/mman.h>
+#include "log.h"
+#include <cerrno>
+#include <cstring>
 #include <linux/mman.h>
 #include <linux/vfio.h>
-#include "log.h"
 #include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <utility>
 
-constexpr uint64_t  iova_end         = UINT64_MAX;
+namespace {
 
+constexpr uint64_t kIOVAEnd = UINT64_MAX;
 
-DMAMemoryAllocator::DMAMemoryAllocator()
-{
-}
-
-DMAMemoryAllocator::~DMAMemoryAllocator()
-{
-}
-
-DMAMemoryPair DMAMemoryAllocator::allocDMAMemory(size_t size, int container_fd){
-    size = _alignUpU64(size, m_page_size);
-    // allocate IO virtual address aligned to page size to avoid overlap across mappings
-    uint64_t iova = _alignUpU64(m_next_iova, m_page_size);
-    if (iova > iova_end || iova + size - 1 > iova_end) {
-        error("IOMMU aperture exhausted: need 0x%llx bytes", (unsigned long long) size);
-        exit(EXIT_FAILURE);
+bool unmapIOVA(int container_fd, uint64_t iova, size_t size) {
+    if (container_fd < 0 || iova == 0 || size == 0) {
+        return false;
     }
-    //allocate virtual address
-    void* virt_addr = _allocDMAVirtualAddr(size);
-    _bindIOVAWithVirtAddr(virt_addr, iova, size, container_fd);
-    // advance for next allocation
-    m_next_iova = iova + size;
-    DMAMemoryPair DMA_mem_pair;
-    DMA_mem_pair.virt = virt_addr;
-    DMA_mem_pair.iova = iova;
-    DMA_mem_pair.size = size;
-    m_allocated_memories.push_back(DMA_mem_pair);
-    return  DMA_mem_pair;
+
+    struct vfio_iommu_type1_dma_unmap dma_unmap = {};
+    dma_unmap.argsz = sizeof(dma_unmap);
+    dma_unmap.iova = iova;
+    dma_unmap.size = size;
+
+    if (ioctl(container_fd, VFIO_IOMMU_UNMAP_DMA, &dma_unmap) == -1) {
+        warn("Failed to unmap DMA IOVA 0x%llx: %s",
+             static_cast<unsigned long long>(iova),
+             strerror(errno));
+        return false;
+    }
+    return true;
 }
 
-void*  DMAMemoryAllocator::_allocDMAVirtualAddr(size_t size){
+} // namespace
+
+DMABuffer::DMABuffer(int container_fd, void* virt_addr, uint64_t iova_addr, size_t mapped_size)
+    : m_container_fd(container_fd),
+      m_virt(virt_addr),
+      m_iova(iova_addr),
+      m_size(mapped_size) {
+}
+
+DMABuffer::DMABuffer(DMABuffer&& other) noexcept {
+    *this = std::move(other);
+}
+
+DMABuffer& DMABuffer::operator=(DMABuffer&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+
+    reset();
+    m_container_fd = other.m_container_fd;
+    m_virt = other.m_virt;
+    m_iova = other.m_iova;
+    m_size = other.m_size;
+
+    other.m_container_fd = -1;
+    other.m_virt = nullptr;
+    other.m_iova = 0;
+    other.m_size = 0;
+    return *this;
+}
+
+DMABuffer::~DMABuffer() {
+    reset();
+}
+
+void DMABuffer::reset() noexcept {
+    if (!valid()) {
+        return;
+    }
+
+    (void)unmapIOVA(m_container_fd, m_iova, m_size);
+    if (munmap(m_virt, m_size) == -1) {
+        warn("Failed to munmap DMA memory %p: %s", m_virt, strerror(errno));
+    }
+
+    m_container_fd = -1;
+    m_virt = nullptr;
+    m_iova = 0;
+    m_size = 0;
+}
+
+DMAMemoryAllocator::DMAMemoryAllocator(int container_fd, uint64_t page_size)
+    : m_container_fd(container_fd),
+      m_page_size(page_size) {
+}
+
+DMABuffer DMAMemoryAllocator::allocate(size_t size) {
+    if (m_container_fd < 0) {
+        warn("Cannot allocate DMA memory without a valid VFIO container fd");
+        return {};
+    }
+    if (size == 0) {
+        warn("Cannot allocate zero-sized DMA memory");
+        return {};
+    }
+
+    size = alignUpU64(size, m_page_size);
+    const uint64_t iova = alignUpU64(m_next_iova, m_page_size);
+    if (iova > kIOVAEnd || iova + size - 1 > kIOVAEnd) {
+        warn("IOMMU aperture exhausted: need 0x%llx bytes", static_cast<unsigned long long>(size));
+        return {};
+    }
+
+    void* virt_addr = allocDMAVirtualAddr(size);
+    if (virt_addr == nullptr) {
+        return {};
+    }
+    if (!bindIOVAWithVirtAddr(virt_addr, iova, size, m_container_fd)) {
+        if (munmap(virt_addr, size) == -1) {
+            warn("Failed to release DMA mapping after VFIO map failure: %s", strerror(errno));
+        }
+        return {};
+    }
+
+    m_next_iova = iova + size;
+    return DMABuffer(m_container_fd, virt_addr, iova, size);
+}
+
+void* DMAMemoryAllocator::allocDMAVirtualAddr(size_t size) {
     // using mmap() because it can assign huge page within which the physical memory is continuous.
-    void* virtual_address = (void*) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS | MAP_HUGETLB | MAP_HUGE_2MB, -1, 0);
+    void* virtual_address = mmap(NULL,
+                                 size,
+                                 PROT_READ | PROT_WRITE,
+                                 MAP_SHARED | MAP_ANONYMOUS | MAP_HUGETLB | MAP_HUGE_2MB,
+                                 -1,
+                                 0);
     if (virtual_address == MAP_FAILED) {
-        error("Failed to mmap DMA memory using huge page. Huge page may have not been enabled. The error code is %s", strerror(errno));
-        exit(EXIT_FAILURE);
+        warn("Failed to mmap DMA memory using huge page: %s", strerror(errno));
+        return nullptr;
     }
     return virtual_address;
 }
 
 // this function makes the physical address in DRAM shared both by virtual address space and IOVA. one is for CPU access, the other is for device DMA access.
-bool DMAMemoryAllocator::_bindIOVAWithVirtAddr(void* virt_addr, uint64_t iova, size_t size, int container_fd){
-	struct vfio_iommu_type1_dma_map dma_map ={};
-	dma_map.vaddr = (uint64_t) virt_addr;
-	// dma_map.vaddr = (uint64_t) 0x100000;
-	dma_map.iova = iova;
-	dma_map.size = size;
-	dma_map.argsz = sizeof(dma_map);
-	dma_map.flags = VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE;
-	check_err(ioctl(container_fd, VFIO_IOMMU_MAP_DMA, &dma_map), "IOMMU Map DMA Memory");
-	return true;
-}
-
-bool DMAMemoryAllocator::_unmapVirtualAddr(){
-    //unmap all allocated virtual addresses
-    for (const auto& DMA_mem_pair : m_allocated_memories) {
-        if (munmap(DMA_mem_pair.virt, DMA_mem_pair.size) == -1) {
-            error("Failed to unmap virtual address %p: %s", DMA_mem_pair.virt, strerror(errno));
-            return false;
-        }
+bool DMAMemoryAllocator::bindIOVAWithVirtAddr(void* virt_addr, uint64_t iova, size_t size, int container_fd) {
+    struct vfio_iommu_type1_dma_map dma_map = {};
+    dma_map.vaddr = reinterpret_cast<uint64_t>(virt_addr);
+    dma_map.iova = iova;
+    dma_map.size = size;
+    dma_map.argsz = sizeof(dma_map);
+    dma_map.flags = VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE;
+    if (ioctl(container_fd, VFIO_IOMMU_MAP_DMA, &dma_map) == -1) {
+        warn("IOMMU map DMA memory failed: %s", strerror(errno));
+        return false;
     }
     return true;
 }
 
-bool DMAMemoryAllocator::_unmapIOVirtualAddr(){
-
-    return true;
-}
-
-
-
-uint64_t DMAMemoryAllocator::_alignUpU64(uint64_t value, uint64_t alignment){
-    if (!alignment){
+uint64_t DMAMemoryAllocator::alignUpU64(uint64_t value, uint64_t alignment) {
+    if (!alignment) {
         return value;
     }
     return (value + alignment - 1) & ~(alignment - 1);

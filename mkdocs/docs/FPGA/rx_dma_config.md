@@ -14,7 +14,7 @@ localparam [BAR0_SIZE-1:0] REG_RX_QUE_CONS_PTR_OFFSET       = 16'h18;
 localparam [BAR0_SIZE-1:0] REG_RX_QUE_PROD_OFFSET           = 16'h20;
 localparam [BAR0_SIZE-1:0] REG_RX_QUE_DROP_OFFSET           = 16'h28;
 localparam [BAR0_SIZE-1:0] REG_RX_QUE_STAT_OFFSET           = 16'h30;
-localparam [BAR0_SIZE-1:0] REG_RX_QUE_BASE0                 = 16'h40;
+localparam [BAR0_SIZE-1:0] REG_RX_QUE_IOVA                 = 16'h40;
 localparam [BAR0_SIZE-1:0] REG_RX_QUE_STRIDE                = 16'h40;
 ```
 
@@ -27,7 +27,7 @@ localparam [BAR0_SIZE-1:0] REG_RX_QUE_STRIDE                = 16'h40;
 - `REG_RX_QUE_PROD_OFFSET (0x20)`: Per-queue offset for the **producer pointer** register reported by `rx_dma_stage` on reads.
 - `REG_RX_QUE_DROP_OFFSET (0x28)`: Per-queue offset for the **drop counter** reported by `rx_dma_stage` on reads.
 - `REG_RX_QUE_STAT_OFFSET (0x30)`: Per-queue offset for the queue status word reported by `rx_dma_stage` on reads. The current bit layout is bit 0 `enabled`, bit 1 `full`, and bit 2 `busy`.
-- `REG_RX_QUE_BASE0 (0x40)`: Base address of queue 0's register window; writing here stores the descriptor ring base address for that queue.
+- `REG_RX_QUE_IOVA (0x40)`: Base address of queue 0's register window; writing here stores the descriptor ring base address for that queue.
 - `REG_RX_QUE_STRIDE (0x40)`: Spacing between queue register windows, so queue `n` starts at `0x40 + n * 0x40`.
 
 ## How to coordinate with the host

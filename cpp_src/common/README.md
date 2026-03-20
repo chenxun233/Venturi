@@ -18,7 +18,8 @@ Abstract base class defining the device driver interface.
 - `basic_para_type` - Device parameters (PCI address, BAR addresses, etc.)
 - `VfioFd` - VFIO file descriptor collection
 - `DevStatus` - Device statistics structure
-- `InterruptQueue` - Interrupt queue management
+
+`BasicDev` now carries only the VFIO/common device pieces shared by both the FPGA and Intel implementations. Intel-specific interrupt bookkeeping and MAC-address ownership live in `Intel_demo/driver/`.
 
 **Pure virtual methods** (must be implemented by derived classes):
 ```cpp
@@ -102,6 +103,13 @@ Logging macros for consistent debug output.
 ### 1. Hardware Abstraction
 The common layer provides interfaces that are independent of specific hardware. Device-specific details are pushed to driver implementations.
 
+In particular, `BasicDev` is intended to stop at:
+- VFIO/PCI discovery and BAR mapping
+- generic device counts and statistics
+- common timing helpers
+
+and not own Intel-specific interrupt or MAC state.
+
 ### 2. RAII (Resource Acquisition Is Initialization)
 Resources are acquired in constructors and released in destructors. This ensures proper cleanup even in error paths.
 
@@ -127,10 +135,10 @@ Strong typing via classes and structs. Minimal use of void* and raw pointers.
 // Derive from BasicDev
 class MyDevice : public BasicDev {
 public:
-    MyDevice(std::string pci_addr) : BasicDev(pci_addr, 0) {
+    MyDevice(std::string pci_addr) : BasicDev(pci_addr) {
         // Initialize VFIO
         _getFD();
-        _getBARAddr(0);
+        _getBARAddr();
     }
 
     // Implement required methods

@@ -67,13 +67,10 @@ int main(int argc, char* argv[]) {
     int test_num_int = std::atoi(test_num);
     switch (test_num_int) {
         case 1:
-            dev->test_register();
             break;
         case 2:
-            dev->trigger_interrupt();
             break;
         case 3:
-            dev->test_dma_write();
             break;
         case 4:
         {

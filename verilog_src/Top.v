@@ -159,6 +159,15 @@ wire [12:0]             rc_payload_dw_count;
 wire [2:0]              cfg_max_payload;
 wire [2:0]              cfg_max_read_req;
 wire [15:0]             pcie_requester_id;
+localparam SYMBOL_NUM = 2;
+localparam [SYMBOL_NUM*16-1:0] SYMBOL_STOCK_LOCATE_INIT = {
+    16'h0ee8,
+    16'h000d
+};
+localparam [SYMBOL_NUM*32-1:0] SYMBOL_PRICE_BASE_INIT = {
+    32'd0,
+    32'd0
+};
 
 // =========================================================================
 // Internal Wires - Status
@@ -247,9 +256,11 @@ pcie_wrapper #(
 wire rx_dma_reg_reset;
 
 rx_dma_config #(
-    .DATA_WIDTH      (DATA_WIDTH),
-    .BAR0_SIZE       (BAR0_SIZE),
-    .RX_QUE_COUNT (2)
+    .DATA_WIDTH                 (DATA_WIDTH),
+    .BAR0_SIZE                  (BAR0_SIZE),
+    .SYMBOL_NUM                 (SYMBOL_NUM),
+    .SYMBOL_STOCK_LOCATE_INIT   (SYMBOL_STOCK_LOCATE_INIT),
+    .SYMBOL_PRICE_BASE_INIT     (SYMBOL_PRICE_BASE_INIT)
 ) rx_dma_config_inst (
     .user_clk                (user_clk_250),
     .user_reset_p            (user_reset_p),
@@ -272,10 +283,12 @@ rx_dma_config #(
     .cc_status               (cc_status),
     .cc_payload              (cc_payload),
     .cc_last                 (cc_last),
-    .o_rx_que_base_addr     (rx_dma_que_base_addr),
+    .o_rx_que_iova_addr     (rx_dma_que_iova_addr),
     .o_rx_que_slot_num      (rx_dma_que_slot_num),
     .o_rx_que_enable        (rx_dma_que_enable),
     .o_rx_que_cons_ptr      (rx_dma_que_cons_ptr),
+    .o_symbol_stock_locate  (symbol_stock_locate_cfg),
+    .o_symbol_price_base    (symbol_price_base_cfg),
     .o_reg_reset            (rx_dma_reg_reset),
     .i_rx_que_prod_ptr      (rx_dma_que_prod_ptr),
     .i_rx_que_drop_count    (rx_dma_que_drop_count),
@@ -328,22 +341,23 @@ wire [31:0]             shares;
 wire [31:0]             price;
 localparam EVENT_PAYLOAD_W = 192;
 localparam EVENT_CDC_DEPTH = 4;
-localparam QUE_NUM = 2;
 
-wire [QUE_NUM-1:0]                  builder_event_valid     ;
-wire [QUE_NUM*EVENT_PAYLOAD_W-1:0]  builder_event_payload   ;
-wire [QUE_NUM-1:0]                  event_cdc_wr_full       ;
-wire [QUE_NUM-1:0]                  event_cdc_rd_en         ;
-wire [QUE_NUM-1:0]                  event_cdc_rd_empty      ;
-wire [QUE_NUM-1:0]                  event_cdc_rd_valid      ;
-wire [QUE_NUM*EVENT_PAYLOAD_W-1:0]  event_cdc_rd_data       ;
-wire [QUE_NUM*64-1:0]               rx_dma_que_base_addr    ;
-wire [QUE_NUM*64-1:0]               rx_dma_que_slot_num   ;
-wire [QUE_NUM*64-1:0]               rx_dma_que_enable         ;
-wire [QUE_NUM*64-1:0]               rx_dma_que_cons_ptr     ;
-wire [QUE_NUM*64-1:0]               rx_dma_que_prod_ptr     ;
-wire [QUE_NUM*64-1:0]               rx_dma_que_drop_count   ;
-wire [QUE_NUM*64-1:0]               rx_dma_que_status       ;
+wire [SYMBOL_NUM-1:0]                  builder_event_valid     ;
+wire [SYMBOL_NUM*EVENT_PAYLOAD_W-1:0]  builder_event_payload   ;
+wire [SYMBOL_NUM-1:0]                  event_cdc_wr_full       ;
+wire [SYMBOL_NUM-1:0]                  event_cdc_rd_en         ;
+wire [SYMBOL_NUM-1:0]                  event_cdc_rd_empty      ;
+wire [SYMBOL_NUM-1:0]                  event_cdc_rd_valid      ;
+wire [SYMBOL_NUM*EVENT_PAYLOAD_W-1:0]  event_cdc_rd_data       ;
+wire [SYMBOL_NUM*64-1:0]               rx_dma_que_iova_addr    ;
+wire [SYMBOL_NUM*64-1:0]               rx_dma_que_slot_num   ;
+wire [SYMBOL_NUM*64-1:0]               rx_dma_que_enable         ;
+wire [SYMBOL_NUM*64-1:0]               rx_dma_que_cons_ptr     ;
+wire [SYMBOL_NUM*64-1:0]               rx_dma_que_prod_ptr     ;
+wire [SYMBOL_NUM*64-1:0]               rx_dma_que_drop_count   ;
+wire [SYMBOL_NUM*64-1:0]               rx_dma_que_status       ;
+wire [SYMBOL_NUM*16-1:0]                symbol_stock_locate_cfg ;
+wire [SYMBOL_NUM*32-1:0]                symbol_price_base_cfg   ;
 
 assign w_axi_rx_ready = axi_rx_ready;
 assign o_ctl_mac_addr      = 48'h0100_5E00_0001;
@@ -415,7 +429,9 @@ order_book_parser order_book_parser_inst (
     .i_ctl_reg              (o_ctl_reg)
 );
 
-order_book_builder order_book_builder_inst (
+order_book_builder #(
+    .SYMBOL_NUM         (SYMBOL_NUM)
+) order_book_builder_inst (
     .i_clk_156          (w_xgmii_rx_clk        ),
     .i_rst              (w_xgmii_rx_rst        ),
     .i_msg_valid        (msg_valid             ),
@@ -427,6 +443,8 @@ order_book_builder order_book_builder_inst (
     .i_shares           (shares                ),
     .i_price            (price                 ),
     .i_frame_ts         (msg_timestamp         ),
+    .i_symbol_stock_locate_cfg (symbol_stock_locate_cfg),
+    .i_symbol_price_base_cfg   (symbol_price_base_cfg),
     .o_event_valid      (builder_event_valid   ),
     .o_event_payload    (builder_event_payload )
 );
@@ -448,7 +466,7 @@ gray_to_binary #(
 
 generate
     genvar cdc_idx;
-    for (cdc_idx = 0; cdc_idx < QUE_NUM; cdc_idx = cdc_idx + 1) begin : g_event_cdc
+    for (cdc_idx = 0; cdc_idx < SYMBOL_NUM; cdc_idx = cdc_idx + 1) begin : g_event_cdc
         async_fifo #(
             .DEPTH  (EVENT_CDC_DEPTH),
             .DATA_W (EVENT_PAYLOAD_W)
@@ -469,7 +487,7 @@ generate
 endgenerate
 
 rx_dma_stage #(
-    .SYMBOL_NUM         (QUE_NUM),
+    .SYMBOL_NUM         (SYMBOL_NUM),
     .PAYLOAD_W          (EVENT_PAYLOAD_W)
 ) rx_dma_stage_inst (
     .i_clk              (user_clk_250),
@@ -479,7 +497,7 @@ rx_dma_stage #(
     .i_event_valid      (event_cdc_rd_valid),
     .i_event_payload    (event_cdc_rd_data),
     .o_event_pop        (event_cdc_rd_en),
-    .i_que_base_addr    (rx_dma_que_base_addr),
+    .i_que_iova_addr    (rx_dma_que_iova_addr),
     .i_que_slot_num     (rx_dma_que_slot_num),
     .i_que_enable       (rx_dma_que_enable),
     .i_que_cons_ptr     (rx_dma_que_cons_ptr),

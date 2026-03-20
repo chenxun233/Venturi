@@ -25,6 +25,7 @@ This is a userspace driver implementation for the Intel 82599 (codename "Niantic
   - `Intel82599Dev` class inheriting from `BasicDev`
   - VFIO setup and BAR mapping
   - Hardware initialization and configuration
+  - Intel-specific interrupt bookkeeping and MAC-address ownership
 
 - **`ixgbe_ring_buffer.h` / `ixgbe_ring_buffer.cpp`**
   - TX/RX descriptor ring management
@@ -60,6 +61,7 @@ This is a userspace driver implementation for the Intel 82599 (codename "Niantic
 Intel82599Dev (vfio_dev.h)
     │
     ├── Inherits from BasicDev (common/basic_dev.h)
+    │   └── Shared VFIO and generic device support only
     │
     ├── Uses IXGBE_RxRingBuffer (ixgbe_ring_buffer.h)
     │   └── Manages RX descriptor rings

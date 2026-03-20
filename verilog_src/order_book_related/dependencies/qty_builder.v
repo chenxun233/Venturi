@@ -1,13 +1,13 @@
 module qty_builder #(
     parameter QTY_MSG_BIT       = 2+32+1+32+1+48, // {side, price, is_add, d_shares, op_done}
     parameter QTY_PRICE_LVL_BIT = 10,        // trace 2^QTY_PRICE_LVL_BIT price levels
-    parameter PRICE_BASE        = 32'd0,
     parameter BID_OR_ASK        = 2'b01         // 01 for bid, 10 for ask
 )(
     input   wire                          i_clk_156,
     input   wire                          i_rst,               // active high
     input   wire [QTY_MSG_BIT-1:0]        i_qty_msg,
-    input   wire [31:0]      i_bram_o_data,
+    input   wire [31:0]                   i_price_base,
+    input   wire [31:0]                   i_bram_o_data,
     output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_price_idx,
     output  reg  [1:0]                    o_price_change,
     output  reg                           o_op_done,
@@ -88,7 +88,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         latch_op_done        <= 1'b0;
         latch_timestamp      <= {48{1'b0}};
     end else if (ff_o_valid) begin
-        latch_qty_prc_idx    <= cal_qty_book_addr(qty_price);
+        latch_qty_prc_idx    <= calc_qty_book_addr(qty_price, i_price_base);
         latch_qty_is_add     <= qty_is_add;
         latch_qty_d_shares   <= qty_d_shares;
         latch_op_done        <= op_done;
@@ -155,19 +155,20 @@ always @(*) begin
 end
 
 
-function [QTY_PRICE_LVL_BIT-1:0] cal_qty_book_addr;
-    input [31:0] price;
+function [QTY_PRICE_LVL_BIT-1:0] calc_qty_book_addr (input [31:0] price, input [31:0] price_base);
     reg [29:0] price_offset_u30;
+    reg [31:0] price_offset_u32;
 begin
-    if (price >= PRICE_BASE) begin
-        price_offset_u30 = (price - PRICE_BASE) >> 2;
+    if (price >= price_base) begin
+        price_offset_u32 = (price - price_base) >> 2;
+        price_offset_u30 = price_offset_u32[29:0];
         if (price_offset_u30 < PRICE_DEPTH) begin
-            cal_qty_book_addr = price_offset_u30[QTY_PRICE_LVL_BIT-1:0];
+            calc_qty_book_addr = price_offset_u30[QTY_PRICE_LVL_BIT-1:0];
         end else begin
-            cal_qty_book_addr = {QTY_PRICE_LVL_BIT{1'b0}};
+            calc_qty_book_addr = {QTY_PRICE_LVL_BIT{1'b0}};
         end
     end else begin
-        cal_qty_book_addr = {QTY_PRICE_LVL_BIT{1'b0}};
+        calc_qty_book_addr = {QTY_PRICE_LVL_BIT{1'b0}};
     end
 end
 endfunction

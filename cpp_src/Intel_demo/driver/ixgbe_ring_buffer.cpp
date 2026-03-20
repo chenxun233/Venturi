@@ -9,11 +9,11 @@ using namespace std;
 
 
 bool IXGBE_RxRingBuffer::_bindDescMemVirt(){
-	if (!m_desc_mem_pair.virt) {
+	if (!m_desc_dma.valid()) {
 		error("invalid DMA memory provided to RX ring buffer for descriptor ring");
 		return false;
 	}
-	p_desc_ring_start = (union ixgbe_adv_rx_desc*) m_desc_mem_pair.virt;
+	p_desc_ring_start = reinterpret_cast<union ixgbe_adv_rx_desc*>(m_desc_dma.virt());
 	
 	return true;
 };
@@ -122,8 +122,8 @@ bool IXGBE_RxRingBuffer::_bindDescMemIOVA(uint8_t* BAR_addr, uint8_t ring_index)
 		set_bar_flags32(BAR_addr, IXGBE_SRRCTL(ring_index), IXGBE_SRRCTL_DROP_EN);
 		// tell the device where it can write to (its iova, so its view)
 		// neat trick from Snabb: initialize to 0xFF to prevent rogue memory accesses on premature DMA activation
-		set_bar_reg32(BAR_addr, IXGBE_RDBAL(ring_index), (uint32_t) (m_desc_mem_pair.iova & 0xFFFFFFFFull));
-		set_bar_reg32(BAR_addr, IXGBE_RDBAH(ring_index), (uint32_t) (m_desc_mem_pair.iova >> 32));
+		set_bar_reg32(BAR_addr, IXGBE_RDBAL(ring_index), (uint32_t) (m_desc_dma.iova() & 0xFFFFFFFFull));
+		set_bar_reg32(BAR_addr, IXGBE_RDBAH(ring_index), (uint32_t) (m_desc_dma.iova() >> 32));
 		set_bar_reg32(BAR_addr, IXGBE_RDLEN(ring_index), m_num_desc * m_size_desc);
 		// set ring to empty at start
 		set_bar_reg32(BAR_addr, IXGBE_RDH(ring_index), 0);
@@ -156,8 +156,8 @@ bool IXGBE_TxRingBuffer::linkMemoryPool(DMAMemoryPool* const mem_pool){
 
 bool IXGBE_TxRingBuffer::_bindDescMemIOVA(uint8_t* BAR_addr, uint8_t ring_index){
 		// tell the device where it can write to (its iova, so its view)
-		set_bar_reg32(BAR_addr, IXGBE_TDBAL(ring_index), (uint32_t) (m_desc_mem_pair.iova & 0xFFFFFFFFull));
-		set_bar_reg32(BAR_addr, IXGBE_TDBAH(ring_index), (uint32_t) (m_desc_mem_pair.iova >> 32));
+		set_bar_reg32(BAR_addr, IXGBE_TDBAL(ring_index), (uint32_t) (m_desc_dma.iova() & 0xFFFFFFFFull));
+		set_bar_reg32(BAR_addr, IXGBE_TDBAH(ring_index), (uint32_t) (m_desc_dma.iova() >> 32));
 		set_bar_reg32(BAR_addr, IXGBE_TDLEN(ring_index), m_num_desc * m_size_desc);
 		// descriptor writeback magic values, important to get good performance and low PCIe overhead
 		// see 7.2.3.4.1 and 7.2.3.5 for an explanation of these values and how to find good ones
@@ -172,11 +172,11 @@ bool IXGBE_TxRingBuffer::_bindDescMemIOVA(uint8_t* BAR_addr, uint8_t ring_index)
 };
 
 bool IXGBE_TxRingBuffer::_bindDescMemVirt(){
-	if (!m_desc_mem_pair.virt) {
+	if (!m_desc_dma.valid()) {
 		error("invalid DMA memory provided to TX ring buffer for descriptor ring");
 		return false;
 	}
-	p_desc_ring_start = (union ixgbe_adv_tx_desc*) m_desc_mem_pair.virt;
+	p_desc_ring_start = reinterpret_cast<union ixgbe_adv_tx_desc*>(m_desc_dma.virt());
 	return true;
 };
 

@@ -38,12 +38,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (!dev->setRxRingBuffers(dev->rxQueueCount(), 128, FPGADev::kRxRecordBytes)) {
-        warn("Failed to configure RX rings");
-        return 1;
-    }
-
-    FpgaRxAdapter adapter(*dev);
+    FPGARxDataAdaptor adapter(*dev);
     uint64_t event_count = 0;
     info("Polling queue %u for up to %llu decoded FPGA events", queue_id, static_cast<unsigned long long>(max_events));
 
@@ -54,7 +49,7 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        std::printf("event=%llu queue=%u locate=%04x ask=(%u,%u) bid=(%u,%u) event_latency=%llu frame_latency=%llu\n",
+        std::printf("event=%llu queue=%u locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_ts=%llu frame_latency=%llu\n",
                     static_cast<unsigned long long>(event_count),
                     event.queue_id,
                     event.stock_locate,
@@ -62,7 +57,7 @@ int main(int argc, char* argv[]) {
                     event.ask_shares,
                     event.bid_price,
                     event.bid_shares,
-                    static_cast<unsigned long long>(event.event_latency),
+                    static_cast<unsigned long long>(event.frame_start_ts),
                     static_cast<unsigned long long>(event.frame_latency));
         ++event_count;
     }
