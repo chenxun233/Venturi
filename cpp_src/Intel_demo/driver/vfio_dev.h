@@ -62,7 +62,7 @@ class Intel82599Dev : public BasicDev{
         bool        enableDevInterrupt();
         bool        setRxRingBuffers(uint16_t tx_que_num,uint32_t num_buf, uint32_t buf_size)     override;
         bool        setTxRingBuffers(uint16_t tx_que_num,uint32_t num_buf, uint32_t buf_size)     override;
-        bool        sendOnQueue(uint8_t* p_data, size_t size, uint16_t queue_id)                     ;
+        bool        sendOnQueue(uint8_t* p_data, size_t size, uint16_t que_idx)                     ;
         void        loopSendTest(uint32_t num_buf);
         void        capturePackets(uint16_t batch_size,int64_t n_packets, std::string file_name);
         void        infoNIC_Tx(uint16_t tail_index);
@@ -86,8 +86,8 @@ class Intel82599Dev : public BasicDev{
         bool        _initTxDescRingRegs();
         bool        _enableDevRxQueue();
         bool        _enableDevTxQueue();
-        void        _enableDevMSIInterrupt(uint16_t queue_id)                              ;
-        void        _enableDevMSIxInterrupt(uint16_t queue_id)                             ;
+        void        _enableDevMSIInterrupt(uint16_t que_idx)                              ;
+        void        _enableDevMSIxInterrupt(uint16_t que_idx)                             ;
         uint32_t    _get_link_speed()                                                      ;
         bool        _getDevIRQType()                                                       ;
         bool        _setupIRQQueues(const int interrupt_interval, const uint32_t timeout_ms);

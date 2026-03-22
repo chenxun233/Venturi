@@ -36,9 +36,6 @@ localparam [1:0] ST_SEND      = 2'd2;
 localparam integer RECORD_W   = 240;
 
 
-
-
-
 function integer clog2 (input integer value);
     integer idx;
     begin
@@ -99,10 +96,10 @@ wire [31:0]   ask_best_price        = i_event_payload [PAYLOAD_W*current_que_idx
 wire [31:0]   ask_best_shares       = i_event_payload [PAYLOAD_W*current_que_idx+159 -: 32];
 wire [31:0]   bid_best_price        = i_event_payload [PAYLOAD_W*current_que_idx+127 -: 32];
 wire [31:0]   bid_best_shares       = i_event_payload [PAYLOAD_W*current_que_idx+95 -: 32];
-wire [47:0]   frame_start_ts        = i_event_payload [PAYLOAD_W*current_que_idx+63 -: 48]; // the tick when frame arrives at MAC layer
-wire [47:0]   event_logic_latency   = i_dma_timestamp > frame_start_ts ? i_dma_timestamp - frame_start_ts : 48'd0;
+wire [47:0]   frame_start_tk        = i_event_payload [PAYLOAD_W*current_que_idx+63 -: 48]; // the tick when frame arrives at MAC layer
+wire [47:0]   event_logic_latency_tk   = i_dma_timestamp > frame_start_tk ? i_dma_timestamp - frame_start_tk : 48'd0;
 wire [15:0]   stock_locate          = i_event_payload [PAYLOAD_W*current_que_idx+15 -: 16];
-// wire [47:0]   frame_latency         = latch_dma_ts > frame_start_ts ? latch_dma_ts - frame_start_ts : 48'd0; // the latency from the frame starts to DMA stage output.
+// wire [47:0]   frame_latency         = latch_dma_ts > frame_start_tk ? latch_dma_ts - frame_start_tk : 48'd0; // the latency from the frame starts to DMA stage output.
 reg  [47:0]   latch_dma_ts;
 reg  [47:0]   pre_frame_start_ts;
 integer que_idx;
@@ -111,7 +108,7 @@ always @(posedge i_clk or posedge i_rst) begin
     if (i_rst) begin
         pre_frame_start_ts <= 48'd0;
     end else begin
-        pre_frame_start_ts <= frame_start_ts;
+        pre_frame_start_ts <= frame_start_tk;
     end
 end
 
@@ -119,7 +116,7 @@ end
 always @(posedge i_clk or posedge i_rst) begin
     if (i_rst) begin
         latch_dma_ts <= 48'd0;
-    end else if (pre_frame_start_ts != frame_start_ts) begin
+    end else if (pre_frame_start_ts != frame_start_tk) begin
         latch_dma_ts <= i_dma_timestamp;
     end
 end
@@ -206,7 +203,7 @@ always @(posedge i_clk or posedge i_rst) begin
                         que_drop_count[current_que_idx] <= que_drop_count[current_que_idx] + 64'd1;
                         state <= ST_IDLE;
                     end else begin
-                        record_que          <= {ask_best_price, ask_best_shares, bid_best_price, bid_best_shares, frame_start_ts, stock_locate};
+                        record_que          <= {ask_best_price, ask_best_shares, bid_best_price, bid_best_shares, frame_start_tk, stock_locate};
                         write_addr          <= calc_write_addr(
                             i_que_iova_addr[current_que_idx*64 +: 64],
                             que_slot_index[current_que_idx]
@@ -250,7 +247,7 @@ always @(*) begin
             o_rq_addr             = write_addr;
             o_rq_payload_dw_count = RECORD_DW_COUNT;
             o_rq_tag              = 8'h40 | current_que_idx;
-            o_rq_payload          = pack_record({record_que[PAYLOAD_W-1:16], event_logic_latency, record_que[15:0]});
+            o_rq_payload          = pack_record({record_que[PAYLOAD_W-1:16], event_logic_latency_tk, record_que[15:0]});
         end
         default: begin
             o_rq_valid            = 1'b0;

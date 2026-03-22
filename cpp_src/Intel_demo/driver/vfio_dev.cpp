@@ -212,10 +212,10 @@ bool Intel82599Dev::_init_link_nego(){
 }
 
 
-bool Intel82599Dev::sendOnQueue(uint8_t* p_data, size_t size, uint16_t queue_id){ 
+bool Intel82599Dev::sendOnQueue(uint8_t* p_data, size_t size, uint16_t que_idx){ 
 	(void)p_data;
 	(void)size;
-	(void)queue_id;
+	(void)que_idx;
 	return true; }
 
 
@@ -241,14 +241,14 @@ uint16_t Intel82599Dev::_calc_ip_checksum(uint8_t* data, uint32_t len) {
 
 
 bool Intel82599Dev::_enableDevRxQueue(){
-	for (uint16_t queue_id = 0; queue_id < m_basic_para.rx_que_num; queue_id++){
+	for (uint16_t que_idx = 0; que_idx < m_basic_para.rx_que_num; que_idx++){
 		// enable queue and wait if necessary
-		set_bar_flags32(m_basic_para.bar0_addr, IXGBE_RXDCTL(queue_id), IXGBE_RXDCTL_ENABLE);
-		wait_set_bar_reg32(m_basic_para.bar0_addr, IXGBE_RXDCTL(queue_id), IXGBE_RXDCTL_ENABLE);
+		set_bar_flags32(m_basic_para.bar0_addr, IXGBE_RXDCTL(que_idx), IXGBE_RXDCTL_ENABLE);
+		wait_set_bar_reg32(m_basic_para.bar0_addr, IXGBE_RXDCTL(que_idx), IXGBE_RXDCTL_ENABLE);
 		// rx queue starts out full
-		_writeReg32(IXGBE_RDH(queue_id), 0);
+		_writeReg32(IXGBE_RDH(que_idx), 0);
 		// was set to 0 before in the init function
-		_writeReg32(IXGBE_RDT(queue_id), m_num_rx_bufs - 1);
+		_writeReg32(IXGBE_RDT(que_idx), m_num_rx_bufs - 1);
 		// Implementation of RX queue preparation
 	}
 
@@ -256,23 +256,23 @@ bool Intel82599Dev::_enableDevRxQueue(){
 }
 
 bool Intel82599Dev::_enableDevTxQueue(){
-	for (uint16_t queue_id = 0; queue_id < m_basic_para.tx_que_num; queue_id++){
-		debug("starting tx queue %d", queue_id);
+	for (uint16_t que_idx = 0; que_idx < m_basic_para.tx_que_num; que_idx++){
+		debug("starting tx queue %d", que_idx);
 		// tx queue starts out empty
-		_writeReg32(IXGBE_TDH(queue_id), 0);
-		_writeReg32(IXGBE_TDT(queue_id), 0);
+		_writeReg32(IXGBE_TDH(que_idx), 0);
+		_writeReg32(IXGBE_TDT(que_idx), 0);
 		// enable queue and wait if necessary
-		set_bar_flags32(m_basic_para.bar0_addr, IXGBE_TXDCTL(queue_id), IXGBE_TXDCTL_ENABLE);
-		wait_set_bar_reg32(m_basic_para.bar0_addr, IXGBE_TXDCTL(queue_id), IXGBE_TXDCTL_ENABLE);
+		set_bar_flags32(m_basic_para.bar0_addr, IXGBE_TXDCTL(que_idx), IXGBE_TXDCTL_ENABLE);
+		wait_set_bar_reg32(m_basic_para.bar0_addr, IXGBE_TXDCTL(que_idx), IXGBE_TXDCTL_ENABLE);
 		// Implementation of TX queue preparation
-        debug("finished tx queue %d", queue_id);
+        debug("finished tx queue %d", que_idx);
 	}
 		return true;
 }
-void Intel82599Dev::_enableDevMSIInterrupt(uint16_t queue_id){
+void Intel82599Dev::_enableDevMSIInterrupt(uint16_t que_idx){
 	// Step 1: The software driver associates between Tx and Rx interrupt causes and the EICR
 	// register by setting the IVAR[n] registers.
-	set_ivar(m_basic_para.bar0_addr, 0, queue_id, 0);
+	set_ivar(m_basic_para.bar0_addr, 0, que_idx, 0);
 
 	// Step 2: Program SRRCTL[n].RDMTS (per receive queue) if software uses the receive
 	// descriptor minimum threshold interrupt
@@ -286,25 +286,25 @@ void Intel82599Dev::_enableDevMSIInterrupt(uint16_t queue_id){
 	// In our case we prefer not auto-masking the interrupts
 
 	// Step 5: Set the interrupt throttling in EITR[n] and GPIE according to the preferred mode of operation.
-	_writeReg32(IXGBE_EITR(queue_id), m_interrupt_para.itr_rate);
+	_writeReg32(IXGBE_EITR(que_idx), m_interrupt_para.itr_rate);
 
 	// Step 6: Software clears EICR by writing all ones to clear old interrupt causes
 	_dev_clear_interrupts();
 
 	// Step 7: Software enables the required interrupt causes by setting the EIMS register
 	u32 mask = _readReg32(IXGBE_EIMS);
-	mask |= (1 << queue_id);
+	mask |= (1 << que_idx);
 	_writeReg32(IXGBE_EIMS, mask);
 	debug("Using MSI interrupts");
 }
 
-void Intel82599Dev::_enableDevMSIxInterrupt(uint16_t queue_id){
+void Intel82599Dev::_enableDevMSIxInterrupt(uint16_t que_idx){
 	// Step 1: The software driver associates between interrupt causes and MSI-X vectors and the
 	// throttling timers EITR[n] by programming the IVAR[n] and IVAR_MISC registers.
 	uint32_t gpie = _readReg32(IXGBE_GPIE);
 	gpie |= IXGBE_GPIE_MSIX_MODE | IXGBE_GPIE_PBA_SUPPORT | IXGBE_GPIE_EIAME;
 	_writeReg32(IXGBE_GPIE, gpie);
-	set_ivar(m_basic_para.bar0_addr, 0, queue_id, queue_id);
+	set_ivar(m_basic_para.bar0_addr, 0, que_idx, que_idx);
 
 	// Step 2: Program SRRCTL[n].RDMTS (per receive queue) if software uses the receive
 	// descriptor minimum threshold interrupt
@@ -335,11 +335,11 @@ void Intel82599Dev::_enableDevMSIxInterrupt(uint16_t queue_id){
 	// 0xE10 (900us) => 1080 INT/s
 	// 0xFA7 (1000us) => 980 INT/s
 	// 0xFFF (1024us) => 950 INT/s
-	_writeReg32(IXGBE_EITR(queue_id), m_interrupt_para.itr_rate);
+	_writeReg32(IXGBE_EITR(que_idx), m_interrupt_para.itr_rate);
 
 	// Step 6: Software enables the required interrupt causes by setting the EIMS register
 	u32 mask = _readReg32(IXGBE_EIMS);
-	mask |= (1 << queue_id);
+	mask |= (1 << que_idx);
 	_writeReg32(IXGBE_EIMS, mask);
 	debug("Using MSIX interrupts");
 }
@@ -352,18 +352,18 @@ bool Intel82599Dev::enableDevInterrupt(){
             m_basic_para.rx_que_num);
         return false;
     }
-	for (uint16_t queue_id = 0; queue_id < m_basic_para.rx_que_num; queue_id++)
+	for (uint16_t que_idx = 0; que_idx < m_basic_para.rx_que_num; que_idx++)
 	{
-		if (!m_interrupt_para.interrupt_queues[queue_id].interrupt_enabled) {
-            warn("Interrupt queue %d not properly initialized", queue_id);
+		if (!m_interrupt_para.interrupt_queues[que_idx].interrupt_enabled) {
+            warn("Interrupt queue %d not properly initialized", que_idx);
 		return false;
 		}
 		switch (m_interrupt_para.interrupt_type) {
 			case VFIO_PCI_MSIX_IRQ_INDEX:
-				_enableDevMSIxInterrupt(queue_id);
+				_enableDevMSIxInterrupt(que_idx);
 				break;
 			case VFIO_PCI_MSI_IRQ_INDEX:
-				_enableDevMSIInterrupt(queue_id);
+				_enableDevMSIInterrupt(que_idx);
 				break;
 			default:
 				warn("Interrupt type not supported: %d", m_interrupt_para.interrupt_type);

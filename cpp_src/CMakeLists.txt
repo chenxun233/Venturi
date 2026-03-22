@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(CTest)
+enable_testing()
+
 add_compile_options(-g -O2 -march=native -fomit-frame-pointer
     -D_XOPEN_SOURCE=700
     -D_DEFAULT_SOURCE
@@ -13,6 +16,18 @@ add_compile_options(-g -O2 -march=native -fomit-frame-pointer
     -Wextra
     -Wpedantic
 )
+
+###############################################################################
+# Third-Party Test Dependencies
+###############################################################################
+set(GOOGLETEST_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/third_party/google_test)
+
+if(EXISTS ${GOOGLETEST_ROOT}/CMakeLists.txt)
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    set(BUILD_GMOCK ON CACHE BOOL "" FORCE)
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    add_subdirectory(${GOOGLETEST_ROOT} EXCLUDE_FROM_ALL)
+endif()
 
 ###############################################################################
 # Common Infrastructure (shared by all drivers)
@@ -67,15 +82,18 @@ target_include_directories(test_app_pcap PRIVATE
 ###############################################################################
 set(FPGA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/FPGA_boost_demo)
 set(FPGA_DRIVER_DIR ${FPGA_ROOT}/driver)
-set(FPGA_ADAPTER_DIR ${FPGA_ROOT}/adapter)
+set(FPGA_ADAPTER_DIR ${FPGA_ROOT}/decoder)
+set(FPGA_ENGINE_DIR ${FPGA_ROOT}/engine)
 set(FPGA_VALIDATION_DIR ${FPGA_ROOT}/validation)
 set(FPGA_APP_DIR ${FPGA_ROOT}/app)
+set(FPGA_TEST_DIR ${FPGA_ROOT}/tests)
 
 
 # FPGA Hello World test v2 (using common infrastructure)
 set(FPGA_SOURCES
+    ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp
-    ${FPGA_ADAPTER_DIR}/fpga_rx_adapter.cpp
+    ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
     ${FPGA_VALIDATION_DIR}/fpga_replay_validator.cpp
 )
 
@@ -94,16 +112,41 @@ target_include_directories(test_fpga_hello_v2 PRIVATE
 
 add_executable(test_fpga_rx_adapter
     ${COMMON_SOURCES}
-    ${FPGA_SOURCES}
-    ${FPGA_APP_DIR}/test_fpga_rx_adapter.cpp
+    ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
+    ${FPGA_DRIVER_DIR}/fpga_dev.cpp
+    ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
+    ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
+    ${FPGA_VALIDATION_DIR}/fpga_live_buffer_validator.cpp
+    ${FPGA_APP_DIR}/Venturi.cpp
 )
 target_include_directories(test_fpga_rx_adapter PRIVATE
     ${COMMON_INCLUDES}
     ${INTEL_DRIVER_DIR}
     ${FPGA_DRIVER_DIR}
     ${FPGA_ADAPTER_DIR}
+    ${FPGA_ENGINE_DIR}
     ${FPGA_VALIDATION_DIR}
 )
+
+if(TARGET GTest::gtest_main)
+    add_executable(fpga_rx_decoder_test
+        ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
+        ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
+        ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
+        ${FPGA_TEST_DIR}/fpga_rx_decoder_test.cpp
+    )
+    target_include_directories(fpga_rx_decoder_test PRIVATE
+        ${FPGA_DRIVER_DIR}
+        ${FPGA_ADAPTER_DIR}
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(fpga_rx_decoder_test PRIVATE
+        GTest::gtest_main
+    )
+
+    include(GoogleTest)
+    gtest_discover_tests(fpga_rx_decoder_test)
+endif()
 
 ###############################################################################
 # Build Summary
@@ -113,11 +156,12 @@ message(STATUS "=== Venturi Build Configuration ===")
 message(STATUS "Common directory:      ${COMMON_DIR}")
 message(STATUS "Intel demo directory:   ${INTEL_ROOT}")
 message(STATUS "FPGA demo directory:    ${FPGA_ROOT}")
+message(STATUS "GoogleTest directory:   ${GOOGLETEST_ROOT}")
 message(STATUS "")
 message(STATUS "Build targets:")
 message(STATUS "  - test_app_loopsend    (Intel 82599 loop send test)")
 message(STATUS "  - test_app_pcap        (Intel 82599 packet capture)")
 message(STATUS "  - test_fpga_hello      (FPGA standalone test)")
 message(STATUS "  - test_fpga_hello_v2   (FPGA infrastructure test)")
-message(STATUS "  - test_fpga_rx_adapter (FPGA RX adapter event poll demo)")
+message(STATUS "  - test_fpga_rx_adapter (FPGA RX decoder event poll demo)")
 message(STATUS "")

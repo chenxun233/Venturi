@@ -2,19 +2,20 @@
 
 #include "../../common/basic_dev.h"
 #include "../../common/dma_memory_allocator.h"
+#include "basic_rx_source.h"
 #include <vector>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include "log.h"
 
+#define SLOT_SIZE_BYTES 32 // 32 bytes, 256 bits.
 
-#define SLOT_SIZE_BYTES 32
-
-class FPGARxDataAdaptor;
+class FPGARxDecoder;
 class FpgaReplayValidator;
 
-class FPGADev : public BasicDev {
+class FPGADev : public BasicDev, public BasicRxSource {
 public:
 
     FPGADev(std::string pci_addr);
@@ -25,10 +26,10 @@ public:
     bool    setPriceBase(uint16_t que_idx, uint64_t price_base) ;    
     bool    setRxRingBuffers(uint16_t rx_que_num, uint32_t slot_num, uint32_t slot_size) override;
     bool    setTxRingBuffers(uint16_t tx_que_num, uint32_t slot_num, uint32_t slot_size) override;
-    bool    validateRxQueue() const;
     void    setSync(bool enable);
-    std::size_t pollRawRecords(uint16_t que_idx, uint64_t cons_ptr, const uint8_t** out, std::size_t max_records) const;
-    std::size_t pollRawRecordsSync(uint16_t que_idx, uint64_t cons_ptr, const uint8_t** out, uint64_t& FPGA_tick, std::size_t max_records) const;
+    bool    validateRxAll();
+    bool    isValid() const override { return m_is_valid; }
+
 
 
 private:
@@ -57,29 +58,35 @@ private:
         uint32_t    slot_size_bytes {SLOT_SIZE_BYTES};
         DMABuffer   dma_memory;
     };
+    
+private:
+    friend class FPGARxDecoder;
+    friend class FpgaReplayValidator;
+    // This should only be called by friend classes (adaptors)
+    // this function works with __readProdPtr() or __readProdPtrAndTick()
 
-
+    const uint8_t*  _pollOneRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
+    void            _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) override;
+private:
     void        _initStatus(DevStatus* stats) override;
     uint32_t    _getRegAddr(uint16_t que_idx, uint32_t reg_offset) const;
     void        _readSymbolNum() ;
-    
-
-private:
-    friend class FPGARxDataAdaptor;
-    friend class FpgaReplayValidator;
-    // Checked validation/setup path for callers that need to establish queue invariants.
-    
-    uint64_t    _readProdPtr(uint16_t que_idx) const;
-    void        _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr);
+    void        _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const;
+    // get system time should be put before and after this function  to do sync.
+    void        _readProdPtrAndTick(uint16_t que_idx, 
+                                    uint64_t& prod_ptr, 
+                                    uint64_t& fpga_tick,
+                                    uint64_t& host_time_ns, 
+                                    uint64_t& interval,
+                                    bool get_time ) const;
+    // use after processing bactch of records, to update the cons_ptr on FPGA side.
     uint64_t    _readDropCount(uint16_t que_idx) const;
     void        _readSyncEnable(bool& enabled);
-    void        _readFPGATickAndProdPtr(uint16_t que_idx, uint64_t& prod_ptr, uint64_t& fpga_tick) const;
-
-
 
 
 private:
     std::vector<QueueConfig> m_rx_queues;
     bool m_sync_enable {false};
     bool m_hw_ready {false};
+    bool m_is_valid {false};
 };

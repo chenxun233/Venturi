@@ -144,7 +144,7 @@ bool FpgaReplayValidator::run() {
 
     info("Replay traffic from another terminal with:");
     info("  tcpreplay -i enp1s0f1 -t --loop=0 market_data/HSBC_AAPL.pcap");
-    info("Starting one polling thread per FPGA RX queue through the adapter...");
+    info("Starting one polling thread per FPGA RX queue through the decoder...");
 
     std::atomic<bool> validation_ok(true);
     std::vector<std::thread> threads(rx_queue_count);
@@ -535,7 +535,7 @@ bool FpgaReplayValidator::pollQueueAndValidate(uint16_t que_idx) {
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    const uint64_t final_prod_ptr = m_device.readProdPtr(que_idx);
+    const uint64_t final_prod_ptr = m_device._readProdPtr(que_idx);
     if (final_prod_ptr != queue.expected_events.size()) {
         warn("Queue %u (%s) produced %llu events, expected %zu",
              que_idx,
@@ -582,13 +582,13 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
              que_idx,
              m_queues[que_idx].symbol_name.c_str(),
              static_cast<unsigned long long>(event_idx));
-        warn("  actual  : locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_ts=%llu frame_latency=%llu",
+        warn("  actual  : locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_tk=%llu frame_latency=%llu",
              actual.stock_locate,
              actual.ask_price,
              actual.ask_shares,
              actual.bid_price,
              actual.bid_shares,
-             static_cast<unsigned long long>(actual.frame_start_ts),
+             static_cast<unsigned long long>(actual.frame_start_tk),
              static_cast<unsigned long long>(actual.frame_latency));
         warn("  expected: locate=%04x ask=(%u,%u) bid=(%u,%u)",
              expected.stock_locate,
@@ -599,7 +599,7 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
         return false;
     }
 
-    info("Queue %u (%s) event %llu validated: locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_ts=%llu frame_latency=%llu",
+    info("Queue %u (%s) event %llu validated: locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_tk=%llu frame_latency=%llu",
          que_idx,
          m_queues[que_idx].symbol_name.c_str(),
          static_cast<unsigned long long>(event_idx),
@@ -608,7 +608,7 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
          actual.ask_shares,
          actual.bid_price,
          actual.bid_shares,
-         static_cast<unsigned long long>(actual.frame_start_ts),
+         static_cast<unsigned long long>(actual.frame_start_tk),
          static_cast<unsigned long long>(actual.frame_latency));
     return true;
 }

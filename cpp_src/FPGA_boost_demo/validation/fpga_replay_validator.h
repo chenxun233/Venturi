@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fpga_rx_adapter.h"
+#include "fpga_rx_decoder.h"
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -60,6 +60,6 @@ private:
 
 private:
     FPGADev& m_device;
-    FPGARxDataAdaptor m_adapter;
+    FPGARxDecoder m_adapter;
     std::vector<QueueValidationState> m_queues;
 };

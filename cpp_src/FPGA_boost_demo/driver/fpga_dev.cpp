@@ -2,7 +2,7 @@
 #include "../../common/log.h"
 
 #include <cstring>
-
+#include <ctime>
     // m_rx_queues.resize(m_basic_para.rx_que_num);
     // m_rx_queues[0].symbol_name = "AAPL";
     // m_rx_queues[0].stock_locate = 0x000d;
@@ -124,7 +124,7 @@ bool FPGADev::setPriceBase(uint16_t que_idx, uint64_t price_base) {
     return false;
 }
 
-bool FPGADev::validateRxQueue() const {
+bool FPGADev::validateRxAll() {
     if (!m_hw_ready || m_basic_para.bar0_addr == nullptr) {
         warn("FPGA hardware is not initialized");
         return false;
@@ -192,8 +192,10 @@ bool FPGADev::validateRxQueue() const {
             return false;
         }
     }
+    m_is_valid = true;
     return true;
 }
+
 
 void FPGADev::_readSymbolNum() {
     m_basic_para.rx_que_num = static_cast<uint8_t>(_readReg64(REG_RX_SYMBOL_NUM));
@@ -202,8 +204,8 @@ void FPGADev::_readSymbolNum() {
     return;
 }
 
-uint64_t FPGADev::_readProdPtr(uint16_t que_idx) const {
-    return _readReg64(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET));
+void FPGADev::_readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const {
+    prod_ptr = _readReg64(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET));
 }
 
 void FPGADev::_writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) {
@@ -225,59 +227,46 @@ void FPGADev::_readSyncEnable(bool& enabled) {
 }
 
 
-void FPGADev::_readFPGATickAndProdPtr(uint16_t que_idx, uint64_t& prod_ptr, uint64_t& fpga_tick) const {
-    _readReg128(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET), prod_ptr,fpga_tick);
+
+
+void FPGADev::_readProdPtrAndTick(uint16_t que_idx,
+                                  uint64_t& prod_ptr,
+                                  uint64_t& fpga_tick,
+                                  uint64_t& host_time_ns,
+                                  uint64_t& interval,
+                                bool get_time) const {
+    timespec ts_before {};
+    timespec ts_after {};
+
+    if (get_time) {
+        clock_gettime(CLOCK_MONOTONIC_RAW, &ts_before);
+        _readReg128(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET), prod_ptr, fpga_tick);
+        clock_gettime(CLOCK_MONOTONIC_RAW, &ts_after);
+        const uint64_t before_ns =
+            static_cast<uint64_t>(ts_before.tv_sec) * 1000000000ULL +
+            static_cast<uint64_t>(ts_before.tv_nsec);
+        const uint64_t after_ns =
+            static_cast<uint64_t>(ts_after.tv_sec) * 1000000000ULL +
+            static_cast<uint64_t>(ts_after.tv_nsec);
+
+        host_time_ns = (before_ns + after_ns) / 2ULL;
+        interval = after_ns - before_ns;
+    } else {
+        _readProdPtr(que_idx, prod_ptr);
+    }
+
 }
 
 
-std::size_t FPGADev::pollRawRecords(uint16_t que_idx,
-                                    uint64_t cons_ptr,
-                                    const uint8_t** out,
-                                    std::size_t max_records) const {
 
-    const auto* dma_base = static_cast<const uint8_t*>(m_rx_queues[que_idx].dma_memory.virt());
+const uint8_t* FPGADev::_pollOneRaw(uint16_t que_idx,
+                                    uint64_t cons_ptr) const {
 
-    const uint64_t prod_ptr = _readProdPtr(que_idx);
-    if (cons_ptr >= prod_ptr) {
-        return 0;
-    }
-    std::size_t record_count = 0;
-    uint64_t current_cons_ptr = cons_ptr;
-    while (record_count < max_records && current_cons_ptr < prod_ptr) {
-        const std::size_t slot_index = static_cast<std::size_t>(current_cons_ptr & (m_rx_queues[que_idx].slot_num - 1));
-        out[record_count] = dma_base + slot_index * m_rx_queues[que_idx].slot_size_bytes;
-
-        ++current_cons_ptr;
-        ++record_count;
-    }
-
-    return record_count;
+        const uint8_t* dma_base = static_cast<const uint8_t*>(m_rx_queues[que_idx].dma_memory.virt());
+        const std::size_t slot_index = static_cast<std::size_t>(cons_ptr & (m_rx_queues[que_idx].slot_num - 1));
+        return dma_base + slot_index * m_rx_queues[que_idx].slot_size_bytes;
 }
 
-
-std::size_t FPGADev::pollRawRecordsSync(uint16_t que_idx,
-                                    uint64_t cons_ptr,
-                                    const uint8_t** out,
-                                    uint64_t& FPGA_tick,
-                                    std::size_t max_records) const {
-
-    const auto* dma_base = static_cast<const uint8_t*>(m_rx_queues[que_idx].dma_memory.virt());
-    uint64_t prod_ptr;
-    _readFPGATickAndProdPtr(que_idx, prod_ptr, FPGA_tick);
-    if (cons_ptr >= prod_ptr) {
-        return 0;
-    }
-    std::size_t record_count = 0;
-    uint64_t current_cons_ptr = cons_ptr;
-    while (record_count < max_records && current_cons_ptr < prod_ptr) {
-        const std::size_t slot_index = static_cast<std::size_t>(current_cons_ptr & (m_rx_queues[que_idx].slot_num - 1));
-        out[record_count] = dma_base + slot_index * m_rx_queues[que_idx].slot_size_bytes;
-
-        ++current_cons_ptr;
-        ++record_count;
-    }
-    return record_count;
-}
 
 
 void FPGADev::_initStatus(DevStatus* stats) {
