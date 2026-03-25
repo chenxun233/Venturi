@@ -84,6 +84,12 @@ set(FPGA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/FPGA_boost_demo)
 set(FPGA_DRIVER_DIR ${FPGA_ROOT}/driver)
 set(FPGA_ADAPTER_DIR ${FPGA_ROOT}/decoder)
 set(FPGA_ENGINE_DIR ${FPGA_ROOT}/engine)
+set(FPGA_LATENCY_DIR ${FPGA_ROOT}/latency)
+set(FPGA_RUNTIME_DIR ${FPGA_ROOT}/runtime)
+set(FPGA_SYNC_DIR ${FPGA_ROOT}/sync)
+set(FPGA_STRATEGY_DIR ${FPGA_ROOT}/strategy)
+set(FPGA_TUNER_DIR ${FPGA_ROOT}/tuner)
+set(FPGA_TX_DIR ${FPGA_ROOT}/tx)
 set(FPGA_VALIDATION_DIR ${FPGA_ROOT}/validation)
 set(FPGA_APP_DIR ${FPGA_ROOT}/app)
 set(FPGA_TEST_DIR ${FPGA_ROOT}/tests)
@@ -116,7 +122,15 @@ add_executable(test_fpga_rx_adapter
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp
     ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
     ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
-    ${FPGA_VALIDATION_DIR}/fpga_live_buffer_validator.cpp
+    ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+    ${FPGA_LATENCY_DIR}/latency_tracker.cpp
+    ${FPGA_RUNTIME_DIR}/top_runner.cpp
+    ${FPGA_SYNC_DIR}/regression.cpp
+    ${FPGA_SYNC_DIR}/sync_handler.cpp
+    ${FPGA_STRATEGY_DIR}/passive_strategy.cpp
+    ${FPGA_TUNER_DIR}/tuner.cpp
+    ${FPGA_TX_DIR}/tx_engine.cpp
+    ${FPGA_VALIDATION_DIR}/runtime_payload_validator.cpp
     ${FPGA_APP_DIR}/Venturi.cpp
 )
 target_include_directories(test_fpga_rx_adapter PRIVATE
@@ -125,6 +139,12 @@ target_include_directories(test_fpga_rx_adapter PRIVATE
     ${FPGA_DRIVER_DIR}
     ${FPGA_ADAPTER_DIR}
     ${FPGA_ENGINE_DIR}
+    ${FPGA_LATENCY_DIR}
+    ${FPGA_RUNTIME_DIR}
+    ${FPGA_SYNC_DIR}
+    ${FPGA_STRATEGY_DIR}
+    ${FPGA_TUNER_DIR}
+    ${FPGA_TX_DIR}
     ${FPGA_VALIDATION_DIR}
 )
 
@@ -144,8 +164,21 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
+    add_executable(regression_test
+        ${FPGA_SYNC_DIR}/regression.cpp
+        ${FPGA_TEST_DIR}/regression_test.cpp
+    )
+    target_include_directories(regression_test PRIVATE
+        ${FPGA_SYNC_DIR}
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(regression_test PRIVATE
+        GTest::gtest_main
+    )
+
     include(GoogleTest)
     gtest_discover_tests(fpga_rx_decoder_test)
+    gtest_discover_tests(regression_test)
 endif()
 
 ###############################################################################
@@ -163,5 +196,5 @@ message(STATUS "  - test_app_loopsend    (Intel 82599 loop send test)")
 message(STATUS "  - test_app_pcap        (Intel 82599 packet capture)")
 message(STATUS "  - test_fpga_hello      (FPGA standalone test)")
 message(STATUS "  - test_fpga_hello_v2   (FPGA infrastructure test)")
-message(STATUS "  - test_fpga_rx_adapter (FPGA RX decoder event poll demo)")
+message(STATUS "  - test_fpga_rx_adapter (FPGA RX decoder event pollBatch demo)")
 message(STATUS "")

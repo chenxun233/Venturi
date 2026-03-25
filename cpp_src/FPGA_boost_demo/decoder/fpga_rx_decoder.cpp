@@ -1,6 +1,7 @@
 #include "fpga_rx_decoder.h"
 #include <stdexcept>
-#include "log.h"
+#include "../../common/log.h"
+
 
 namespace {
 
@@ -34,26 +35,28 @@ FPGARxDecoder::FPGARxDecoder(BasicRxSource& source, uint16_t que_idx)
       m_que_idx(que_idx) {
 
     if (!m_source.isValid()) {
-        warn("run validateRxAll() on the source before creating FPGARxDecoder");
+        warn("configure the RX source before creating FPGARxDecoder");
     }
 }
 
 
 void FPGARxDecoder::_decodeRawRecord(const uint8_t* record, FPGAEventDesc& event) {
+    event.is_first_event        = record[30];
     event.ask_price             = read_le32(record, 26);
     event.ask_shares            = read_le32(record, 22);
     event.bid_price             = read_le32(record, 18);
     event.bid_shares            = read_le32(record, 14);
     event.frame_start_tk        = read_le48(record, 8);
-    event.event_logic_latency_tk   = read_le48(record, 2);
+    event.event_tk              = read_le48(record, 2);
     event.stock_locate          = read_le16(record, 0);
+    
     
 }
 
 
 
 
-std::size_t FPGARxDecoder::decodeRawBatch(
+std::size_t FPGARxDecoder::decodeRawBatch(FirstEventMask& mask,
                                         FPGAEventDesc* out,
                                         std::size_t max_count) {
     uint64_t cons_ptr = m_cons_ptr;
@@ -64,6 +67,10 @@ std::size_t FPGARxDecoder::decodeRawBatch(
     while (record_count < max_count && cons_ptr < prod_ptr) {
         raw_byte = m_source._pollOneRaw(m_que_idx, cons_ptr);
         _decodeRawRecord(raw_byte, out[record_count]);
+        if (out[record_count].is_first_event) {
+            mask.first_event_mask |= (1ULL <<record_count);
+            ++mask.count;
+        }
         ++record_count;
         ++cons_ptr;
     }
@@ -73,15 +80,15 @@ std::size_t FPGARxDecoder::decodeRawBatch(
 }
 
 
-std::size_t FPGARxDecoder::decodeRawBatchSync(
+std::size_t FPGARxDecoder::decodeRawBatchSync(FirstEventMask& mask,
                                              FPGAEventDesc* out, 
                                              FpgaSyncSnapshot& snapshot,
-                                            bool get_time,
+                                             bool get_time,
                                              std::size_t max_count){
 
     uint64_t cons_ptr = m_cons_ptr;
     uint64_t prod_ptr = 0;
-    m_source._readProdPtrAndTick(m_que_idx,
+    m_source._readProdPtrAndTime(m_que_idx,
                                 prod_ptr,
                                 snapshot.fpga_tick,
                                 snapshot.host_time_ns,
@@ -92,6 +99,10 @@ std::size_t FPGARxDecoder::decodeRawBatchSync(
     while (record_count < max_count && cons_ptr < prod_ptr) {
         raw_byte = m_source._pollOneRaw(m_que_idx, cons_ptr);
         _decodeRawRecord(raw_byte, out[record_count]);
+        if (out[record_count].is_first_event) {
+            mask.first_event_mask |= (1ULL <<record_count);
+            ++mask.count;
+        }
         ++record_count;
         ++cons_ptr;
     }
@@ -100,4 +111,3 @@ std::size_t FPGARxDecoder::decodeRawBatchSync(
     return record_count;
 
 }
-

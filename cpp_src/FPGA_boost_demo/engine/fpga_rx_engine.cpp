@@ -2,8 +2,42 @@
 #include <stdexcept>
 #include <algorithm>
 
-FPGARxEngine::FPGARxEngine(FPGADev& device, uint16_t que_idx, std::unique_ptr<BasicStrategy> strategy)
-    : m_decoder(device, que_idx), m_strategy(std::move(strategy)) {
+namespace {
+
+void pushTraceRecords(TraceBuffer& trace_buffer,
+                      const std::array<FPGAEventDesc, MAX_POLL_RECORDS>& event_buffer,
+                      uint16_t que_idx,
+                      uint32_t first_event_mask,
+                      std::size_t count,
+                      uint64_t decode_time_ns) {
+    for (std::size_t record_idx = 0; record_idx < count; ++record_idx) {
+        if ((first_event_mask & (1u << record_idx)) == 0U) {
+            continue;
+        }
+        const FPGAEventDesc& event = event_buffer[record_idx];
+        TimeRecord record {
+            .que_idx = que_idx,
+            .event_ts = event.event_tk,
+            .event_stage = stage::FRAME_START,
+            .time_captured = event.frame_start_tk
+        };
+        trace_buffer.push(record);
+
+        record.event_stage = stage::DMA_EMIT;
+        record.time_captured = event.event_tk;
+        trace_buffer.push(record);
+
+        record.event_stage = stage::DECODE;
+        record.time_captured = decode_time_ns;
+        trace_buffer.push(record);
+    }
+}
+
+} // namespace
+
+FPGARxEngine::FPGARxEngine(FPGADev& device, uint16_t que_idx)
+    : m_decoder(device, que_idx),
+      m_que_idx(que_idx) {
     if (!m_decoder.isValid()) {
         throw std::runtime_error("Failed to initialize FPGARxDecoder in FPGARxEngine");
     }
@@ -13,86 +47,46 @@ const std::array<FPGAEventDesc, MAX_POLL_RECORDS>& FPGARxEngine::readEventBuffer
     return m_event_buffer;
 }
 
-std::size_t FPGARxEngine::readLastRecordCount() const {
-    return m_last_record_count;
+
+std::size_t FPGARxEngine::pollBatch(std::size_t batch_size, bool get_time ) {
+    FirstEventMask mask;
+    const std::size_t count = m_decoder.decodeRawBatch(mask, m_event_buffer.data(), batch_size);
+
+    if (get_time && mask.count > 0 && m_trace_buffer != nullptr) {
+        clock_gettime(CLOCK_MONOTONIC_RAW, &m_ts_captured);
+        const uint64_t time_ns =
+            static_cast<uint64_t>(m_ts_captured.tv_sec) * 1000000000ULL +
+            static_cast<uint64_t>(m_ts_captured.tv_nsec);
+
+        pushTraceRecords(*m_trace_buffer,
+                         m_event_buffer,
+                         m_que_idx,
+                         mask.first_event_mask,
+                         count,
+                         time_ns);
+    }
+    return count;
 }
 
-void FPGARxEngine::_adjustMaxCount(std::size_t decoded_count) {
-    constexpr std::size_t kMinPollCount = 8;
-
-    if (decoded_count >= m_max_poll_count && m_max_poll_count < m_event_buffer.size()) {
-        m_max_poll_count = std::min(m_event_buffer.size(), m_max_poll_count +4);
-        return;
+std::size_t FPGARxEngine::pollBatchSync(std::size_t batch_size,
+                                        const bool get_time,
+                                        std::atomic<bool>& ready,
+                                        FpgaSyncSnapshot& snapshot) {
+    FirstEventMask mask;                                        
+    const std::size_t count = m_decoder.decodeRawBatchSync(mask, m_event_buffer.data(),
+                                                           snapshot,
+                                                           get_time,
+                                                           batch_size);
+    if (get_time) {
+        if (mask.count > 0 && m_trace_buffer != nullptr) {
+            pushTraceRecords(*m_trace_buffer,
+                             m_event_buffer,
+                             m_que_idx,
+                             mask.first_event_mask,
+                             count,
+                             snapshot.host_time_ns);
+        }
+        ready.store(true, std::memory_order_release);
     }
-
-    if (decoded_count <= (m_max_poll_count / 4) && m_max_poll_count > kMinPollCount) {
-        m_max_poll_count = std::max(kMinPollCount, m_max_poll_count -4);
-    }
-}
-
-void FPGARxEngine::poll() {
-    const std::size_t count = m_decoder.decodeRawBatch(m_event_buffer.data(), m_max_poll_count);
-    m_last_record_count = count;
-    _adjustMaxCount(count);
-    if (m_strategy && count != 0) {
-    m_strategy->onEvents(m_event_buffer.data(), count);
-    }
-}
-
-void FPGARxEngine::pollSync() {
-    if (m_counter == 0 && m_period != 0) {
-        m_get_time = true;
-        m_counter = m_period-1;
-    } else if (m_period != 0) {
-        --m_counter;
-        m_get_time = false;
-    }
-    const std::size_t count = m_decoder.decodeRawBatchSync(m_event_buffer.data(), 
-                                                            m_last_sync_snapshot, 
-                                                            m_get_time, 
-                                                            m_max_poll_count);
-    m_last_record_count = count;
-    _updateRegression();
-    _adjustMaxCount(count);
-    if (m_strategy && count != 0) {
-        m_strategy->onEvents(m_event_buffer.data(), count);
-    }
-}
-
-void FPGARxEngine::adjust_sync_period(uint64_t period) {
-    m_period = period;
-}
-
-void FPGARxEngine::_updateRegression() {
-    if (m_get_time == false) {
-        return;
-    }
-    if (m_last_sync_snapshot.interval_ns == 0) {
-            return;
-    }
-    const uint64_t x = m_last_sync_snapshot.fpga_tick;
-    const uint64_t y = m_last_sync_snapshot.host_time_ns;
-
-    ++m_sync_acc.sample_count;
-    m_sync_acc.m_sum_fpga_tick      += static_cast<__int128>(x);
-    m_sync_acc.m_sum_host_time_ns   += static_cast<__int128>(y);
-    m_sync_acc.m_sum_fpga_tick_sq   += static_cast<__int128>(x) * static_cast<__int128>(x);
-    m_sync_acc.m_sum_fpga_host      += static_cast<__int128>(x) * static_cast<__int128>(y);
-    if (m_sync_acc.sample_count < 2) {
-        a_b.m_b_ns = static_cast<int64_t>(y) - static_cast<int64_t>(x);
-        return;
-    }
-    const __int128 n = static_cast<__int128>(m_sync_acc.sample_count);
-    const __int128 denom = n * m_sync_acc.m_sum_fpga_tick_sq - m_sync_acc.m_sum_fpga_tick * m_sync_acc.m_sum_fpga_tick;
-    if (denom == 0) {
-        return;
-    }
-    const __int128 numer =
-        n * m_sync_acc.m_sum_fpga_host - m_sync_acc.m_sum_fpga_tick * m_sync_acc.m_sum_host_time_ns;
-    // Q32 fixed-point slope
-    a_b.m_a_q32 = static_cast<uint64_t>((numer << 32) / denom);
-    const __int128 mean_x_q32 = (m_sync_acc.m_sum_fpga_tick << 32) / n;
-    const __int128 mean_y_q32 = (m_sync_acc.m_sum_host_time_ns << 32) / n;
-    const __int128 b_q32 = mean_y_q32 - (static_cast<__int128>(a_b.m_a_q32) * mean_x_q32 >> 32);
-    a_b.m_b_ns = static_cast<int64_t>(b_q32 >> 32);
+    return count;
 }

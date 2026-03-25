@@ -25,7 +25,7 @@ public:
     uint64_t lastWrittenConsPtr(uint16_t que_idx) const;
 
     void _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const override;
-    void _readProdPtrAndTick(uint16_t que_idx,
+    void _readProdPtrAndTime(uint16_t que_idx,
                             uint64_t& prod_ptr,
                             uint64_t& fpga_tick,
                             uint64_t& host_time_ns,
@@ -33,6 +33,7 @@ public:
                             bool get_time) const override;
     const uint8_t* _pollOneRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
     void _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) override;
+    bool isValid() const override { return true; }
 
 private:
     struct QueueState {

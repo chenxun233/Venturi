@@ -83,6 +83,7 @@ bool FPGADev::setRxRingBuffers(uint16_t rx_que_num, uint32_t slot_num, uint32_t 
              queue.slot_num,
              queue.slot_size_bytes);
     }
+    m_is_valid = true;
     return true;
 }
 
@@ -196,7 +197,6 @@ bool FPGADev::validateRxAll() {
     return true;
 }
 
-
 void FPGADev::_readSymbolNum() {
     m_basic_para.rx_que_num = static_cast<uint8_t>(_readReg64(REG_RX_SYMBOL_NUM));
     m_rx_queues.resize(m_basic_para.rx_que_num);
@@ -229,7 +229,7 @@ void FPGADev::_readSyncEnable(bool& enabled) {
 
 
 
-void FPGADev::_readProdPtrAndTick(uint16_t que_idx,
+void FPGADev::_readProdPtrAndTime(uint16_t que_idx,
                                   uint64_t& prod_ptr,
                                   uint64_t& fpga_tick,
                                   uint64_t& host_time_ns,
@@ -249,7 +249,7 @@ void FPGADev::_readProdPtrAndTick(uint16_t que_idx,
             static_cast<uint64_t>(ts_after.tv_sec) * 1000000000ULL +
             static_cast<uint64_t>(ts_after.tv_nsec);
 
-        host_time_ns = (before_ns + after_ns) / 2ULL;
+        host_time_ns = before_ns + ((after_ns - before_ns) >> 1);
         interval = after_ns - before_ns;
     } else {
         _readProdPtr(que_idx, prod_ptr);

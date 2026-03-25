@@ -49,8 +49,6 @@ struct QueuesPtr {
     void*                   rx;
     void*                   tx;
 };
-    
-
 
 class Intel82599Dev : public BasicDev{
     public:
@@ -59,10 +57,15 @@ class Intel82599Dev : public BasicDev{
         bool        initHardware();
         bool        initializeInterrupt(const int interrupt_interval, const uint32_t timeout_ms);
         bool        enableDevQueues();
+        bool        enableTxQueue();
         bool        enableDevInterrupt();
         bool        setRxRingBuffers(uint16_t tx_que_num,uint32_t num_buf, uint32_t buf_size)     override;
         bool        setTxRingBuffers(uint16_t tx_que_num,uint32_t num_buf, uint32_t buf_size)     override;
         bool        sendOnQueue(uint8_t* p_data, size_t size, uint16_t que_idx)                     ;
+        bool        sendBatchOnQueue(const uint8_t* const* p_data,
+                                     const size_t* sizes,
+                                     uint16_t pkt_num,
+                                     uint16_t que_idx)                                               ;
         void        loopSendTest(uint32_t num_buf);
         void        capturePackets(uint16_t batch_size,int64_t n_packets, std::string file_name);
         void        infoNIC_Tx(uint16_t tail_index);

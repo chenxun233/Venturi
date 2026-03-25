@@ -254,96 +254,121 @@ class MoldUDP64Frame:
 # Structured manual payload templates.
 # Edit these message fields directly instead of editing large hex strings.
 
-side = "S"  # "B" for buy, "S" for sell
-symbol = "HSBC"
-stock_locate = 3816  # in decimal
-
+side = "B"  # "B" for buy, "S" for sell
+symbol = "AAPL"
+stock_locate = 13  # in decimal
 MANUAL_MESSAGE_FRAMES = [
     MoldUDP64Frame(
         session="NASDQTEST",
         sequence_number=1,
         messages=[
-            TYPE_A(
-                stock_locate=stock_locate,
-                tracking_number=0,
-                timestamp=14400007075802,
-                order_reference_number=1,
-                buy_sell_indicator=side,
-                shares=10,
-                stock=symbol,
-                price="000.01",
-            ),
-            TYPE_F(
-                stock_locate=stock_locate,
-                tracking_number=0,
-                timestamp=30607343087807,
-                order_reference_number=2,
-                buy_sell_indicator=side,
-                shares=500,
-                stock=symbol,
-                price="000.02",
-                attribution="TSSM",
-            ),
-            TYPE_X(
-                stock_locate=stock_locate,
-                tracking_number=0,
-                timestamp=29887725030607,
-                order_reference_number=1,
-                canceled_shares=10,
-            ),
-            TYPE_X(
-                stock_locate=stock_locate,
-                tracking_number=0,
-                timestamp=29887725030607,
-                order_reference_number=2,
-                canceled_shares=100,
-            ),
-            TYPE_C(
-                stock_locate=stock_locate,
-                tracking_number=1,
-                timestamp=34200776180089,
-                order_reference_number=2,
-                executed_shares=200,
-                match_number=166998,
-                printable="N",
-                execution_price="000.02",
-            ),
+            # TYPE_A(
+            #     stock_locate=stock_locate,
+            #     tracking_number=0,
+            #     timestamp=14400007075802,
+            #     order_reference_number=1,
+            #     buy_sell_indicator=side,
+            #     shares=10,
+            #     stock=symbol,
+            #     price="000.01",
+            # ),
             TYPE_E(
                 stock_locate=stock_locate,
                 tracking_number=2,
                 timestamp=14788203892840,
-                order_reference_number=2,
-                executed_shares=200,
+                order_reference_number=1,
+                executed_shares=10,
                 match_number=17959,
-            ),
-            TYPE_A(
-                stock_locate=stock_locate,
-                tracking_number=0,
-                timestamp=14400007075802,
-                order_reference_number=3,
-                buy_sell_indicator=side,
-                shares=20,
-                stock=symbol,
-                price="000.03",
-            ),
-            TYPE_U(
-                stock_locate=stock_locate,
-                tracking_number=0,
-                timestamp=33631366330025,
-                original_order_reference_number=3,
-                new_order_reference_number=4,
-                shares=100,
-                price="000.04",
-            ),
-            TYPE_D(
-                stock_locate=stock_locate,
-                tracking_number=0,
-                timestamp=14433223196496,
-                order_reference_number=4,
             ),
         ],
     )
 ]
+# MANUAL_MESSAGE_FRAMES = [
+#     MoldUDP64Frame(
+#         session="NASDQTEST",
+#         sequence_number=1,
+#         messages=[
+#             TYPE_A(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=14400007075802,
+#                 order_reference_number=1,
+#                 buy_sell_indicator=side,
+#                 shares=10,
+#                 stock=symbol,
+#                 price="000.01",
+#             ),
+#             TYPE_F(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=30607343087807,
+#                 order_reference_number=2,
+#                 buy_sell_indicator=side,
+#                 shares=500,
+#                 stock=symbol,
+#                 price="000.02",
+#                 attribution="TSSM",
+#             ),
+#             TYPE_X(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=29887725030607,
+#                 order_reference_number=1,
+#                 canceled_shares=10,
+#             ),
+#             TYPE_X(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=29887725030607,
+#                 order_reference_number=2,
+#                 canceled_shares=100,
+#             ),
+#             TYPE_C(
+#                 stock_locate=stock_locate,
+#                 tracking_number=1,
+#                 timestamp=34200776180089,
+#                 order_reference_number=2,
+#                 executed_shares=200,
+#                 match_number=166998,
+#                 printable="N",
+#                 execution_price="000.02",
+#             ),
+#             TYPE_E(
+#                 stock_locate=stock_locate,
+#                 tracking_number=2,
+#                 timestamp=14788203892840,
+#                 order_reference_number=2,
+#                 executed_shares=200,
+#                 match_number=17959,
+#             ),
+#             TYPE_A(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=14400007075802,
+#                 order_reference_number=3,
+#                 buy_sell_indicator=side,
+#                 shares=20,
+#                 stock=symbol,
+#                 price="000.03",
+#             ),
+#             TYPE_U(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=33631366330025,
+#                 original_order_reference_number=3,
+#                 new_order_reference_number=4,
+#                 shares=100,
+#                 price="000.04",
+#             ),
+#             TYPE_D(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=14433223196496,
+#                 order_reference_number=4,
+#             ),
+#         ],
+#     )
+# ]
 
 # Optional raw-hex fallback.
 MANUAL_HEX_PAYLOADS = [frame.to_payload().hex() for frame in MANUAL_MESSAGE_FRAMES]

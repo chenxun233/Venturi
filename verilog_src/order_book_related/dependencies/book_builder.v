@@ -18,7 +18,7 @@ reg  [31:0]                             qty_d_shares;
 reg                                     op_done; // indicating the completion, used for type U which has two steps of updating the book and qty.
 
 
-assign o_qty_msg = {qty_bid_ask, qty_price, qty_is_add, qty_d_shares,op_done, msg_timestamp};
+assign o_qty_msg = {qty_bid_ask, qty_price, qty_is_add, qty_d_shares,op_done, frame_ts};
 
 localparam ORDER_BOOK_WIDTH            = 67; // {valid, side, shares, price}
 localparam TYPE_A                      = 8'h41;
@@ -48,7 +48,7 @@ wire [63:0]   msg_new_order_ref = ff_o_msg[177:114];
 wire [1:0]    msg_side          = ff_o_msg[113:112];
 wire [31:0]   msg_shares        = ff_o_msg[111:80];
 wire [31:0]   msg_price         = ff_o_msg[79:48];
-wire [47:0]   msg_timestamp     = ff_o_msg[47:0];
+wire [47:0]   frame_ts          = ff_o_msg[47:0];
 
 assign ff_push = i_parser_msg[PARSER_MSG_BIT-1] && i_stock_valid;
 assign ff_pop  = ff_not_empty && (book_upd_state == IDLE) && !ff_o_valid;

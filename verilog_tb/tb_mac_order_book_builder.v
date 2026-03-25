@@ -8,7 +8,7 @@ module tb_mac_order_book_builder;
     localparam CLK156_PERIOD = 10;
     localparam CLK250_PERIOD = 4;
     localparam FRAME_BYTES = 359;
-    localparam PAYLOAD_W   = 192;
+    localparam PAYLOAD_W   = 200;
     localparam EVENT_CDC_DEPTH = 4;
     localparam SYMBOL_NUM  = 2;
 
@@ -18,6 +18,10 @@ module tb_mac_order_book_builder;
 
     localparam AAPL_LOCATE = 16'h000d;
     localparam HSBC_LOCATE = 16'h0ee8;
+    localparam [31:0] AAPL_PRICE_BASE = 32'd0;
+    localparam [31:0] HSBC_PRICE_BASE = 32'd0;
+    localparam [SYMBOL_NUM*16-1:0] SYMBOL_STOCK_LOCATE_CFG = {HSBC_LOCATE, AAPL_LOCATE};
+    localparam [SYMBOL_NUM*32-1:0] SYMBOL_PRICE_BASE_CFG   = {HSBC_PRICE_BASE, AAPL_PRICE_BASE};
     localparam [63:0] AAPL_DMA_BASE = 64'h0000_0000_1000_0000;
     localparam [63:0] HSBC_DMA_BASE = 64'h0000_0000_1000_1000;
 
@@ -182,6 +186,8 @@ module tb_mac_order_book_builder;
         .i_shares            (parser_shares),
         .i_price             (parser_price),
         .i_frame_ts          (parser_frame_ts),
+        .i_symbol_stock_locate_cfg (SYMBOL_STOCK_LOCATE_CFG),
+        .i_symbol_price_base_cfg   (SYMBOL_PRICE_BASE_CFG),
         .o_event_valid       (builder_event_valid),
         .o_event_payload     (builder_event_payload)
     );

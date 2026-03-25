@@ -32,7 +32,7 @@ void FakeFPGADev::_readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const {
     prod_ptr = m_queue_states[que_idx].prod_ptr;
 }
 
-void FakeFPGADev::_readProdPtrAndTick(uint16_t que_idx,
+void FakeFPGADev::_readProdPtrAndTime(uint16_t que_idx,
                                      uint64_t& prod_ptr,
                                      uint64_t& fpga_tick,
                                      uint64_t& host_time_ns,

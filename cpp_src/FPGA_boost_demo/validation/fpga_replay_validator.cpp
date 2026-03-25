@@ -110,7 +110,6 @@ std::filesystem::path locate_repo_file(const std::string& relative_path) {
 
 FpgaReplayValidator::FpgaReplayValidator(FPGADev& device)
     : m_device(device),
-      m_adapter(device),
       m_queues({
           QueueValidationState{"AAPL", kAaplLocate, {}},
           QueueValidationState{"HSBC", kHsbcLocate, {}},
@@ -123,7 +122,7 @@ bool FpgaReplayValidator::run() {
         return false;
     }
 
-    const uint16_t rx_queue_count = m_device.rxQueueCount();
+    const uint16_t rx_queue_count = static_cast<uint16_t>(m_device.m_rx_queues.size());
     if (rx_queue_count != m_queues.size()) {
         warn("Validator expects %zu RX queues but hardware reports %u", m_queues.size(), rx_queue_count);
         return false;
@@ -183,8 +182,10 @@ bool FpgaReplayValidator::loadExpectedPayloads() {
         {1, "market_data/HSBC_3816_S_payload_frames_hex.txt"}
     }};
 
-    if (m_device.rxQueueCount() != fixtures.size() || m_queues.size() != fixtures.size()) {
-        warn("Fixture set expects %zu queues but runtime reports %u queues", fixtures.size(), m_device.rxQueueCount());
+    if (m_device.m_rx_queues.size() != fixtures.size() || m_queues.size() != fixtures.size()) {
+        warn("Fixture set expects %zu queues but runtime reports %zu queues",
+             fixtures.size(),
+             m_device.m_rx_queues.size());
         return false;
     }
 
@@ -472,22 +473,13 @@ bool FpgaReplayValidator::runReplayEnvironmentChecks() {
 
 bool FpgaReplayValidator::validateSyncEnable() {
     bool initial_value = false;
-    if (!m_device.readSyncEnable(initial_value)) {
-        warn("Failed to read REG_SYNC_ENABLE before replay validation");
-        return false;
-    }
+    m_device._readSyncEnable(initial_value);
 
     info("REG_SYNC_ENABLE initial state: %u", initial_value ? 1U : 0U);
 
-    if (!m_device.setSync(true)) {
-        warn("Failed to enable REG_SYNC_ENABLE during replay validation");
-        return false;
-    }
+    m_device.setSync(true);
 
-    if (!m_device.setSync(initial_value)) {
-        warn("Failed to restore REG_SYNC_ENABLE to %u during replay validation", initial_value ? 1U : 0U);
-        return false;
-    }
+    m_device.setSync(initial_value);
 
     return true;
 }
@@ -498,6 +490,8 @@ bool FpgaReplayValidator::pollQueueAndValidate(uint16_t que_idx) {
         return false;
     }
 
+    FPGARxDecoder decoder(m_device, que_idx);
+    std::array<FPGAEventDesc, MAX_POLL_RECORDS> event_buffer {};
     QueueValidationState& queue = m_queues[que_idx];
     if (queue.expected_events.empty()) {
         warn("Queue %u (%s) has no expected events to validate", que_idx, queue.symbol_name.c_str());
@@ -513,8 +507,9 @@ bool FpgaReplayValidator::pollQueueAndValidate(uint16_t que_idx) {
          queue.expected_events.size());
 
     while (event_idx < queue.expected_events.size()) {
-        FPGAEventDesc actual;
-        if (!m_adapter.pollOne(que_idx, actual)) {
+        FirstEventMask mask {};
+        const std::size_t count = decoder.decodeRawBatch(mask, event_buffer.data(), event_buffer.size());
+        if (count == 0) {
             if (std::chrono::steady_clock::now() > deadline) {
                 warn("Timed out waiting for queue %u (%s): consumed %llu / %zu events",
                      que_idx,
@@ -527,15 +522,20 @@ bool FpgaReplayValidator::pollQueueAndValidate(uint16_t que_idx) {
             continue;
         }
 
-        if (!compareEvent(que_idx, event_idx, actual)) {
-            return false;
-        }
+        for (std::size_t record_idx = 0;
+             record_idx < count && event_idx < queue.expected_events.size();
+             ++record_idx) {
+            if (!compareEvent(que_idx, event_idx, event_buffer[record_idx])) {
+                return false;
+            }
 
-        ++event_idx;
+            ++event_idx;
+        }
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    const uint64_t final_prod_ptr = m_device._readProdPtr(que_idx);
+    uint64_t final_prod_ptr = 0;
+    m_device._readProdPtr(que_idx, final_prod_ptr);
     if (final_prod_ptr != queue.expected_events.size()) {
         warn("Queue %u (%s) produced %llu events, expected %zu",
              que_idx,
@@ -545,7 +545,7 @@ bool FpgaReplayValidator::pollQueueAndValidate(uint16_t que_idx) {
         return false;
     }
 
-    const uint64_t drop_count = m_device.rxQueueDropCount(que_idx);
+    const uint64_t drop_count = m_device._readDropCount(que_idx);
     if (drop_count != 0) {
         warn("Queue %u (%s) reported drop_count=%llu",
              que_idx,
@@ -582,14 +582,15 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
              que_idx,
              m_queues[que_idx].symbol_name.c_str(),
              static_cast<unsigned long long>(event_idx));
-        warn("  actual  : locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_tk=%llu frame_latency=%llu",
+        warn("  actual  : locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_tk=%llu event_tk=%llu first=%u",
              actual.stock_locate,
              actual.ask_price,
              actual.ask_shares,
              actual.bid_price,
              actual.bid_shares,
              static_cast<unsigned long long>(actual.frame_start_tk),
-             static_cast<unsigned long long>(actual.frame_latency));
+             static_cast<unsigned long long>(actual.event_tk),
+             static_cast<unsigned>(actual.is_first_event));
         warn("  expected: locate=%04x ask=(%u,%u) bid=(%u,%u)",
              expected.stock_locate,
              expected.ask_price,
@@ -599,7 +600,7 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
         return false;
     }
 
-    info("Queue %u (%s) event %llu validated: locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_tk=%llu frame_latency=%llu",
+    info("Queue %u (%s) event %llu validated: locate=%04x ask=(%u,%u) bid=(%u,%u) frame_start_tk=%llu event_tk=%llu first=%u",
          que_idx,
          m_queues[que_idx].symbol_name.c_str(),
          static_cast<unsigned long long>(event_idx),
@@ -609,6 +610,7 @@ bool FpgaReplayValidator::compareEvent(uint16_t que_idx, uint64_t event_idx, con
          actual.bid_price,
          actual.bid_shares,
          static_cast<unsigned long long>(actual.frame_start_tk),
-         static_cast<unsigned long long>(actual.frame_latency));
+         static_cast<unsigned long long>(actual.event_tk),
+         static_cast<unsigned>(actual.is_first_event));
     return true;
 }

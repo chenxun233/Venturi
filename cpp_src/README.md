@@ -189,7 +189,7 @@ sudo ./test_fpga_hello_v2 0000:03:00.0
 
 - **TX throughput**: ~14.88 Mpps (line rate for 64-byte packets)
 - **RX throughput**: ~14.88 Mpps (line rate)
-- **Latency**: <1 µs (measured with hardware timestamping)
+- **StageLatency**: <1 µs (measured with hardware timestamping)
 
 ### Optimization Techniques
 

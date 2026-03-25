@@ -10,7 +10,7 @@ module qty_book_wrapper #(
     output wire [31:0]                   o_best_price_aligned,
     output wire [31:0]                   o_best_shares,
     output wire                          o_op_done_aligned,
-    output wire [47:0]                   o_timestamp_aligned
+    output wire [47:0]                   o_frame_ts_aligned
 
 );
 
@@ -34,8 +34,8 @@ wire [31:0]     bram_i_data_b = {32{1'b0}};
 wire [31:0]     bram_o_data_b;
 wire                         op_done;
 wire                         t_op_done;
-wire [47:0]                 qty_time_stamp;
-wire [47:0]                 tree_timestamp;
+wire [47:0]                 qty_frame_ts;
+wire [47:0]                 tree_frame_ts;
 qty_builder #(
     .QTY_MSG_BIT       (QTY_MSG_BIT),
     .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
@@ -49,7 +49,7 @@ qty_builder #(
     .o_price_idx        (price_idx      ),
     .o_price_change     (price_change   ),
     .o_op_done          (op_done        ),
-    .o_timestamp        (qty_time_stamp),  
+    .o_frame_ts         (qty_frame_ts ),  
     .o_bram_addr        (bram_addr_a    ),
     .o_bram_op          (bram_op_a      ),
     .o_bram_i_data      (bram_i_data_a  )
@@ -64,8 +64,8 @@ tree_builder #(
     .i_price_idx        (price_idx   ),
     .i_price_change     (price_change),
     .i_op_done          (op_done     ),
-    .i_timestamp        (qty_time_stamp ),
-    .o_timestamp        (tree_timestamp ),
+    .i_frame_ts         (qty_frame_ts ),
+    .o_frame_ts         (tree_frame_ts ),
     .o_best_price_idx   (best_idx    ),
     .o_op_done          (t_op_done   )
 );
@@ -77,11 +77,11 @@ aligner #(
     .i_best_price          (best_price),
     .i_t_op_done           (t_op_done),
     .i_best_shares         (bram_o_data_b),
-    .i_timestamp           (tree_timestamp),
+    .i_frame_ts            (tree_frame_ts),
     .o_best_price_aligned  (o_best_price_aligned),
     .o_best_shares         (o_best_shares),
     .o_op_done_aligned     (o_op_done_aligned),
-    .o_timestamp_aligned   (o_timestamp_aligned)                   
+    .o_frame_ts_aligned    (o_frame_ts_aligned)                   
 );
 
 // wire [31:0] temp_bram_o_data_b;

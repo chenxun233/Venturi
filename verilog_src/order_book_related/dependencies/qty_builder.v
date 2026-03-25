@@ -11,7 +11,7 @@ module qty_builder #(
     output  reg  [QTY_PRICE_LVL_BIT-1:0]  o_price_idx,
     output  reg  [1:0]                    o_price_change,
     output  reg                           o_op_done,
-    output  reg  [47:0]                   o_timestamp,
+    output  reg  [47:0]                   o_frame_ts,
     output  wire [QTY_PRICE_LVL_BIT-1:0]  o_bram_addr,
     output  wire [1:0]                    o_bram_op,
     output  wire [31:0]      o_bram_i_data
@@ -45,13 +45,13 @@ wire [31:0]                 qty_price           = ff_o_qty_msg[QTY_MSG_BIT-3:QTY
 wire                        qty_is_add          = ff_o_qty_msg[QTY_MSG_BIT-35];
 wire [31:0]                 qty_d_shares        = ff_o_qty_msg[QTY_MSG_BIT-36:QTY_MSG_BIT-67];
 wire                        op_done             = ff_o_qty_msg[QTY_MSG_BIT-68];
-wire [47:0]                 qty_timestamp       = ff_o_qty_msg[QTY_MSG_BIT-69:0];
+wire [47:0]                 qty_frame_ts       = ff_o_qty_msg[QTY_MSG_BIT-69:0];
 
 reg [QTY_PRICE_LVL_BIT-1:0] latch_qty_prc_idx;
 reg                         latch_qty_is_add;
 reg [31:0]                  latch_qty_d_shares;
 reg                         latch_op_done;
-reg [47:0]                  latch_timestamp;
+reg [47:0]                  latch_frame_ts;
 
 
 wire [31:0]    qty_cur             = i_bram_o_data;
@@ -86,13 +86,13 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         latch_qty_is_add     <= 1'b0;
         latch_qty_d_shares   <= {32{1'b0}};
         latch_op_done        <= 1'b0;
-        latch_timestamp      <= {48{1'b0}};
+        latch_frame_ts      <= {48{1'b0}};
     end else if (ff_o_valid) begin
         latch_qty_prc_idx    <= calc_qty_book_addr(qty_price, i_price_base);
         latch_qty_is_add     <= qty_is_add;
         latch_qty_d_shares   <= qty_d_shares;
         latch_op_done        <= op_done;
-        latch_timestamp      <= qty_timestamp;
+        latch_frame_ts       <= qty_frame_ts;
     end
 end
 
@@ -133,7 +133,7 @@ end
 always @(*) begin
     if (qty_upd_state == SECOND_CYCLE) begin
         o_op_done       = latch_op_done;
-        o_timestamp     = latch_timestamp;
+        o_frame_ts      = latch_frame_ts;
         if (qty_cur == 0 && qty_new > 0) begin
             // empty -> non-empty
             o_price_idx     = qty_addr;
@@ -150,7 +150,7 @@ always @(*) begin
         o_price_idx         = 0;
         o_price_change      = IDLE;
         o_op_done           = 1'b0;
-        o_timestamp         = {48{1'b0}};
+        o_frame_ts         = {48{1'b0}};
     end
 end
 

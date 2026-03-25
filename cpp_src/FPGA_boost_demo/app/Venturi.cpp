@@ -1,12 +1,14 @@
 #include "../driver/fpga_dev.h"
 #include "../engine/fpga_rx_engine.h"
-#include "../validation/fpga_live_buffer_validator.h"
+#include "../latency/latency_tracker.h"
+#include "../runtime/top_runner.h"
+#include "../sync/regression.h"
+#include "../sync/sync_handler.h"
 #include "../../common/log.h"
 
 #include <array>
-#include <span>
+#include <chrono>
 #include <string_view>
-#include <thread>
 
 namespace {
 
@@ -24,10 +26,14 @@ constexpr std::array<uint32_t, kQueueCount> kPriceBases = {
     0U,
     0U,
 };
-constexpr std::array<std::string_view, kQueueCount> kFixturePaths = {
-    "market_data/AAPL_13_B_payload_frames_hex.txt",
-    "market_data/HSBC_3816_S_payload_frames_hex.txt",
-};
+
+constexpr bool kSyncEnabled = true;
+constexpr auto kPrintInterval = std::chrono::seconds(1);
+constexpr auto kControlLoopSleep = std::chrono::microseconds(100);
+constexpr uint64_t kSyncPeriod =
+    static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(kPrintInterval).count() /
+                          kControlLoopSleep.count());
+constexpr std::size_t kLatencyQueueCapacity = 1024;
 
 } // namespace
 
@@ -54,73 +60,25 @@ int main() {
         }
     }
 
-    device.setSync(false);
-    
-    if (device.validateRxAll()) {
-        info("FPGA RX queue validation passed");
-    } else {
-        error("FPGA RX queue validation failed");
-        return 1;
-    }
-
+    device.setSync(kSyncEnabled);
 
     FPGARxEngine engine0(device, 0);
     FPGARxEngine engine1(device, 1);
+    LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
 
-    std::thread queue0_thread([&engine0]() {
-        FpgaQueueLiveValidator validator(0,
-                                         std::string(kSymbolNames[0]),
-                                         kStockLocates[0],
-                                         std::string(kFixturePaths[0]));
-        if (!validator.loadExpectedEvents()) {
-            error("Queue 0 live validation fixture load failed");
-            return;
-        }
+    SyncHandler sync_handler(kSyncPeriod);
+    Regression regression;
 
-        while (!validator.isComplete()) {
-            engine0.poll();
-            const std::size_t record_count = engine0.readLastRecordCount();
-            if (record_count == 0) {
-                std::this_thread::yield();
-                continue;
-            }
+    latency_tracker.setPrintInterval(kPrintInterval);
 
-            const auto& event_buffer = engine0.readEventBuffer();
-            if (!validator.validateBatch(std::span<const FPGAEventDesc>(event_buffer.data(), record_count))) {
-                error("Queue 0 live validation failed");
-                return;
-            }
-        }
-    });
-
-    std::thread queue1_thread([&engine1]() {
-        FpgaQueueLiveValidator validator(1,
-                                         std::string(kSymbolNames[1]),
-                                         kStockLocates[1],
-                                         std::string(kFixturePaths[1]));
-        if (!validator.loadExpectedEvents()) {
-            error("Queue 1 live validation fixture load failed");
-            return;
-        }
-
-        while (!validator.isComplete()) {
-            engine1.poll();
-            const std::size_t record_count = engine1.readLastRecordCount();
-            if (record_count == 0) {
-                std::this_thread::yield();
-                continue;
-            }
-
-            const auto& event_buffer = engine1.readEventBuffer();
-            if (!validator.validateBatch(std::span<const FPGAEventDesc>(event_buffer.data(), record_count))) {
-                error("Queue 1 live validation failed");
-                return;
-            }
-        }
-    });
-
-    queue0_thread.join();
-    queue1_thread.join();
+    TopRunner runner(device);
+    runner.addRxEngine(engine0, true);
+    runner.addRxEngine(engine1, false);
+    runner.addSyncController(sync_handler);
+    runner.attachLatencyTracker(&latency_tracker);
+    runner.attachRegression(&regression);
+    runner.setControlLoopSleep(kControlLoopSleep);
+    runner.run();
 
     return 0;
 }

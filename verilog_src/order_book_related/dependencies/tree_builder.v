@@ -7,8 +7,8 @@ module tree_builder #(
     input  wire [QTY_PRICE_LVL_BIT-1:0] i_price_idx,
     input  wire [1:0]                   i_price_change,
     input  wire                         i_op_done,
-    input  wire [47:0]                  i_timestamp,
-    output wire [47:0]                  o_timestamp,      
+    input  wire [47:0]                  i_frame_ts,
+    output wire [47:0]                  o_frame_ts,      
     output wire [QTY_PRICE_LVL_BIT-1:0] o_best_price_idx,
     output wire                         o_op_done
 );
@@ -36,14 +36,14 @@ module tree_builder #(
 
     integer     idx;
     reg         latch_op_done;
-    reg [47:0] latch_timestamp;
+    reg [47:0] latch_frame_ts;
 
     // The leaf level stores only valid bits. The index is implied by the array subscript.
     // mid_* is the pipeline register stage at MID_LEVEL.
     always @(posedge i_clk or posedge i_rst) begin
         if (i_rst) begin
             latch_op_done <= 1'b0;
-            latch_timestamp <= {48{1'b0}};
+            latch_frame_ts <= {48{1'b0}};
             for (idx = 0; idx < LAST_COUNT; idx = idx + 1) begin
                 btm_valid[idx] = 1'b0;
             end
@@ -52,10 +52,13 @@ module tree_builder #(
                 mid_idx[idx]   = {QTY_PRICE_LVL_BIT{1'b0}};
             end
         end else begin
+            latch_op_done <= i_op_done;
+            if (i_op_done) begin
+                latch_frame_ts <= i_frame_ts;
+            end
+
             if (i_price_change != IDLE) begin
                 btm_valid[i_price_idx] <= (i_price_change == NON_EMPTY);
-                latch_op_done <= i_op_done;
-                latch_timestamp <= i_timestamp;
             end
 
             for (idx = 0; idx < MID_COUNT; idx = idx + 1) begin
@@ -157,11 +160,11 @@ module tree_builder #(
         if (MID_LEVEL == 0) begin : gen_top_from_mid
             assign o_best_price_idx   = mid_idx[0];
             assign o_op_done = latch_op_done;
-            assign o_timestamp = latch_timestamp;
+            assign o_frame_ts = latch_frame_ts;
         end else begin : gen_top_from_lower
             assign o_best_price_idx   = top_to_mid_idx[0][0];
             assign o_op_done = latch_op_done;
-            assign o_timestamp = latch_timestamp;
+            assign o_frame_ts = latch_frame_ts;
         end
     endgenerate
 

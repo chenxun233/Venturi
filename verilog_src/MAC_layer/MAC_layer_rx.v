@@ -42,16 +42,14 @@ module MAC_layer_rx #(
         end
     endgenerate
 
-wire frame_started = (cur_state == IDLE) && (|sof_location) && i_rx_status && i_axi_rx_ready;
-
-assign o_frame_started = frame_started;
+assign o_frame_started = (cur_state == IDLE) && (|sof_location) && i_rx_status && i_axi_rx_ready;
 
 timestamper #(
     .COUNTER_WIDTH (48)
 ) timestamp_inst (
     .i_clk               (i_xgmii_rx_clk),
     .i_rst               (i_xgmii_rx_rst),
-    .i_event             (frame_started),
+    .i_event             (o_frame_started),
     .o_mac_timestamp     (o_frame_ts    ),
     .o_dma_timestamp_gray(o_dma_ts_gray)
 );

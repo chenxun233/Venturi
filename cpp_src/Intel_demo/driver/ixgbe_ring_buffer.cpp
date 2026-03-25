@@ -1,9 +1,31 @@
 #include "ixgbe_ring_buffer.h"
 #include "device.h"
 #include "log.h"
+#include <immintrin.h>
+#include <cstdint>
 #include <sys/epoll.h>
 #define wrap_ring(index, ring_size) (uint16_t) ((index + 1) & (ring_size - 1))
 using namespace std;
+
+namespace {
+
+constexpr std::size_t kCacheLineSize = 64;
+
+void flushCacheRange(const void* ptr, std::size_t size) {
+	if (ptr == nullptr || size == 0) {
+		return;
+	}
+
+	uintptr_t start = reinterpret_cast<uintptr_t>(ptr) & ~(static_cast<uintptr_t>(kCacheLineSize - 1));
+	const uintptr_t end =
+		(reinterpret_cast<uintptr_t>(ptr) + size + kCacheLineSize - 1) &
+		~(static_cast<uintptr_t>(kCacheLineSize - 1));
+	for (uintptr_t addr = start; addr < end; addr += kCacheLineSize) {
+		_mm_clflush(reinterpret_cast<const void*>(addr));
+	}
+}
+
+} // namespace
 
 
 
@@ -214,10 +236,14 @@ uint16_t IXGBE_TxRingBuffer::linkPktWithDesc(uint16_t batch_size){
 		// 	* ip checksum offloading is trivial: just set the offset
 		// 	* tcp/udp checksum offloading is more annoying, you have to precalculate the pseudo-header checksum
 		txd->read.olinfo_status = buf->size << IXGBE_ADVTXD_PAYLEN_SHIFT;
+		flushCacheRange(reinterpret_cast<const void*>(buf->data), buf->size);
+		flushCacheRange(reinterpret_cast<const void*>(const_cast<union ixgbe_adv_tx_desc*>(txd)),
+		                sizeof(*txd));
 		m_desc_tail = next_index;
 		buf = getUsedBufAddr();
 		linked++;
 	}
+	_mm_sfence();
 	return m_desc_tail;
 }
 
@@ -247,7 +273,7 @@ bool IXGBE_TxRingBuffer::fillPktBuf (const char* data, uint32_t size) {
 	}
 	memcpy(buf->data, data, size);
 	buf->size = size;
-	*(uint16_t*) (buf->data + 24) = _calcIPChecksum(buf->data + 14, 20);
+	flushCacheRange(reinterpret_cast<const void*>(buf->data), size);
 	if (setUsedBufAddr(buf) == false) {
 		p_mem_pool->freePktBuf(buf);
 		error("failed to set used buf addr");

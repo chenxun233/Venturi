@@ -218,15 +218,19 @@ bool BasicDev::_readReg128(uint32_t offset, uint64_t& low_qword, uint64_t& high_
         return false;
     }
 
-    struct alignas(16) Mmio128 {
-        uint64_t low;
-        uint64_t high;
-    };
-
-    __asm__ volatile("" ::: "memory");
-    const volatile Mmio128* reg = reinterpret_cast<const volatile Mmio128*>(m_basic_para.bar0_addr + offset);
-    low_qword = reg->low;
-    high_qword = reg->high;
+    const void* reg_addr = m_basic_para.bar0_addr + offset;
+    // A plain struct load compiles into two 64-bit MMIO reads here, which breaks
+    // the sync payload contract at REG_RX_QUE_PROD_OFFSET. Force a single
+    // 16-byte load from the BAR and split the result afterward.
+    __asm__ volatile(
+        "movdqu (%2), %%xmm0\n\t"
+        "movdqa %%xmm0, %%xmm1\n\t"
+        "movq %%xmm0, %0\n\t"
+        "psrldq $8, %%xmm1\n\t"
+        "movq %%xmm1, %1\n\t"
+        : "=r"(low_qword), "=r"(high_qword)
+        : "r"(reg_addr)
+        : "xmm0", "xmm1", "memory");
     return true;
 }
 

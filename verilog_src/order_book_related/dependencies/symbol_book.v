@@ -16,23 +16,30 @@ module symbol_book #(
     output  wire [PAYLOAD_W-1:0]                    o_payload
 );
       
-localparam                     QTY_MSG_BIT                 = 2+32+1+32+1+48; // {bid_ask, price, is_add, d_shares, op_done, timestamp}
-wire [31:0]                    o_ask_best_price       ;
-wire [31:0]                    o_ask_best_shares      ;
-wire [31:0]                    o_bid_best_price       ;
-wire [31:0]                    o_bid_best_shares      ;
-reg [31:0]                     prev_ask_best_price    ;
-reg [31:0]                     prev_ask_best_shares   ;
-reg [31:0]                     prev_bid_best_price    ;
-reg [31:0]                     prev_bid_best_shares   ;
-wire                           ff_push;
-wire [PAYLOAD_W-1:0]           payload;
-wire                           ask_changed;
-wire                           bid_changed;
-wire [47:0]                     event_timestamp;
-wire [47:0]                     ask_time_stamp;
-wire [47:0]                     bid_time_stamp;
-assign event_timestamp = ask_time_stamp | bid_time_stamp;
+localparam                      QTY_MSG_BIT                 = 2+32+1+32+1+48; // {bid_ask, price, is_add, d_shares, op_done, timestamp}
+wire [31:0]                     o_ask_best_price       ;
+wire [31:0]                     o_ask_best_shares      ;
+wire [31:0]                     o_bid_best_price       ;
+wire [31:0]                     o_bid_best_shares      ;
+reg [31:0]                      prev_ask_best_price    ;
+reg [31:0]                      prev_ask_best_shares   ;
+reg [31:0]                      prev_bid_best_price    ;
+reg [31:0]                      prev_bid_best_shares   ;
+wire                            ff_push;
+wire                            ask_changed;
+wire                            bid_changed;
+wire [47:0]                     frame_ts;
+wire [47:0]                     ask_frame_ts;
+wire [47:0]                     bit_frame_ts;
+reg  [47:0]                     latch_in_frame_ts;
+
+
+
+assign frame_ts = ask_frame_ts | bit_frame_ts;
+
+
+
+
 
 
 always @(posedge i_clk_156) begin
@@ -46,6 +53,7 @@ always @(posedge i_clk_156) begin
         prev_ask_best_shares <= o_ask_best_shares;
         prev_bid_best_price  <= o_bid_best_price;
         prev_bid_best_shares <= o_bid_best_shares;
+
     end
 end
 
@@ -59,17 +67,15 @@ assign o_event_found = (ask_changed || bid_changed) && op_done;
 
 
 
-
-assign payload =  {
+assign o_payload =  {
     o_ask_best_price,
     o_ask_best_shares,
     o_bid_best_price,
     o_bid_best_shares,
-    event_timestamp,
+    frame_ts,
     i_stock_locate_cfg
 };
 
-assign o_payload = payload;
 
 
 
@@ -107,7 +113,7 @@ ask_wrapper_inst (
     .o_best_price_aligned   (o_ask_best_price   ),
     .o_best_shares          (o_ask_best_shares   ),
     .o_op_done_aligned      (ask_op_done        ),
-    .o_timestamp_aligned    (ask_time_stamp     )          
+    .o_frame_ts_aligned     (ask_frame_ts     )          
 
 );
 
@@ -125,7 +131,7 @@ bid_wrapper_inst (
     .o_best_price_aligned   (o_bid_best_price   ),
     .o_best_shares          (o_bid_best_shares  ),
     .o_op_done_aligned      (bid_op_done        ),
-    .o_timestamp_aligned    (bid_time_stamp     )
+    .o_frame_ts_aligned     (bit_frame_ts     )
 );
 
 

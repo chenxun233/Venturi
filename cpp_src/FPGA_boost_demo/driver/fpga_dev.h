@@ -17,7 +17,6 @@ class FpgaReplayValidator;
 
 class FPGADev : public BasicDev, public BasicRxSource {
 public:
-
     FPGADev(std::string pci_addr);
     ~FPGADev() override;
 
@@ -73,7 +72,7 @@ private:
     void        _readSymbolNum() ;
     void        _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const;
     // get system time should be put before and after this function  to do sync.
-    void        _readProdPtrAndTick(uint16_t que_idx, 
+    void        _readProdPtrAndTime(uint16_t que_idx, 
                                     uint64_t& prod_ptr, 
                                     uint64_t& fpga_tick,
                                     uint64_t& host_time_ns, 

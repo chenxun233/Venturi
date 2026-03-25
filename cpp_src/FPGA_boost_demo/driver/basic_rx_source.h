@@ -8,7 +8,7 @@ public:
     virtual ~BasicRxSource();
 
     virtual void _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const = 0;
-    virtual void _readProdPtrAndTick(uint16_t que_idx,
+    virtual void _readProdPtrAndTime(uint16_t que_idx,
                                     uint64_t& prod_ptr,
                                     uint64_t& fpga_tick,
                                     uint64_t& host_time_ns,

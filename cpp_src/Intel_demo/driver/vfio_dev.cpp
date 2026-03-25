@@ -12,6 +12,7 @@
 #include <sys/epoll.h>
 #include "ixgbe_ring_buffer.h"
 #include <string>
+#include <atomic>
 #include <sys/time.h>
 
 static char pkt_data[PKT_SIZE] = {
@@ -87,12 +88,17 @@ bool Intel82599Dev::_enableDMA() {
 
 bool Intel82599Dev::initHardware() {
 	info("Resetting device [%s]", m_basic_para.pci_addr.c_str());
+	if (!_initDMAMemoryAllocator()) {
+		error("Failed to initialize DMA allocator for device [%s]", m_basic_para.pci_addr.c_str());
+		return false;
+	}
 	// section 4.6.3.1 - disable all interrupts
 	this->_dev_disable_IRQ();
 	this->_dev_rst_hardware();
 	usleep(10000);
 	// section 4.6.3.1 - disable interrupts again after reset
 	this->_dev_disable_IRQ();
+	this->_enableDMA();
 	this->_get_mac_address();
     this->_init_eeprom_n_dma();
 
@@ -114,6 +120,11 @@ bool Intel82599Dev::enableDevQueues() {
 	this->_enableDevRxQueue();
 	this->_enableDevTxQueue();
     return true;
+}
+
+bool Intel82599Dev::enableTxQueue() {
+	this->_enableDevTxQueue();
+	return true;
 }
 
 
@@ -213,11 +224,57 @@ bool Intel82599Dev::_init_link_nego(){
 
 
 bool Intel82599Dev::sendOnQueue(uint8_t* p_data, size_t size, uint16_t que_idx){ 
-	(void)p_data;
-	(void)size;
-	(void)que_idx;
-	return true; }
+	if (que_idx >= p_tx_ring_buffers.size()) {
+		error("invalid TX queue index %u", que_idx);
+		return false;
+	}
 
+	IXGBE_TxRingBuffer* const tx_ring = p_tx_ring_buffers[que_idx];
+	if (tx_ring == nullptr) {
+		error("TX ring %u is not initialized", que_idx);
+		return false;
+	}
+
+	tx_ring->cleanDescriptorRing(TX_CLEAN_BATCH);
+	if (!tx_ring->fillPktBuf(reinterpret_cast<const char*>(p_data), static_cast<uint32_t>(size))) {
+		return false;
+	}
+
+	const uint16_t tail = tx_ring->linkPktWithDesc(1);
+	infoNIC_Tx(tail);
+	return true;
+}
+
+bool Intel82599Dev::sendBatchOnQueue(const uint8_t* const* p_data,
+                                     const size_t* sizes,
+                                     uint16_t pkt_num,
+                                     uint16_t que_idx) {
+	if (p_data == nullptr || sizes == nullptr || pkt_num == 0) {
+		return false;
+	}
+	if (que_idx >= p_tx_ring_buffers.size()) {
+		error("invalid TX queue index %u", que_idx);
+		return false;
+	}
+
+	IXGBE_TxRingBuffer* const tx_ring = p_tx_ring_buffers[que_idx];
+	if (tx_ring == nullptr) {
+		error("TX ring %u is not initialized", que_idx);
+		return false;
+	}
+
+	tx_ring->cleanDescriptorRing(TX_CLEAN_BATCH);
+	for (uint16_t pkt_idx = 0; pkt_idx < pkt_num; ++pkt_idx) {
+		if (!tx_ring->fillPktBuf(reinterpret_cast<const char*>(p_data[pkt_idx]),
+		                         static_cast<uint32_t>(sizes[pkt_idx]))) {
+			return false;
+		}
+	}
+
+	const uint16_t tail = tx_ring->linkPktWithDesc(pkt_num);
+	infoNIC_Tx(tail);
+	return true;
+}
 
 void Intel82599Dev::_initStatus(DevStatus* stats){
 	stats->rx_bytes = 0;
@@ -607,6 +664,7 @@ bool Intel82599Dev::_initTxDescRingRegs(){
 }
 // this function sends packets in [TDH, TDT).
 void Intel82599Dev::infoNIC_Tx(uint16_t tail_index){
+	std::atomic_thread_fence(std::memory_order_release);
 	_writeReg32(IXGBE_TDT(0), tail_index);
 }
 

@@ -78,6 +78,8 @@ reg [7:0]                  rd_tag;
 reg [2:0]                  rd_tc;
 reg [6:0]                  rd_lower_addr;
 reg [10:0]                 rd_dword_count;
+reg [47:0]                 in_MMIO_timestamp;
+wire [63:0]                ave_timestamp = (in_MMIO_timestamp+i_dma_timestamp)>>1;
 
 
 integer que_idx;
@@ -161,6 +163,7 @@ always @(posedge user_clk or posedge user_reset_p) begin
         cc_last         <= 1'b0;
         o_reg_reset     <= 1'b0;
         reg_sync_cali   <= 1'b0;
+        in_MMIO_timestamp <= 48'd0;
         for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
             reg_que_iova[que_idx]       <= 64'd0;
             reg_que_slot_num[que_idx]   <= 64'd0;
@@ -211,6 +214,7 @@ always @(posedge user_clk or posedge user_reset_p) begin
                 rd_tc           <= cq_tc;
                 rd_lower_addr   <= cq_lower_addr;
                 rd_dword_count  <= cq_payload_dw_count;
+                in_MMIO_timestamp <= i_dma_timestamp;
             end
         end
         if (rd_pending && !cc_valid) begin
@@ -222,7 +226,7 @@ always @(posedge user_clk or posedge user_reset_p) begin
             cc_dword_count  <= rd_dword_count;
             cc_status       <= 3'b000;
             if (reg_sync_cali == 1'b1 && is_prod_ptr_addr(rd_reg_addr)) begin
-                cc_payload      <= {{16{1'b0}}, i_dma_timestamp,get_reg_value(rd_reg_addr)};
+                cc_payload      <= { ave_timestamp,get_reg_value(rd_reg_addr)};
             end else begin
                 cc_payload      <= {{64{1'b0}}, get_reg_value(rd_reg_addr)};
             end
