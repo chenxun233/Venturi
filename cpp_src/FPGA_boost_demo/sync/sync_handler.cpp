@@ -12,7 +12,7 @@ void SyncHandler::run(CapSignal& cap_signal) {
         return;
     }
     if (m_trigger_countdown == 0) {
-        cap_signal.generation.fetch_add(1, std::memory_order_release);
+        cap_signal.request.store(true, std::memory_order_release);
         m_trigger_countdown = m_trigger_period - 1;
         return;
     }

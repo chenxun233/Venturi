@@ -28,6 +28,7 @@ public:
     void    setSync(bool enable);
     bool    validateRxAll();
     bool    isValid() const override { return m_is_valid; }
+    bool    readQueueDebugState(uint16_t que_idx, uint64_t& prod_ptr, uint64_t& drop_count) const;
 
 
 

@@ -161,8 +161,9 @@ wire [2:0]              cfg_max_read_req;
 wire [15:0]             pcie_requester_id;
 localparam SYMBOL_NUM = 2;
 localparam [SYMBOL_NUM*16-1:0] SYMBOL_STOCK_LOCATE_INIT = {
-    16'h0ee8,
-    16'h000d
+    16'h0000,
+    16'h0000
+    
 };
 localparam [SYMBOL_NUM*32-1:0] SYMBOL_PRICE_BASE_INIT = {
     32'd0,

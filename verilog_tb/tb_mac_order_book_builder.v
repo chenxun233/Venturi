@@ -8,7 +8,7 @@ module tb_mac_order_book_builder;
     localparam CLK156_PERIOD = 10;
     localparam CLK250_PERIOD = 4;
     localparam FRAME_BYTES = 359;
-    localparam PAYLOAD_W   = 200;
+    localparam PAYLOAD_W   = 192;
     localparam EVENT_CDC_DEPTH = 4;
     localparam SYMBOL_NUM  = 2;
 
@@ -106,10 +106,12 @@ module tb_mac_order_book_builder;
     integer    hsbc_dma_records;
     reg [47:0] last_dma_timestamp;
     reg        dma_timestamp_seen;
-    reg [PAYLOAD_W-1:0] dma_payload_low;
+    reg [7:0]           dma_payload_first_event;
     reg [15:0]          dma_payload_locate;
     reg [47:0]          dma_payload_ts;
-    reg [63:0]          dma_expected_addr;
+    reg [47:0]          dma_payload_event_tk;
+    reg                 aapl_first_dma_seen;
+    reg                 hsbc_first_dma_seen;
     integer    total_errors_mac;
     integer    total_errors_dma;
     integer    total_errors;
@@ -121,6 +123,10 @@ module tb_mac_order_book_builder;
     wire [47:0] aapl_payload_ts     = aapl_payload[63:16];
     wire [15:0] hsbc_payload_locate = hsbc_payload[15:0];
     wire [47:0] hsbc_payload_ts     = hsbc_payload[63:16];
+    wire [7:0]  dma_record_first_event = dma_rq_payload[247:240];
+    wire [47:0] dma_record_frame_ts    = dma_rq_payload[111:64];
+    wire [47:0] dma_record_event_tk    = dma_rq_payload[63:16];
+    wire [15:0] dma_record_locate      = dma_rq_payload[15:0];
 
     MAC_layer_rx #(
         .DATA_WIDTH (DATA_WIDTH),
@@ -320,14 +326,70 @@ module tb_mac_order_book_builder;
     task automatic load_aapl_frame_bytes;
         begin
             clear_frame_bytes();
-`include "../market_data/AAPL_13_B_payload_frames_hex.txt"
+            set16('h0000, 128'h01_00_5e_00_00_01_00_11_22_33_44_55_08_00_45_00);
+            set16('h0010, 128'h01_59_00_01_00_00_40_11_cc_b4_c0_a8_01_32_e9_01);
+            set16('h0020, 128'h02_03_15_b3_04_d2_01_45_a9_a8_4e_41_53_44_51_54);
+            set16('h0030, 128'h45_53_54_20_00_00_00_00_00_00_00_01_00_09_00_24);
+            set16('h0040, 128'h41_00_0d_00_00_0d_18_c3_4e_77_da_00_00_00_00_00);
+            set16('h0050, 128'h00_00_01_42_00_00_00_0a_41_41_50_4c_20_20_20_20);
+            set16('h0060, 128'h00_00_00_64_00_28_46_00_0d_00_00_1b_d6_53_cf_f0);
+            set16('h0070, 128'hbf_00_00_00_00_00_00_00_02_42_00_00_01_f4_41_41);
+            set16('h0080, 128'h50_4c_20_20_20_20_00_00_00_c8_54_53_53_4d_00_17);
+            set16('h0090, 128'h58_00_0d_00_00_1b_2e_c7_3b_cc_cf_00_00_00_00_00);
+            set16('h00a0, 128'h00_00_01_00_00_00_0a_00_17_58_00_0d_00_00_1b_2e);
+            set16('h00b0, 128'hc7_3b_cc_cf_00_00_00_00_00_00_00_02_00_00_00_64);
+            set16('h00c0, 128'h00_24_43_00_0d_00_01_1f_1a_fd_1d_81_79_00_00_00);
+            set16('h00d0, 128'h00_00_00_00_02_00_00_00_c8_00_00_00_00_00_02_8c);
+            set16('h00e0, 128'h56_4e_00_00_00_c8_00_1f_45_00_0d_00_02_0d_73_25);
+            set16('h00f0, 128'ha3_d0_68_00_00_00_00_00_00_00_02_00_00_00_c8_00);
+            set16('h0100, 128'h00_00_00_00_00_46_27_00_24_41_00_0d_00_00_0d_18);
+            set16('h0110, 128'hc3_4e_77_da_00_00_00_00_00_00_00_03_42_00_00_00);
+            set16('h0120, 128'h14_41_41_50_4c_20_20_20_20_00_00_01_2c_00_23_55);
+            set16('h0130, 128'h00_0d_00_00_1e_96_69_a4_b6_a9_00_00_00_00_00_00);
+            set16('h0140, 128'h00_03_00_00_00_00_00_00_00_04_00_00_00_64_00_00);
+            set16('h0150, 128'h01_90_00_13_44_00_0d_00_00_0d_20_7f_24_3f_50_00);
+            frame_bytes['h0160] = 8'h00;
+            frame_bytes['h0161] = 8'h00;
+            frame_bytes['h0162] = 8'h00;
+            frame_bytes['h0163] = 8'h00;
+            frame_bytes['h0164] = 8'h00;
+            frame_bytes['h0165] = 8'h00;
+            frame_bytes['h0166] = 8'h04;
         end
     endtask
 
     task automatic load_hsbc_frame_bytes;
         begin
             clear_frame_bytes();
-`include "../market_data/HSBC_3816_S_payload_frames_hex.txt"
+            set16('h0000, 128'h01_00_5e_00_00_01_00_11_22_33_44_55_08_00_45_00);
+            set16('h0010, 128'h01_59_00_01_00_00_40_11_cc_b4_c0_a8_01_32_e9_01);
+            set16('h0020, 128'h02_03_15_b3_04_d2_01_45_4e_91_4e_41_53_44_51_54);
+            set16('h0030, 128'h45_53_54_20_00_00_00_00_00_00_00_01_00_09_00_24);
+            set16('h0040, 128'h41_0e_e8_00_00_0d_18_c3_4e_77_da_00_00_00_00_00);
+            set16('h0050, 128'h00_00_01_53_00_00_00_0a_48_53_42_43_20_20_20_20);
+            set16('h0060, 128'h00_00_00_64_00_28_46_0e_e8_00_00_1b_d6_53_cf_f0);
+            set16('h0070, 128'hbf_00_00_00_00_00_00_00_02_53_00_00_01_f4_48_53);
+            set16('h0080, 128'h42_43_20_20_20_20_00_00_00_c8_54_53_53_4d_00_17);
+            set16('h0090, 128'h58_0e_e8_00_00_1b_2e_c7_3b_cc_cf_00_00_00_00_00);
+            set16('h00a0, 128'h00_00_01_00_00_00_0a_00_17_58_0e_e8_00_00_1b_2e);
+            set16('h00b0, 128'hc7_3b_cc_cf_00_00_00_00_00_00_00_02_00_00_00_64);
+            set16('h00c0, 128'h00_24_43_0e_e8_00_01_1f_1a_fd_1d_81_79_00_00_00);
+            set16('h00d0, 128'h00_00_00_00_02_00_00_00_c8_00_00_00_00_00_02_8c);
+            set16('h00e0, 128'h56_4e_00_00_00_c8_00_1f_45_0e_e8_00_02_0d_73_25);
+            set16('h00f0, 128'ha3_d0_68_00_00_00_00_00_00_00_02_00_00_00_c8_00);
+            set16('h0100, 128'h00_00_00_00_00_46_27_00_24_41_0e_e8_00_00_0d_18);
+            set16('h0110, 128'hc3_4e_77_da_00_00_00_00_00_00_00_03_53_00_00_00);
+            set16('h0120, 128'h14_48_53_42_43_20_20_20_20_00_00_01_2c_00_23_55);
+            set16('h0130, 128'h0e_e8_00_00_1e_96_69_a4_b6_a9_00_00_00_00_00_00);
+            set16('h0140, 128'h00_03_00_00_00_00_00_00_00_04_00_00_00_64_00_00);
+            set16('h0150, 128'h01_90_00_13_44_0e_e8_00_00_0d_20_7f_24_3f_50_00);
+            frame_bytes['h0160] = 8'h00;
+            frame_bytes['h0161] = 8'h00;
+            frame_bytes['h0162] = 8'h00;
+            frame_bytes['h0163] = 8'h00;
+            frame_bytes['h0164] = 8'h00;
+            frame_bytes['h0165] = 8'h00;
+            frame_bytes['h0166] = 8'h04;
         end
     endtask
 
@@ -535,6 +597,118 @@ module tb_mac_order_book_builder;
         end
     end
 
+    always @(posedge i_clk_250) begin
+        if (i_rst) begin
+            dma_payload_first_event <= 8'd0;
+            dma_payload_locate      <= 16'd0;
+            dma_payload_ts          <= 48'd0;
+            dma_payload_event_tk    <= 48'd0;
+            aapl_first_dma_seen     <= 1'b0;
+            hsbc_first_dma_seen     <= 1'b0;
+        end else if (dma_rq_valid) begin
+            dma_payload_first_event <= dma_record_first_event;
+            dma_payload_locate      <= dma_record_locate;
+            dma_payload_ts          <= dma_record_frame_ts;
+            dma_payload_event_tk    <= dma_record_event_tk;
+
+            if (dma_rq_type != 4'b0001) begin
+                $display("[%0t] ERROR: DMA rq_type mismatch expected=1 actual=%0h",
+                         $time, dma_rq_type);
+                total_errors_dma <= total_errors_dma + 1;
+            end
+            if (!dma_rq_payload_last) begin
+                $display("[%0t] ERROR: DMA payload_last should be asserted", $time);
+                total_errors_dma <= total_errors_dma + 1;
+            end
+            if (dma_rq_payload_dw_count != 11'd8) begin
+                $display("[%0t] ERROR: DMA payload dw count mismatch expected=8 actual=%0d",
+                         $time, dma_rq_payload_dw_count);
+                total_errors_dma <= total_errors_dma + 1;
+            end
+            if (dma_rq_tc != 3'd0) begin
+                $display("[%0t] ERROR: DMA traffic class mismatch expected=0 actual=%0d",
+                         $time, dma_rq_tc);
+                total_errors_dma <= total_errors_dma + 1;
+            end
+
+            dma_timestamp_seen <= 1'b1;
+            if (dma_record_event_tk <= last_dma_timestamp) begin
+                $display("[%0t] ERROR: DMA event_tk did not advance expected > %0d actual=%0d",
+                         $time, last_dma_timestamp, dma_record_event_tk);
+                total_errors_dma <= total_errors_dma + 1;
+            end
+            last_dma_timestamp <= dma_record_event_tk;
+
+            case (dma_record_locate)
+                AAPL_LOCATE: begin
+                    if (dma_rq_addr != (AAPL_DMA_BASE + (aapl_dma_records * 32))) begin
+                        $display("[%0t] ERROR: AAPL DMA addr mismatch expected=%h actual=%h",
+                                 $time, (AAPL_DMA_BASE + (aapl_dma_records * 32)), dma_rq_addr);
+                        total_errors_dma <= total_errors_dma + 1;
+                    end
+                    if (dma_rq_tag != 8'h40) begin
+                        $display("[%0t] ERROR: AAPL DMA tag mismatch expected=40 actual=%02h",
+                                 $time, dma_rq_tag);
+                        total_errors_dma <= total_errors_dma + 1;
+                    end
+                    if (dma_record_frame_ts != expected_aapl_frame_ts) begin
+                        $display("[%0t] ERROR: AAPL DMA frame_ts mismatch expected=%012h actual=%012h",
+                                 $time, expected_aapl_frame_ts, dma_record_frame_ts);
+                        total_errors_dma <= total_errors_dma + 1;
+                    end
+                    if (!aapl_first_dma_seen) begin
+                        if (dma_record_first_event != 8'h01) begin
+                            $display("[%0t] ERROR: first AAPL DMA record should have first_event=1 actual=%02h",
+                                     $time, dma_record_first_event);
+                            total_errors_dma <= total_errors_dma + 1;
+                        end
+                        aapl_first_dma_seen <= 1'b1;
+                    end else if (dma_record_first_event != 8'h00) begin
+                        $display("[%0t] ERROR: subsequent AAPL DMA record should have first_event=0 actual=%02h",
+                                 $time, dma_record_first_event);
+                        total_errors_dma <= total_errors_dma + 1;
+                    end
+                    aapl_dma_records <= aapl_dma_records + 1;
+                end
+                HSBC_LOCATE: begin
+                    if (dma_rq_addr != (HSBC_DMA_BASE + (hsbc_dma_records * 32))) begin
+                        $display("[%0t] ERROR: HSBC DMA addr mismatch expected=%h actual=%h",
+                                 $time, (HSBC_DMA_BASE + (hsbc_dma_records * 32)), dma_rq_addr);
+                        total_errors_dma <= total_errors_dma + 1;
+                    end
+                    if (dma_rq_tag != 8'h41) begin
+                        $display("[%0t] ERROR: HSBC DMA tag mismatch expected=41 actual=%02h",
+                                 $time, dma_rq_tag);
+                        total_errors_dma <= total_errors_dma + 1;
+                    end
+                    if (dma_record_frame_ts != expected_hsbc_frame_ts) begin
+                        $display("[%0t] ERROR: HSBC DMA frame_ts mismatch expected=%012h actual=%012h",
+                                 $time, expected_hsbc_frame_ts, dma_record_frame_ts);
+                        total_errors_dma <= total_errors_dma + 1;
+                    end
+                    if (!hsbc_first_dma_seen) begin
+                        if (dma_record_first_event != 8'h01) begin
+                            $display("[%0t] ERROR: first HSBC DMA record should have first_event=1 actual=%02h",
+                                     $time, dma_record_first_event);
+                            total_errors_dma <= total_errors_dma + 1;
+                        end
+                        hsbc_first_dma_seen <= 1'b1;
+                    end else if (dma_record_first_event != 8'h00) begin
+                        $display("[%0t] ERROR: subsequent HSBC DMA record should have first_event=0 actual=%02h",
+                                 $time, dma_record_first_event);
+                        total_errors_dma <= total_errors_dma + 1;
+                    end
+                    hsbc_dma_records <= hsbc_dma_records + 1;
+                end
+                default: begin
+                    $display("[%0t] ERROR: unexpected DMA stock_locate=%04h",
+                             $time, dma_record_locate);
+                    total_errors_dma <= total_errors_dma + 1;
+                end
+            endcase
+        end
+    end
+
     
 
     initial begin
@@ -571,6 +745,12 @@ module tb_mac_order_book_builder;
         hsbc_dma_records     = 0;
         last_dma_timestamp   = 48'd0;
         dma_timestamp_seen   = 1'b0;
+        dma_payload_first_event = 8'd0;
+        dma_payload_locate   = 16'd0;
+        dma_payload_ts       = 48'd0;
+        dma_payload_event_tk = 48'd0;
+        aapl_first_dma_seen  = 1'b0;
+        hsbc_first_dma_seen  = 1'b0;
         total_errors_mac     = 0;
         total_errors_dma     = 0;
         total_errors         = 0;
@@ -635,6 +815,16 @@ module tb_mac_order_book_builder;
         end
         if (!dma_timestamp_seen) begin
             $display("[%0t] ERROR: no DMA timestamp updates observed", $time);
+            total_errors = total_errors + 1;
+        end
+        if (aapl_dma_records != aapl_builder_events) begin
+            $display("[%0t] ERROR: AAPL DMA record count mismatch expected builder_events=%0d actual dma_records=%0d",
+                     $time, aapl_builder_events, aapl_dma_records);
+            total_errors = total_errors + 1;
+        end
+        if (hsbc_dma_records != hsbc_builder_events) begin
+            $display("[%0t] ERROR: HSBC DMA record count mismatch expected builder_events=%0d actual dma_records=%0d",
+                     $time, hsbc_builder_events, hsbc_dma_records);
             total_errors = total_errors + 1;
         end
         if (rx_dma_que_prod_ptr[63:0] != aapl_dma_records) begin

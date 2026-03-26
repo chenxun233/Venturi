@@ -76,6 +76,9 @@ std::size_t FPGARxDecoder::decodeRawBatch(FirstEventMask& mask,
     }
     m_cons_ptr = cons_ptr;
     m_source._writeConsPtr(m_que_idx, cons_ptr);
+    if (record_count > 0) {
+    printf("que 1, m_cons_ptr: %lu, prod_ptr: %lu\n, record_count: %lu\n", m_cons_ptr, prod_ptr, record_count);
+    }
     return record_count;
 }
 
@@ -107,6 +110,9 @@ std::size_t FPGARxDecoder::decodeRawBatchSync(FirstEventMask& mask,
         ++cons_ptr;
     }
     m_cons_ptr = cons_ptr;
+    if (record_count > 0) {
+    printf("que 0, m_cons_ptr: %lu, prod_ptr: %lu\n, record_count: %lu\n", m_cons_ptr, prod_ptr, record_count);
+    }
     m_source._writeConsPtr(m_que_idx, cons_ptr);
     return record_count;
 

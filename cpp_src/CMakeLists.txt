@@ -122,6 +122,7 @@ add_executable(test_fpga_rx_adapter
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp
     ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
     ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
+    ${FPGA_LATENCY_DIR}/latency_log_printer.cpp
     ${FPGA_LATENCY_DIR}/trace_buffer.cpp
     ${FPGA_LATENCY_DIR}/latency_tracker.cpp
     ${FPGA_RUNTIME_DIR}/top_runner.cpp

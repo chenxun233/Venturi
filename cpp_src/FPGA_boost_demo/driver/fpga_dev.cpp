@@ -197,6 +197,15 @@ bool FPGADev::validateRxAll() {
     return true;
 }
 
+bool FPGADev::readQueueDebugState(uint16_t que_idx, uint64_t& prod_ptr, uint64_t& drop_count) const {
+    if (!m_hw_ready || que_idx >= m_rx_queues.size()) {
+        return false;
+    }
+    _readProdPtr(que_idx, prod_ptr);
+    drop_count = _readDropCount(que_idx);
+    return true;
+}
+
 void FPGADev::_readSymbolNum() {
     m_basic_para.rx_que_num = static_cast<uint8_t>(_readReg64(REG_RX_SYMBOL_NUM));
     m_rx_queues.resize(m_basic_para.rx_que_num);

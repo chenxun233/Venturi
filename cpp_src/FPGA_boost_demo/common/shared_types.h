@@ -3,9 +3,9 @@
 #include <atomic>
 #include <cstdint>
 #include <ctime>
+
+
 #define MAX_POLL_RECORDS 32
-
-
 
 typedef struct  {
     uint64_t fpga_tick      {0};
@@ -15,8 +15,7 @@ typedef struct  {
 
 
 typedef struct{
-    std::atomic<uint64_t> generation {0};
-    std::atomic<bool> ready {false};
+    std::atomic<bool> request {false};
 } CapSignal;
 
 typedef struct  {
@@ -66,12 +65,26 @@ struct LatencyStats {
     stage       curr_stage {stage::DECODE};
     uint64_t    sample_count {0};
     uint64_t    drop_count {0};
-    uint64_t    p50_ns {0};
-    uint64_t    p99_ns {0};
-    uint64_t    p999_ns {0};
-    uint64_t    avg_ns {0};
     uint64_t    max_ns {0};
     uint64_t    min_ns {0};
+};
+
+struct LatencyLogRecord {
+    uint16_t    que_idx {0};
+    uint64_t    event_ts {0};
+    uint64_t    frame_start_to_dma_emit_ns {0};
+    uint64_t    dma_emit_to_decode_ns {0};
+};
+
+enum class AsyncLogKind : uint8_t {
+    Latency,
+    Snapshot
+};
+
+struct AsyncLogRecord {
+    AsyncLogKind kind {AsyncLogKind::Latency};
+    LatencyLogRecord latency {};
+    FpgaSyncSnapshot snapshot {};
 };
 
 

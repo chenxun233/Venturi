@@ -1,5 +1,6 @@
 #include "../driver/fpga_dev.h"
 #include "../engine/fpga_rx_engine.h"
+#include "../latency/latency_log_printer.h"
 #include "../latency/latency_tracker.h"
 #include "../runtime/top_runner.h"
 #include "../sync/regression.h"
@@ -9,6 +10,7 @@
 #include <array>
 #include <chrono>
 #include <string_view>
+
 
 namespace {
 
@@ -21,6 +23,8 @@ constexpr std::array<std::string_view, kQueueCount> kSymbolNames = {
 constexpr std::array<uint16_t, kQueueCount> kStockLocates = {
     0x000d,
     0x0ee8,
+    
+
 };
 constexpr std::array<uint32_t, kQueueCount> kPriceBases = {
     0U,
@@ -34,6 +38,7 @@ constexpr uint64_t kSyncPeriod =
     static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(kPrintInterval).count() /
                           kControlLoopSleep.count());
 constexpr std::size_t kLatencyQueueCapacity = 1024;
+constexpr std::size_t kLatencyLogCapacity = 4096;
 
 } // namespace
 
@@ -65,11 +70,17 @@ int main() {
     FPGARxEngine engine0(device, 0);
     FPGARxEngine engine1(device, 1);
     LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
+    LatencyLogPrinter latency_log_printer(kLatencyLogCapacity);
 
     SyncHandler sync_handler(kSyncPeriod);
     Regression regression;
 
     latency_tracker.setPrintInterval(kPrintInterval);
+    latency_tracker.attachLogPrinter(&latency_log_printer);
+    latency_log_printer.start();
+    engine0.attachLogPrinter(latency_log_printer);
+    engine1.attachLogPrinter(latency_log_printer);
+    engine0.attachRegression(regression);
 
     TopRunner runner(device);
     runner.addRxEngine(engine0, true);
@@ -79,6 +90,7 @@ int main() {
     runner.attachRegression(&regression);
     runner.setControlLoopSleep(kControlLoopSleep);
     runner.run();
+    latency_log_printer.stop();
 
     return 0;
 }

@@ -103,6 +103,7 @@ wire [15:0]   stock_locate          = i_event_payload [PAYLOAD_W*current_que_idx
 integer que_idx;
 integer prev_sel_idx;
 reg [47:0] prev_frame_ts_cur;
+wire [7:0] current_is_first_event = (cur_frame_ts != prev_frame_ts_cur) ? 8'h01 : 8'h00;
 
 always @(*) begin
     prev_frame_ts_cur = 48'd0;
@@ -111,23 +112,6 @@ always @(*) begin
             prev_frame_ts_cur = prev_frame_ts[prev_sel_idx*48 +: 48];
     end
 end
-
-always @(posedge i_clk or posedge i_rst) begin
-    if (i_rst) begin
-        for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
-            prev_frame_ts[que_idx*48 +: 48] <= 48'd0;
-        end
-    end else if (cur_frame_ts > prev_frame_ts_cur) begin
-        for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
-            if (current_que_idx == que_idx[CL_SYMBOL_NUM-1:0])
-                prev_frame_ts[que_idx*48 +: 48] <= cur_frame_ts;
-        end
-    end
-end
-
-
-wire [7:0] is_first_event = (cur_frame_ts > prev_frame_ts_cur) ? 8'h01 : 8'h00; // mark the first event of each frame, used for latency measurement in software.
-
 
 generate
     genvar gi;
@@ -216,7 +200,10 @@ always @(posedge i_clk or posedge i_rst) begin
                         que_drop_count[current_que_idx] <= que_drop_count[current_que_idx] + 64'd1;
                         state <= ST_IDLE;
                     end else begin
-                        record_que          <= {is_first_event, ask_best_price, ask_best_shares, bid_best_price, bid_best_shares, cur_frame_ts, stock_locate};
+                        record_que          <= {current_is_first_event, ask_best_price, ask_best_shares, bid_best_price, bid_best_shares, cur_frame_ts, stock_locate};
+                        if (current_is_first_event != 8'd0) begin
+                            prev_frame_ts[current_que_idx*48 +: 48] <= cur_frame_ts;
+                        end
                         write_addr          <= calc_write_addr(
                             i_que_iova_addr[current_que_idx*64 +: 64],
                             que_slot_index[current_que_idx]

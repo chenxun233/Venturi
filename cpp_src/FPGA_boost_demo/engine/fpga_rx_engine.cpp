@@ -1,15 +1,16 @@
 #include "fpga_rx_engine.h"
+#include "../sync/regression.h"
 #include <stdexcept>
 #include <algorithm>
-
+#include <cstdio>
 namespace {
 
-void pushTraceRecords(TraceBuffer& trace_buffer,
+void pushTraceRecords(TraceBuffer* trace_buffer,
                       const std::array<FPGAEventDesc, MAX_POLL_RECORDS>& event_buffer,
                       uint16_t que_idx,
                       uint32_t first_event_mask,
-                      std::size_t count,
-                      uint64_t decode_time_ns) {
+                      std::size_t count) {
+    timespec ts {};
     for (std::size_t record_idx = 0; record_idx < count; ++record_idx) {
         if ((first_event_mask & (1u << record_idx)) == 0U) {
             continue;
@@ -21,15 +22,17 @@ void pushTraceRecords(TraceBuffer& trace_buffer,
             .event_stage = stage::FRAME_START,
             .time_captured = event.frame_start_tk
         };
-        trace_buffer.push(record);
 
+        trace_buffer->push(record);
         record.event_stage = stage::DMA_EMIT;
         record.time_captured = event.event_tk;
-        trace_buffer.push(record);
-
+        trace_buffer->push(record);
         record.event_stage = stage::DECODE;
-        record.time_captured = decode_time_ns;
-        trace_buffer.push(record);
+        clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+        record.time_captured =
+            static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL +
+            static_cast<uint64_t>(ts.tv_nsec);
+        trace_buffer->push(record);
     }
 }
 
@@ -49,28 +52,22 @@ const std::array<FPGAEventDesc, MAX_POLL_RECORDS>& FPGARxEngine::readEventBuffer
 
 
 std::size_t FPGARxEngine::pollBatch(std::size_t batch_size, bool get_time ) {
+    (void)get_time;
     FirstEventMask mask;
     const std::size_t count = m_decoder.decodeRawBatch(mask, m_event_buffer.data(), batch_size);
 
-    if (get_time && mask.count > 0 && m_trace_buffer != nullptr) {
-        clock_gettime(CLOCK_MONOTONIC_RAW, &m_ts_captured);
-        const uint64_t time_ns =
-            static_cast<uint64_t>(m_ts_captured.tv_sec) * 1000000000ULL +
-            static_cast<uint64_t>(m_ts_captured.tv_nsec);
-
-        pushTraceRecords(*m_trace_buffer,
+    if (mask.count > 0 && m_trace_buffer != nullptr) {
+        pushTraceRecords(m_trace_buffer,
                          m_event_buffer,
                          m_que_idx,
                          mask.first_event_mask,
-                         count,
-                         time_ns);
+                         count);
     }
     return count;
 }
 
 std::size_t FPGARxEngine::pollBatchSync(std::size_t batch_size,
                                         const bool get_time,
-                                        std::atomic<bool>& ready,
                                         FpgaSyncSnapshot& snapshot) {
     FirstEventMask mask;                                        
     const std::size_t count = m_decoder.decodeRawBatchSync(mask, m_event_buffer.data(),
@@ -78,15 +75,19 @@ std::size_t FPGARxEngine::pollBatchSync(std::size_t batch_size,
                                                            get_time,
                                                            batch_size);
     if (get_time) {
-        if (mask.count > 0 && m_trace_buffer != nullptr) {
-            pushTraceRecords(*m_trace_buffer,
-                             m_event_buffer,
-                             m_que_idx,
-                             mask.first_event_mask,
-                             count,
-                             snapshot.host_time_ns);
+        if (m_regression != nullptr) {
+            m_regression->updateSnapshot(snapshot);
         }
-        ready.store(true, std::memory_order_release);
+        if (m_log_printer != nullptr) {
+            m_log_printer->pushSnapshot(snapshot);
+        }
+    }
+    if (mask.count > 0 && m_trace_buffer != nullptr) {
+        pushTraceRecords(m_trace_buffer,
+                         m_event_buffer,
+                         m_que_idx,
+                         mask.first_event_mask,
+                         count);
     }
     return count;
 }

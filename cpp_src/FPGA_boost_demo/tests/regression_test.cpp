@@ -2,8 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include <atomic>
-
 namespace {
 
 constexpr uint64_t kOffsetNs = 123456789ULL;
@@ -18,7 +16,6 @@ uint64_t readHostNs(uint64_t fpga_tick) {
 
 TEST(RegressionTest, estimatesSlopeNearFpgaTickPeriod) {
     Regression regression;
-    std::atomic<bool> ready {false};
 
     for (uint64_t fpga_tick = 1000; fpga_tick <= 12000; fpga_tick += 500) {
         const FpgaSyncSnapshot snapshot {
@@ -26,11 +23,10 @@ TEST(RegressionTest, estimatesSlopeNearFpgaTickPeriod) {
             .host_time_ns = readHostNs(fpga_tick),
             .interval_ns = 100
         };
-        ready.store(true, std::memory_order_release);
-        regression.run(ready, snapshot);
+        regression.updateSnapshot(snapshot);
     }
 
-    const RegressionPara para = regression.readParaSnapshot();
+    const RegressionPara para = regression.returnParaSnapshot();
     ASSERT_TRUE(para.has_para);
     EXPECT_TRUE(regression.isFrozen());
 

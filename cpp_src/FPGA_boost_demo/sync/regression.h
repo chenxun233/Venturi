@@ -9,40 +9,20 @@ class Regression {
 public:
     Regression() = default;
 
-    void run(std::atomic<bool>& snap_ready, const FpgaSyncSnapshot& snapshot);
-    RegressionPara readParaSnapshot() const;
+    void updateSnapshot(const FpgaSyncSnapshot& snapshot);
+    RegressionPara returnParaSnapshot() const;
     bool isFrozen() const;
     bool convertFpgaToHostTime(uint64_t fpga_tick, uint64_t& host_time_ns) const;
 
 private:
-    static constexpr uint64_t kMinDeltaSamples = 1;
-    static constexpr uint64_t kStableAQ32Delta = 500000;
-    static constexpr int64_t kStableBDeltaNs = 200000000;
-    static constexpr uint32_t kStableUpdatesRequired = 3;
+    static constexpr uint64_t kTickNumer = 32ULL;
+    static constexpr uint64_t kTickDenom = 5ULL;
+    static constexpr uint64_t kFixedAQ32 = 27487790694ULL; // floor((32/5) * 2^32)
 
-    typedef struct  {
-        uint64_t sample_count {0};
-        uint64_t delta_sample_count {0};
-        __int128 sum_fpga_tick {0};
-        __int128 sum_host_time_ns {0};
-        __int128 sum_fpga_delta {0};
-        __int128 sum_host_delta_ns {0};
-        uint64_t prev_fpga_tick {0};
-        uint64_t prev_host_time_ns {0};
-        bool has_prev_sample {false};
-    }SyncSampleAcc;
+    void _updateModel(const FpgaSyncSnapshot& snapshot);
 
-    typedef struct {
-        RegressionPara prev_candidate {};
-        uint32_t stable_update_count {0};
-        bool has_prev_candidate {false};
-        bool is_frozen {false};
-    } ConvergenceState;
-
-    void _updateRegression(const FpgaSyncSnapshot& snapshot);
-
-    SyncSampleAcc           m_sync_acc {};
-    ConvergenceState        m_convergence {};
     mutable std::mutex      m_regression_mutex {};
     RegressionPara          m_regression_para {};
+    bool                    m_is_frozen {false};
+    FpgaSyncSnapshot        m_latest_snapshot {};
 };
