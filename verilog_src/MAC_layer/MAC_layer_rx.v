@@ -42,7 +42,7 @@ module MAC_layer_rx #(
         end
     endgenerate
 
-assign o_frame_started = (cur_state == IDLE) && (|sof_location) && i_rx_status && i_axi_rx_ready;
+assign o_frame_started = (cur_state == IDLE || cur_state == TERM) && (|sof_location) && i_rx_status && i_axi_rx_ready;
 
 timestamper #(
     .COUNTER_WIDTH (48)
@@ -99,8 +99,13 @@ timestamper #(
                     end 
                 end
                 TERM: begin
-                    valid_d1         <=  1'b0;
-                    cur_state       <=  IDLE;
+                    if (| sof_location) begin
+                        cur_state           <=  SOF;
+                        sof_reg             <=  sof_location;
+                    end else begin
+                        cur_state       <=  IDLE;
+                    end
+                        valid_d1         <=  1'b0;
                 end
                 default: begin
                     cur_state <= IDLE;

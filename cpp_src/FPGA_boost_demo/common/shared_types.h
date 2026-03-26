@@ -76,15 +76,24 @@ struct LatencyLogRecord {
     uint64_t    dma_emit_to_decode_ns {0};
 };
 
+struct QueuePollLogRecord {
+    uint16_t    que_idx {0};
+    uint64_t    record_count {0};
+    uint64_t    prod_ptr {0};
+    uint64_t    drop_count {0};
+};
+
 enum class AsyncLogKind : uint8_t {
     Latency,
-    Snapshot
+    Snapshot,
+    QueuePoll
 };
 
 struct AsyncLogRecord {
     AsyncLogKind kind {AsyncLogKind::Latency};
     LatencyLogRecord latency {};
     FpgaSyncSnapshot snapshot {};
+    QueuePollLogRecord queue_poll {};
 };
 
 

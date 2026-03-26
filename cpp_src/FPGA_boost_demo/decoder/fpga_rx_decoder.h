@@ -11,10 +11,16 @@
 class FPGARxDecoder {
 public:
     explicit FPGARxDecoder(BasicRxSource& source, uint16_t que_idx);
-    std::size_t decodeRawBatch(FirstEventMask& mask, FPGAEventDesc* out, std::size_t max_count);
-    std::size_t decodeRawBatchSync(FirstEventMask& mask,FPGAEventDesc* out, 
-                                    FpgaSyncSnapshot& snapshot, bool get_time,
-                                    std::size_t max_count);
+    std::size_t decodeRawBatch(FirstEventMask& mask,
+                               QueuePollLogRecord* queue_poll,
+                               FPGAEventDesc* out,
+                               std::size_t max_count);
+    std::size_t decodeRawBatchSync(FirstEventMask& mask,
+                                   QueuePollLogRecord* queue_poll,
+                                   FPGAEventDesc* out,
+                                   FpgaSyncSnapshot& snapshot,
+                                   bool get_time,
+                                   std::size_t max_count);
     bool isValid() const { return m_source.isValid(); }
 private:
     friend class FPGARxEngine;

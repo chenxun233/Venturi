@@ -52,27 +52,24 @@ function [255:0] pack_record (input [RECORD_W-1:0] payload);
     end
 endfunction
 
-function [63:0] calc_write_addr (input [63:0] base_addr, input [63:0] slot_index);
-    begin
-        calc_write_addr = base_addr + (slot_index << 5); // per slot is 32 bytes, this converts slot index to bytes
-    end
-endfunction
-
-function [63:0] calc_next_slot_index (input [63:0] slot_index, input [63:0] que_slot_num);
+function [63:0] calc_write_addr (
+    input [63:0] base_addr,
+    input [63:0] prod_ptr,
+    input [63:0] que_slot_num
+);
+    reg [63:0] slot_index;
     begin
         if (que_slot_num <= 64'd1)
-            calc_next_slot_index = 64'd0;
-        else if (slot_index + 64'd1 >= que_slot_num)
-            calc_next_slot_index = 64'd0;
+            slot_index = 64'd0;
         else
-            calc_next_slot_index = slot_index + 64'd1;
+            slot_index = prod_ptr & (que_slot_num - 64'd1);
+        calc_write_addr = base_addr + (slot_index << 5); // per slot is 32 bytes, this converts slot index to bytes
     end
 endfunction
 
 localparam CL_SYMBOL_NUM = (SYMBOL_NUM > 1) ? clog2(SYMBOL_NUM) : 1;
 
 reg [63:0] que_prod_ptr [0:SYMBOL_NUM-1];
-reg [63:0] que_slot_index [0:SYMBOL_NUM-1];
 reg [63:0] que_drop_count [0:SYMBOL_NUM-1];
 reg [SYMBOL_NUM*48-1:0] prev_frame_ts;
 
@@ -141,14 +138,8 @@ arbiter #(
     .o_valid   (selected_valid),
     .o_que_idx (selected_que_idx)
 );
-
-
-assign selected_drop            = selected_valid ? (!que_enabled || que_full) : 1'b0;
-wire [63:0] que_slot_num_value  = i_que_slot_num[selected_que_idx*64 +: 64];
-wire [63:0] que_cons_value      = i_que_cons_ptr[selected_que_idx*64 +: 64];
-wire [63:0] que_outstanding     = que_prod_ptr[selected_que_idx] - que_cons_value;
-wire        que_enabled         = i_que_enable[selected_que_idx*64];
-wire        que_full            = (que_slot_num_value == 64'd0) || (que_outstanding >= que_slot_num_value);
+assign selected_drop = selected_valid ?
+    (!que_enabled_vec[selected_que_idx] || que_full_vec[selected_que_idx]) : 1'b0;
 
 
 
@@ -165,7 +156,6 @@ always @(posedge i_clk or posedge i_rst) begin
 
         for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
             que_prod_ptr[que_idx]   <= 64'd0;
-            que_slot_index[que_idx] <= 64'd0;
             que_drop_count[que_idx] <= 64'd0;
             prev_frame_ts[que_idx*48 +: 48] <= 48'd0;
         end
@@ -176,7 +166,6 @@ always @(posedge i_clk or posedge i_rst) begin
         write_addr              <= 64'd0;
         for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
             que_prod_ptr[que_idx]   <= 64'd0;
-            que_slot_index[que_idx] <= 64'd0;
             que_drop_count[que_idx] <= 64'd0;
             prev_frame_ts[que_idx*48 +: 48] <= 48'd0;
   
@@ -206,7 +195,8 @@ always @(posedge i_clk or posedge i_rst) begin
                         end
                         write_addr          <= calc_write_addr(
                             i_que_iova_addr[current_que_idx*64 +: 64],
-                            que_slot_index[current_que_idx]
+                            que_prod_ptr[current_que_idx],
+                            i_que_slot_num[current_que_idx*64 +: 64]
                         );
                         state <= ST_SEND;
                     end
@@ -215,10 +205,6 @@ always @(posedge i_clk or posedge i_rst) begin
             ST_SEND: begin
                 if (i_rq_ready) begin
                     que_prod_ptr[current_que_idx] <= que_prod_ptr[current_que_idx] + 64'd1;
-                    que_slot_index[current_que_idx] <= calc_next_slot_index(
-                        que_slot_index[current_que_idx],
-                        i_que_slot_num[current_que_idx*64 +: 64]
-                    );
                     state <= ST_IDLE;
                 end
             end

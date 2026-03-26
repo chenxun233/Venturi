@@ -34,6 +34,7 @@ module pcs_pma_wrapper #(
     output wire                  o_xgmii_tx_rst,  // active high
     output wire                  o_xgmii_rx_clk,
     output wire                  o_xgmii_rx_rst,  // active high
+    output wire                  o_rx_frame_start,
     output wire                  o_rx_status
 );
 
@@ -120,6 +121,7 @@ module pcs_pma_wrapper #(
   assign rxgearboxslip_int     = serdes_rx_bitslip;
 
   wire rx_block_lock_w;
+  wire rx_frame_start_w;
   wire rx_high_ber_w;
   wire rx_status_w;
 
@@ -154,6 +156,7 @@ module pcs_pma_wrapper #(
     .serdes_rx_reset_req (serdes_rx_reset_req),
 
     .tx_bad_block        (),
+    .rx_frame_start      (rx_frame_start_w),
     .rx_error_count      (),
     .rx_bad_block        (),
     .rx_sequence_error   (),
@@ -170,6 +173,7 @@ module pcs_pma_wrapper #(
   assign o_xgmii_tx_rst   = phy_tx_rst;
   assign o_xgmii_rx_clk   = phy_rx_clk;
   assign o_xgmii_rx_rst   = phy_rx_rst;
+  assign o_rx_frame_start = rx_frame_start_w;
   assign o_rx_status      = rx_status_w;
 
 

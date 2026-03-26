@@ -4,6 +4,11 @@ void Regression::updateSnapshot(const FpgaSyncSnapshot& snapshot) {
     _updateModel(snapshot);
 }
 
+FpgaSyncSnapshot Regression::readSnapshot() const {
+    std::lock_guard<std::mutex> lock(m_regression_mutex);
+    return m_latest_snapshot;
+}
+
 RegressionPara Regression::returnParaSnapshot() const {
     std::lock_guard<std::mutex> lock(m_regression_mutex);
     return m_regression_para;
@@ -31,13 +36,17 @@ void Regression::_updateModel(const FpgaSyncSnapshot& snapshot) {
         return;
     }
     std::lock_guard<std::mutex> lock(m_regression_mutex);
+    if (m_is_frozen) {
+        return;
+    }
+    ++m_snapshot_count;
     m_latest_snapshot = snapshot;
     m_regression_para.has_para = true;
     m_regression_para.a_q32 = kFixedAQ32;
     m_regression_para.b_ns =
         static_cast<int64_t>(snapshot.host_time_ns) -
         static_cast<int64_t>((snapshot.fpga_tick * kTickNumer) / kTickDenom);
-    m_is_frozen = true;
+    m_is_frozen = (m_snapshot_count >= 4);
     return;
 
 }

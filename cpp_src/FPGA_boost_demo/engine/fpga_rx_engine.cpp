@@ -24,15 +24,19 @@ void pushTraceRecords(TraceBuffer* trace_buffer,
         };
 
         trace_buffer->push(record);
+
         record.event_stage = stage::DMA_EMIT;
         record.time_captured = event.event_tk;
         trace_buffer->push(record);
+
         record.event_stage = stage::DECODE;
         clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
         record.time_captured =
             static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL +
             static_cast<uint64_t>(ts.tv_nsec);
         trace_buffer->push(record);
+        // printf("TraceBuffer push: que_idx: %u, frame_start_tk: %lu, event_tk: %lu, time_captured: %lu\n",
+        //        record.que_idx, event.frame_start_tk, event.event_tk, record.time_captured);
     }
 }
 
@@ -54,7 +58,12 @@ const std::array<FPGAEventDesc, MAX_POLL_RECORDS>& FPGARxEngine::readEventBuffer
 std::size_t FPGARxEngine::pollBatch(std::size_t batch_size, bool get_time ) {
     (void)get_time;
     FirstEventMask mask;
-    const std::size_t count = m_decoder.decodeRawBatch(mask, m_event_buffer.data(), batch_size);
+    QueuePollLogRecord queue_poll {};
+    const std::size_t count = m_decoder.decodeRawBatch(mask, &queue_poll, m_event_buffer.data(), batch_size);
+
+    if (count > 0 && m_log_printer != nullptr) {
+        m_log_printer->pushQueuePoll(queue_poll);
+    }
 
     if (mask.count > 0 && m_trace_buffer != nullptr) {
         pushTraceRecords(m_trace_buffer,
@@ -69,18 +78,26 @@ std::size_t FPGARxEngine::pollBatch(std::size_t batch_size, bool get_time ) {
 std::size_t FPGARxEngine::pollBatchSync(std::size_t batch_size,
                                         const bool get_time,
                                         FpgaSyncSnapshot& snapshot) {
-    FirstEventMask mask;                                        
-    const std::size_t count = m_decoder.decodeRawBatchSync(mask, m_event_buffer.data(),
+    FirstEventMask mask;
+    QueuePollLogRecord queue_poll {};
+    const std::size_t count = m_decoder.decodeRawBatchSync(mask,
+                                                           &queue_poll,
+                                                           m_event_buffer.data(),
                                                            snapshot,
                                                            get_time,
                                                            batch_size);
     if (get_time) {
+        FpgaSyncSnapshot snapshot_in_use = snapshot;
         if (m_regression != nullptr) {
             m_regression->updateSnapshot(snapshot);
+            snapshot_in_use = m_regression->readSnapshot();
         }
         if (m_log_printer != nullptr) {
-            m_log_printer->pushSnapshot(snapshot);
+            m_log_printer->pushSnapshot(snapshot_in_use);
         }
+    }
+    if (count > 0 && m_log_printer != nullptr) {
+        m_log_printer->pushQueuePoll(queue_poll);
     }
     if (mask.count > 0 && m_trace_buffer != nullptr) {
         pushTraceRecords(m_trace_buffer,

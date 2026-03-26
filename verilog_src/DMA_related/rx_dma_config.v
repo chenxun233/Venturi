@@ -37,6 +37,10 @@ module rx_dma_config #(
     input  wire [SYMBOL_NUM*64-1:0]     i_rx_que_prod_ptr,
     input  wire [SYMBOL_NUM*64-1:0]     i_rx_que_drop_count,
     input  wire [SYMBOL_NUM*64-1:0]     i_rx_que_status,
+    input  wire [63:0]                  i_rx_dbg_pcs_frame_count,
+    input  wire [63:0]                  i_rx_dbg_frame_count,
+    input  wire [63:0]                  i_rx_dbg_msg_count,
+    input  wire [SYMBOL_NUM*64-1:0]     i_rx_dbg_event_count,
     input  wire [47:0]                  i_dma_timestamp
 );
 
@@ -61,6 +65,11 @@ localparam [BAR0_SIZE-1:0] REG_RX_QUE_PRICE_BASE_OFFSET     = 16'h38;
 localparam [BAR0_SIZE-1:0] REG_RX_QUE_IOVA                  = 16'h40;
 localparam [BAR0_SIZE-1:0] REG_RX_QUE_STRIDE                = 16'h40;
 localparam [BAR0_SIZE-1:0] REG_RX_IOVA_OFFSET               = 16'h00;
+localparam [BAR0_SIZE-1:0] REG_RX_DBG_PCS_FRAME_COUNT       = 16'h0F8;
+localparam [BAR0_SIZE-1:0] REG_RX_DBG_FRAME_COUNT           = 16'h100;
+localparam [BAR0_SIZE-1:0] REG_RX_DBG_MSG_COUNT             = 16'h108;
+localparam [BAR0_SIZE-1:0] REG_RX_DBG_EVENT_COUNT_BASE      = 16'h110;
+localparam [BAR0_SIZE-1:0] REG_RX_DBG_EVENT_COUNT_STRIDE    = 16'h08;
 
 localparam [63:0] MODULE_ID = 64'h4d5f52585f434647;
 
@@ -104,6 +113,9 @@ function [63:0] get_reg_value (input [BAR0_SIZE-1:0] reg_addr);
             REG_ID:             get_reg_value = MODULE_ID;
             REG_SYNC_ENABLE:    get_reg_value = {63'd0, reg_sync_cali};
             REG_RX_SYMBOL_NUM:  get_reg_value = SYMBOL_NUM;
+            REG_RX_DBG_PCS_FRAME_COUNT: get_reg_value = i_rx_dbg_pcs_frame_count;
+            REG_RX_DBG_FRAME_COUNT:     get_reg_value = i_rx_dbg_frame_count;
+            REG_RX_DBG_MSG_COUNT:       get_reg_value = i_rx_dbg_msg_count;
             default: begin
                 for (idx = 0; idx < SYMBOL_NUM; idx = idx + 1) begin
                     if (reg_addr == (REG_RX_QUE_IOVA + idx*REG_RX_QUE_STRIDE + REG_RX_IOVA_OFFSET))
@@ -124,6 +136,8 @@ function [63:0] get_reg_value (input [BAR0_SIZE-1:0] reg_addr);
                         get_reg_value = {48'd0, reg_symbol_stock_locate[idx]};
                     else if (reg_addr == (REG_RX_QUE_IOVA + idx*REG_RX_QUE_STRIDE + REG_RX_QUE_PRICE_BASE_OFFSET))
                         get_reg_value = {32'd0, reg_symbol_price_base[idx]};
+                    else if (reg_addr == (REG_RX_DBG_EVENT_COUNT_BASE + idx*REG_RX_DBG_EVENT_COUNT_STRIDE))
+                        get_reg_value = i_rx_dbg_event_count[idx*64 +: 64];
                 end
             end
         endcase

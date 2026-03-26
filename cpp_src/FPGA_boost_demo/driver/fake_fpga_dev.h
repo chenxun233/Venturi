@@ -25,6 +25,7 @@ public:
     uint64_t lastWrittenConsPtr(uint16_t que_idx) const;
 
     void _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const override;
+    uint64_t _readDropCount(uint16_t que_idx) const override;
     void _readProdPtrAndTime(uint16_t que_idx,
                             uint64_t& prod_ptr,
                             uint64_t& fpga_tick,
@@ -39,6 +40,7 @@ private:
     struct QueueState {
         std::vector<RawSlot> slots;
         uint64_t prod_ptr {0};
+        uint64_t drop_count {0};
         uint64_t fpga_tick {0};
         uint64_t host_time_ns {0};
         uint64_t interval_ns {0};

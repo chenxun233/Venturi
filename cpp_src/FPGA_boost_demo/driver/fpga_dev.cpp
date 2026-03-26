@@ -206,6 +206,24 @@ bool FPGADev::readQueueDebugState(uint16_t que_idx, uint64_t& prod_ptr, uint64_t
     return true;
 }
 
+bool FPGADev::readRxDebugCounters(uint64_t& pcs_frame_count,
+                                  uint64_t& frame_count,
+                                  uint64_t& parser_msg_count,
+                                  std::vector<uint64_t>& builder_event_counts) const {
+    if (!m_hw_ready || m_basic_para.bar0_addr == nullptr) {
+        return false;
+    }
+    pcs_frame_count = _readReg64(REG_RX_DBG_PCS_FRAME_COUNT);
+    frame_count = _readReg64(REG_RX_DBG_FRAME_COUNT);
+    parser_msg_count = _readReg64(REG_RX_DBG_MSG_COUNT);
+    builder_event_counts.resize(m_rx_queues.size());
+    for (std::size_t que_idx = 0; que_idx < m_rx_queues.size(); ++que_idx) {
+        builder_event_counts[que_idx] =
+            _readReg64(REG_RX_DBG_EVENT_COUNT_BASE + que_idx * REG_RX_DBG_EVENT_COUNT_STRIDE);
+    }
+    return true;
+}
+
 void FPGADev::_readSymbolNum() {
     m_basic_para.rx_que_num = static_cast<uint8_t>(_readReg64(REG_RX_SYMBOL_NUM));
     m_rx_queues.resize(m_basic_para.rx_que_num);

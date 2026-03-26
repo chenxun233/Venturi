@@ -73,6 +73,7 @@ module eth_phy_10g #
      * Status
      */
     output wire                  tx_bad_block,
+    output wire                  rx_frame_start,
     output wire [6:0]            rx_error_count,
     output wire                  rx_bad_block,
     output wire                  rx_sequence_error,
@@ -108,6 +109,7 @@ eth_phy_10g_rx_inst (
     .serdes_rx_hdr(serdes_rx_hdr),
     .serdes_rx_bitslip(serdes_rx_bitslip),
     .serdes_rx_reset_req(serdes_rx_reset_req),
+    .rx_frame_start(rx_frame_start),
     .rx_error_count(rx_error_count),
     .rx_bad_block(rx_bad_block),
     .rx_sequence_error(rx_sequence_error),

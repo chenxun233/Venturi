@@ -29,6 +29,10 @@ public:
     bool    validateRxAll();
     bool    isValid() const override { return m_is_valid; }
     bool    readQueueDebugState(uint16_t que_idx, uint64_t& prod_ptr, uint64_t& drop_count) const;
+    bool    readRxDebugCounters(uint64_t& pcs_frame_count,
+                                uint64_t& frame_count,
+                                uint64_t& parser_msg_count,
+                                std::vector<uint64_t>& builder_event_counts) const;
 
 
 
@@ -49,6 +53,11 @@ private:
     static constexpr uint64_t REG_RX_QUE_STAT_OFFSET        = 0x30;
     static constexpr uint64_t REG_RX_QUE_SYMBOL_LOC_OFFSET  = 0x34;
     static constexpr uint64_t REG_RX_QUE_PRICE_BASE_OFFSET  = 0x38;
+    static constexpr uint64_t REG_RX_DBG_PCS_FRAME_COUNT    = 0x0F8;
+    static constexpr uint64_t REG_RX_DBG_FRAME_COUNT        = 0x100;
+    static constexpr uint64_t REG_RX_DBG_MSG_COUNT          = 0x108;
+    static constexpr uint64_t REG_RX_DBG_EVENT_COUNT_BASE   = 0x110;
+    static constexpr uint64_t REG_RX_DBG_EVENT_COUNT_STRIDE = 0x08;
     static constexpr uint64_t RX_DMA_CFG_ID                 = 0x4d5f52585f434647ULL;
 
     struct QueueConfig {
@@ -67,20 +76,20 @@ private:
 
     const uint8_t*  _pollOneRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
     void            _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) override;
+    void            _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const override;
+    uint64_t        _readDropCount(uint16_t que_idx) const override;
+    void            _readProdPtrAndTime(uint16_t que_idx,
+                                        uint64_t& prod_ptr,
+                                        uint64_t& fpga_tick,
+                                        uint64_t& host_time_ns,
+                                        uint64_t& interval,
+                                        bool get_time ) const override;
 private:
     void        _initStatus(DevStatus* stats) override;
     uint32_t    _getRegAddr(uint16_t que_idx, uint32_t reg_offset) const;
     void        _readSymbolNum() ;
-    void        _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const;
     // get system time should be put before and after this function  to do sync.
-    void        _readProdPtrAndTime(uint16_t que_idx, 
-                                    uint64_t& prod_ptr, 
-                                    uint64_t& fpga_tick,
-                                    uint64_t& host_time_ns, 
-                                    uint64_t& interval,
-                                    bool get_time ) const;
     // use after processing bactch of records, to update the cons_ptr on FPGA side.
-    uint64_t    _readDropCount(uint16_t que_idx) const;
     void        _readSyncEnable(bool& enabled);
 
 

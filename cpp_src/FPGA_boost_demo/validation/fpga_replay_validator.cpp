@@ -508,7 +508,7 @@ bool FpgaReplayValidator::pollQueueAndValidate(uint16_t que_idx) {
 
     while (event_idx < queue.expected_events.size()) {
         FirstEventMask mask {};
-        const std::size_t count = decoder.decodeRawBatch(mask, event_buffer.data(), event_buffer.size());
+        const std::size_t count = decoder.decodeRawBatch(mask, nullptr, event_buffer.data(), event_buffer.size());
         if (count == 0) {
             if (std::chrono::steady_clock::now() > deadline) {
                 warn("Timed out waiting for queue %u (%s): consumed %llu / %zu events",

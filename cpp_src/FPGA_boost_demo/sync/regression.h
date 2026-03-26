@@ -10,6 +10,7 @@ public:
     Regression() = default;
 
     void updateSnapshot(const FpgaSyncSnapshot& snapshot);
+    FpgaSyncSnapshot readSnapshot() const;
     RegressionPara returnParaSnapshot() const;
     bool isFrozen() const;
     bool convertFpgaToHostTime(uint64_t fpga_tick, uint64_t& host_time_ns) const;
@@ -23,6 +24,7 @@ private:
 
     mutable std::mutex      m_regression_mutex {};
     RegressionPara          m_regression_para {};
+    uint32_t                m_snapshot_count {0};
     bool                    m_is_frozen {false};
     FpgaSyncSnapshot        m_latest_snapshot {};
 };

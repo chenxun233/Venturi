@@ -65,6 +65,7 @@ module eth_phy_10g_rx #
     /*
      * Status
      */
+    output wire                  rx_frame_start,
     output wire [6:0]            rx_error_count,
     output wire                  rx_bad_block,
     output wire                  rx_sequence_error,
@@ -140,6 +141,7 @@ xgmii_baser_dec_inst (
     .encoded_rx_hdr(encoded_rx_hdr),
     .xgmii_rxd(xgmii_rxd),
     .xgmii_rxc(xgmii_rxc),
+    .rx_frame_start(rx_frame_start),
     .rx_bad_block(rx_bad_block),
     .rx_sequence_error(rx_sequence_error)
 );

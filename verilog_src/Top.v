@@ -255,6 +255,9 @@ pcie_wrapper #(
 );
 
 wire rx_dma_reg_reset;
+wire       rx_sw_reset_156;
+wire       rx_logic_reset_156;
+wire       rx_logic_reset_250;
 
 rx_dma_config #(
     .DATA_WIDTH                 (DATA_WIDTH),
@@ -294,6 +297,10 @@ rx_dma_config #(
     .i_rx_que_prod_ptr      (rx_dma_que_prod_ptr),
     .i_rx_que_drop_count    (rx_dma_que_drop_count),
     .i_rx_que_status        (rx_dma_que_status),
+    .i_rx_dbg_pcs_frame_count (rx_dbg_pcs_frame_count),
+    .i_rx_dbg_frame_count   (rx_dbg_frame_count),
+    .i_rx_dbg_msg_count     (rx_dbg_msg_count),
+    .i_rx_dbg_event_count   (rx_dbg_event_count),
     .i_dma_timestamp        (w_dma_ts_bin)
 );
 
@@ -359,6 +366,16 @@ wire [SYMBOL_NUM*64-1:0]               rx_dma_que_drop_count   ;
 wire [SYMBOL_NUM*64-1:0]               rx_dma_que_status       ;
 wire [SYMBOL_NUM*16-1:0]                symbol_stock_locate_cfg ;
 wire [SYMBOL_NUM*32-1:0]                symbol_price_base_cfg   ;
+wire                                    pcs_frame_started       ;
+wire                                    mac_frame_started       ;
+wire [63:0]                             rx_dbg_pcs_frame_count_gray ;
+wire [63:0]                             rx_dbg_frame_count_gray ;
+wire [63:0]                             rx_dbg_msg_count_gray   ;
+wire [SYMBOL_NUM*64-1:0]                rx_dbg_event_count_gray ;
+wire [63:0]                             rx_dbg_pcs_frame_count  ;
+wire [63:0]                             rx_dbg_frame_count      ;
+wire [63:0]                             rx_dbg_msg_count        ;
+wire [SYMBOL_NUM*64-1:0]                rx_dbg_event_count      ;
 
 assign w_axi_rx_ready = axi_rx_ready;
 assign o_ctl_mac_addr      = 48'h0100_5E00_0001;
@@ -384,13 +401,27 @@ wire         bid_best_valid ;
 wire [31:0]  bid_best_price ;
 wire [31:0]  bid_best_shares;
 
+rx_sw_reset_bridge #(
+    .HOLD_CYCLES (1024),
+    .COUNTER_W   (12)
+) rx_sw_reset_bridge_inst (
+    .i_user_clk      (user_clk_250),
+    .i_user_reset_p  (user_reset_p),
+    .i_reg_reset     (rx_dma_reg_reset),
+    .i_rx_clk_156    (w_xgmii_rx_clk),
+    .o_reset_250     (rx_logic_reset_250),
+    .o_reset_156     (rx_sw_reset_156)
+);
+
+assign rx_logic_reset_156 = w_xgmii_rx_rst | rx_sw_reset_156;
+
 
 MAC_layer_rx #(
     .DATA_WIDTH (64),
     .CTRL_WIDTH (8)
 ) MAC_layer_rx_inst (
     .i_xgmii_rx_clk   (w_xgmii_rx_clk   ),
-    .i_xgmii_rx_rst   (w_xgmii_rx_rst   ),
+    .i_xgmii_rx_rst   (rx_logic_reset_156),
     .i_xgmii_rxd      (w_xgmii_rxd      ),
     .i_xgmii_rxc      (w_xgmii_rxc      ),
     .i_rx_status      (w_sfp_rx_status  ),
@@ -398,6 +429,7 @@ MAC_layer_rx #(
     .o_axi_rx_valid   (w_axi_rx_valid   ),
     .o_axi_rx_keep    (w_axi_rx_keep    ),
     .o_axi_rx_last    (w_axi_rx_last    ),
+    .o_frame_started  (mac_frame_started),
     .o_frame_ts       (w_frame_ts       ),
     .o_dma_ts_gray    (w_dma_ts_gray_rx ),
     .i_axi_rx_ready   (w_axi_rx_ready   )
@@ -405,7 +437,7 @@ MAC_layer_rx #(
 
 order_book_parser order_book_parser_inst (
     .i_clk_156              (w_xgmii_rx_clk   ),
-    .i_rst                  (w_xgmii_rx_rst   ),
+    .i_rst                  (rx_logic_reset_156),
     .i_axi_rx_data          (w_axi_rx_data    ),
     .i_axi_rx_valid         (w_axi_rx_valid   ),
     .i_axi_rx_keep          (w_axi_rx_keep    ),
@@ -434,7 +466,7 @@ order_book_builder #(
     .SYMBOL_NUM         (SYMBOL_NUM)
 ) order_book_builder_inst (
     .i_clk_156          (w_xgmii_rx_clk        ),
-    .i_rst              (w_xgmii_rx_rst        ),
+    .i_rst              (rx_logic_reset_156    ),
     .i_msg_valid        (msg_valid             ),
     .i_msg_type         (msg_type              ),
     .i_stock_locate     (stock_locate          ),
@@ -448,6 +480,35 @@ order_book_builder #(
     .i_symbol_price_base_cfg   (symbol_price_base_cfg),
     .o_event_valid      (builder_event_valid   ),
     .o_event_payload    (builder_event_payload )
+);
+
+rx_debug_counters #(
+    .SYMBOL_NUM (SYMBOL_NUM)
+) rx_debug_counters_inst (
+    .i_clk_156           (w_xgmii_rx_clk),
+    .i_rst               (rx_logic_reset_156),
+    .i_pcs_frame_started (pcs_frame_started),
+    .i_frame_started     (mac_frame_started),
+    .i_msg_valid         (msg_valid),
+    .i_event_valid       (builder_event_valid),
+    .o_pcs_frame_count_gray (rx_dbg_pcs_frame_count_gray),
+    .o_frame_count_gray  (rx_dbg_frame_count_gray),
+    .o_msg_count_gray    (rx_dbg_msg_count_gray),
+    .o_event_count_gray  (rx_dbg_event_count_gray)
+);
+
+rx_debug_counter_bridge #(
+    .SYMBOL_NUM (SYMBOL_NUM)
+) rx_debug_counter_bridge_inst (
+    .i_user_clk         (user_clk_250),
+    .i_pcs_frame_count_gray (rx_dbg_pcs_frame_count_gray),
+    .i_frame_count_gray (rx_dbg_frame_count_gray),
+    .i_msg_count_gray   (rx_dbg_msg_count_gray),
+    .i_event_count_gray (rx_dbg_event_count_gray),
+    .o_pcs_frame_count  (rx_dbg_pcs_frame_count),
+    .o_frame_count      (rx_dbg_frame_count),
+    .o_msg_count        (rx_dbg_msg_count),
+    .o_event_count      (rx_dbg_event_count)
 );
 
 bit_synchronizer #(
@@ -473,12 +534,12 @@ generate
             .DATA_W (EVENT_PAYLOAD_W)
         ) event_cdc_inst (
             .i_wr_clk    (w_xgmii_rx_clk                                                    ),
-            .i_wr_rst    (w_xgmii_rx_rst                                                    ),
+            .i_wr_rst    (rx_logic_reset_156                                                ),
             .i_wr_en     (builder_event_valid[cdc_idx]                                      ),
             .i_wr_data   (builder_event_payload[cdc_idx*EVENT_PAYLOAD_W +: EVENT_PAYLOAD_W] ),
             .o_wr_full   (event_cdc_wr_full[cdc_idx]                                        ),
             .i_rd_clk    (user_clk_250                                                      ),
-            .i_rd_rst    (user_reset_p                                                      ),
+            .i_rd_rst    (rx_logic_reset_250                                                ),
             .i_rd_en     (event_cdc_rd_en[cdc_idx]                                          ),
             .o_rd_empty  (event_cdc_rd_empty[cdc_idx]                                       ),
             .o_rd_valid  (event_cdc_rd_valid[cdc_idx]                                       ),
@@ -584,6 +645,7 @@ pcs_pma_wrapper_inst (
     .o_xgmii_tx_rst                 (w_xgmii_tx_rst     ),
     .o_xgmii_rx_clk                 (w_xgmii_rx_clk     ),
     .o_xgmii_rx_rst                 (w_xgmii_rx_rst     ),
+    .o_rx_frame_start               (pcs_frame_started  ),
     .o_rx_status                    (w_sfp_rx_status    )
 );
 

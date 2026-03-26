@@ -21,8 +21,10 @@ constexpr std::array<std::string_view, kQueueCount> kSymbolNames = {
     "HSBC",
 };
 constexpr std::array<uint16_t, kQueueCount> kStockLocates = {
-    0x000d,
     0x0ee8,
+    0x000d,
+    
+    
     
 
 };
@@ -77,6 +79,7 @@ int main() {
 
     latency_tracker.setPrintInterval(kPrintInterval);
     latency_tracker.attachLogPrinter(&latency_log_printer);
+    latency_log_printer.attachDebugDevice(&device);
     latency_log_printer.start();
     engine0.attachLogPrinter(latency_log_printer);
     engine1.attachLogPrinter(latency_log_printer);

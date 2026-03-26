@@ -57,10 +57,12 @@ void FPGARxDecoder::_decodeRawRecord(const uint8_t* record, FPGAEventDesc& event
 
 
 std::size_t FPGARxDecoder::decodeRawBatch(FirstEventMask& mask,
-                                        FPGAEventDesc* out,
-                                        std::size_t max_count) {
+                                          QueuePollLogRecord* queue_poll,
+                                          FPGAEventDesc* out,
+                                          std::size_t max_count) {
     uint64_t cons_ptr = m_cons_ptr;
     uint64_t prod_ptr = 0;
+    const uint64_t drop_count = m_source._readDropCount(m_que_idx);
     m_source._readProdPtr(m_que_idx, prod_ptr);
     std::size_t record_count = 0;
     const uint8_t* raw_byte = nullptr;
@@ -76,21 +78,26 @@ std::size_t FPGARxDecoder::decodeRawBatch(FirstEventMask& mask,
     }
     m_cons_ptr = cons_ptr;
     m_source._writeConsPtr(m_que_idx, cons_ptr);
-    if (record_count > 0) {
-    printf("que 1, m_cons_ptr: %lu, prod_ptr: %lu\n, record_count: %lu\n", m_cons_ptr, prod_ptr, record_count);
+    if (queue_poll != nullptr && record_count > 0) {
+        queue_poll->que_idx = m_que_idx;
+        queue_poll->record_count = static_cast<uint64_t>(record_count);
+        queue_poll->prod_ptr = prod_ptr;
+        queue_poll->drop_count = drop_count;
     }
     return record_count;
 }
 
 
 std::size_t FPGARxDecoder::decodeRawBatchSync(FirstEventMask& mask,
-                                             FPGAEventDesc* out, 
-                                             FpgaSyncSnapshot& snapshot,
-                                             bool get_time,
-                                             std::size_t max_count){
+                                              QueuePollLogRecord* queue_poll,
+                                              FPGAEventDesc* out,
+                                              FpgaSyncSnapshot& snapshot,
+                                              bool get_time,
+                                              std::size_t max_count){
 
     uint64_t cons_ptr = m_cons_ptr;
     uint64_t prod_ptr = 0;
+    const uint64_t drop_count = m_source._readDropCount(m_que_idx);
     m_source._readProdPtrAndTime(m_que_idx,
                                 prod_ptr,
                                 snapshot.fpga_tick,
@@ -110,10 +117,13 @@ std::size_t FPGARxDecoder::decodeRawBatchSync(FirstEventMask& mask,
         ++cons_ptr;
     }
     m_cons_ptr = cons_ptr;
-    if (record_count > 0) {
-    printf("que 0, m_cons_ptr: %lu, prod_ptr: %lu\n, record_count: %lu\n", m_cons_ptr, prod_ptr, record_count);
-    }
     m_source._writeConsPtr(m_que_idx, cons_ptr);
+    if (queue_poll != nullptr && record_count > 0) {
+        queue_poll->que_idx = m_que_idx;
+        queue_poll->record_count = static_cast<uint64_t>(record_count);
+        queue_poll->prod_ptr = prod_ptr;
+        queue_poll->drop_count = drop_count;
+    }
     return record_count;
 
 }

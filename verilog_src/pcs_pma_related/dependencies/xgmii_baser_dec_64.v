@@ -56,6 +56,7 @@ module xgmii_baser_dec_64 #
     /*
      * Status
      */
+    output wire                  rx_frame_start,
     output wire                  rx_bad_block,
     output wire                  rx_sequence_error
 );
@@ -135,6 +136,7 @@ reg [CTRL_WIDTH-1:0] decode_err;
 reg [DATA_WIDTH-1:0] xgmii_rxd_reg = {DATA_WIDTH{1'b0}}, xgmii_rxd_next;
 reg [CTRL_WIDTH-1:0] xgmii_rxc_reg = {CTRL_WIDTH{1'b0}}, xgmii_rxc_next;
 
+reg rx_frame_start_reg = 1'b0, rx_frame_start_next;
 reg rx_bad_block_reg = 1'b0, rx_bad_block_next;
 reg rx_sequence_error_reg = 1'b0, rx_sequence_error_next;
 reg frame_reg = 1'b0, frame_next;
@@ -142,6 +144,7 @@ reg frame_reg = 1'b0, frame_next;
 assign xgmii_rxd = xgmii_rxd_reg;
 assign xgmii_rxc = xgmii_rxc_reg;
 
+assign rx_frame_start = rx_frame_start_reg;
 assign rx_bad_block = rx_bad_block_reg;
 assign rx_sequence_error = rx_sequence_error_reg;
 
@@ -150,6 +153,7 @@ integer i;
 always @* begin
     xgmii_rxd_next = {8{XGMII_ERROR}};
     xgmii_rxc_next = 8'hff;
+    rx_frame_start_next = 1'b0;
     rx_bad_block_next = 1'b0;
     rx_sequence_error_next = 1'b0;
     frame_next = frame_reg;
@@ -231,6 +235,7 @@ always @* begin
                 xgmii_rxc_next = 8'h1f;
                 rx_bad_block_next = decode_err[3:0] != 0;
                 rx_sequence_error_next = frame_reg;
+                rx_frame_start_next = decode_err[3:0] == 0;
                 frame_next = 1'b1;
             end
             BLOCK_TYPE_OS_START: begin
@@ -247,6 +252,7 @@ always @* begin
                 xgmii_rxd_next[63:32] = {encoded_rx_data[63:40], XGMII_START};
                 xgmii_rxc_next[7:4] = 4'h1;
                 rx_sequence_error_next = frame_reg;
+                rx_frame_start_next = !rx_bad_block_next;
                 frame_next = 1'b1;
             end
             BLOCK_TYPE_OS_04: begin
@@ -275,6 +281,7 @@ always @* begin
                 xgmii_rxc_next = 8'h01;
                 rx_bad_block_next = 1'b0;
                 rx_sequence_error_next = frame_reg;
+                rx_frame_start_next = 1'b1;
                 frame_next = 1'b1;
             end
             BLOCK_TYPE_OS_0: begin
@@ -374,11 +381,13 @@ always @(posedge clk) begin
     xgmii_rxd_reg <= xgmii_rxd_next;
     xgmii_rxc_reg <= xgmii_rxc_next;
 
+    rx_frame_start_reg <= rx_frame_start_next;
     rx_bad_block_reg <= rx_bad_block_next;
     rx_sequence_error_reg <= rx_sequence_error_next;
     frame_reg <= frame_next;
 
     if (rst) begin
+        rx_frame_start_reg <= 1'b0;
         frame_reg <= 1'b0;
     end
 end
