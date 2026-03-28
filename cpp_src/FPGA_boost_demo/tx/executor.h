@@ -1,0 +1,34 @@
+#pragma once
+
+#include "../common/shared_types.h"
+#include "../latency/trace_buffer.h"
+
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <vector>
+
+class LatencyLogPrinter;
+class TxEngine;
+
+class Executor {
+public:
+    explicit Executor(uint16_t producer_num, std::size_t buffer_capacity = 1024);
+    ~Executor() = default;
+
+    void attachLogPrinter(LatencyLogPrinter* log_printer);
+    void attachTx(TxEngine* tx_engine);
+    bool pushIntent(uint16_t producer_idx, const OrderIntent& intent);
+    void run(const std::atomic<bool>& running);
+    void drain();
+
+private:
+    void _executeIntent(const OrderIntent& intent);
+
+    std::vector<std::unique_ptr<TraceBuffer<OrderIntent>>> m_intent_buffers;
+    uint16_t m_producer_num {0};
+    uint16_t m_next_buffer_idx {0};
+    LatencyLogPrinter* m_log_printer {nullptr};
+    TxEngine* m_tx_engine {nullptr};
+};

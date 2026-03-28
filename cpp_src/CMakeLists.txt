@@ -100,7 +100,6 @@ set(FPGA_SOURCES
     ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp
     ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
-    ${FPGA_VALIDATION_DIR}/fpga_replay_validator.cpp
 )
 
 add_executable(test_fpga_hello_v2
@@ -113,7 +112,6 @@ target_include_directories(test_fpga_hello_v2 PRIVATE
     ${INTEL_DRIVER_DIR}  # Need Intel headers for ixgbe_type.h (used by common/basic_ring_buffer.cpp)
     ${FPGA_DRIVER_DIR}
     ${FPGA_ADAPTER_DIR}
-    ${FPGA_VALIDATION_DIR}
 )
 
 add_executable(test_fpga_rx_adapter
@@ -125,11 +123,12 @@ add_executable(test_fpga_rx_adapter
     ${FPGA_LATENCY_DIR}/latency_log_printer.cpp
     ${FPGA_LATENCY_DIR}/trace_buffer.cpp
     ${FPGA_LATENCY_DIR}/latency_tracker.cpp
-    ${FPGA_RUNTIME_DIR}/top_runner.cpp
     ${FPGA_SYNC_DIR}/regression.cpp
     ${FPGA_SYNC_DIR}/sync_handler.cpp
+    ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
     ${FPGA_STRATEGY_DIR}/passive_strategy.cpp
     ${FPGA_TUNER_DIR}/tuner.cpp
+    ${FPGA_TX_DIR}/executor.cpp
     ${FPGA_TX_DIR}/tx_engine.cpp
     ${FPGA_VALIDATION_DIR}/runtime_payload_validator.cpp
     ${FPGA_APP_DIR}/Venturi.cpp
@@ -141,7 +140,6 @@ target_include_directories(test_fpga_rx_adapter PRIVATE
     ${FPGA_ADAPTER_DIR}
     ${FPGA_ENGINE_DIR}
     ${FPGA_LATENCY_DIR}
-    ${FPGA_RUNTIME_DIR}
     ${FPGA_SYNC_DIR}
     ${FPGA_STRATEGY_DIR}
     ${FPGA_TUNER_DIR}

@@ -197,30 +197,27 @@ bool FPGADev::validateRxAll() {
     return true;
 }
 
-bool FPGADev::readQueueDebugState(uint16_t que_idx, uint64_t& prod_ptr, uint64_t& drop_count) const {
-    if (!m_hw_ready || que_idx >= m_rx_queues.size()) {
-        return false;
-    }
-    _readProdPtr(que_idx, prod_ptr);
-    drop_count = _readDropCount(que_idx);
-    return true;
-}
-
-bool FPGADev::readRxDebugCounters(uint64_t& pcs_frame_count,
-                                  uint64_t& frame_count,
-                                  uint64_t& parser_msg_count,
-                                  std::vector<uint64_t>& builder_event_counts) const {
+bool FPGADev::readSyncTimestamp(FpgaSyncSnapshot& snapshot) const {
     if (!m_hw_ready || m_basic_para.bar0_addr == nullptr) {
         return false;
     }
-    pcs_frame_count = _readReg64(REG_RX_DBG_PCS_FRAME_COUNT);
-    frame_count = _readReg64(REG_RX_DBG_FRAME_COUNT);
-    parser_msg_count = _readReg64(REG_RX_DBG_MSG_COUNT);
-    builder_event_counts.resize(m_rx_queues.size());
-    for (std::size_t que_idx = 0; que_idx < m_rx_queues.size(); ++que_idx) {
-        builder_event_counts[que_idx] =
-            _readReg64(REG_RX_DBG_EVENT_COUNT_BASE + que_idx * REG_RX_DBG_EVENT_COUNT_STRIDE);
-    }
+
+    timespec ts_before {};
+    timespec ts_after {};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts_before);
+    const uint64_t fpga_tick = _readReg64(REG_SYNC_TIMESTAMP);
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts_after);
+
+    const uint64_t before_ns =
+        static_cast<uint64_t>(ts_before.tv_sec) * 1000000000ULL +
+        static_cast<uint64_t>(ts_before.tv_nsec);
+    const uint64_t after_ns =
+        static_cast<uint64_t>(ts_after.tv_sec) * 1000000000ULL +
+        static_cast<uint64_t>(ts_after.tv_nsec);
+
+    snapshot.fpga_tick = fpga_tick & ((1ULL << 48) - 1ULL);
+    snapshot.host_time_ns = before_ns + ((after_ns - before_ns) >> 1);
+    snapshot.interval_ns = after_ns - before_ns;
     return true;
 }
 
@@ -256,25 +253,23 @@ void FPGADev::_readSyncEnable(bool& enabled) {
 
 
 
-void FPGADev::_readProdPtrAndTime(uint16_t que_idx,
+void FPGADev::_readProdPtrSnapshot(uint16_t que_idx,
                                   uint64_t& prod_ptr,
                                   uint64_t& fpga_tick,
                                   uint64_t& host_time_ns,
                                   uint64_t& interval,
-                                bool get_time) const {
-    timespec ts_before {};
-    timespec ts_after {};
+                                bool get_time) {
 
     if (get_time) {
-        clock_gettime(CLOCK_MONOTONIC_RAW, &ts_before);
+        clock_gettime(CLOCK_MONOTONIC_RAW, &m_ts_before);
         _readReg128(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET), prod_ptr, fpga_tick);
-        clock_gettime(CLOCK_MONOTONIC_RAW, &ts_after);
+        clock_gettime(CLOCK_MONOTONIC_RAW, &m_ts_after);
         const uint64_t before_ns =
-            static_cast<uint64_t>(ts_before.tv_sec) * 1000000000ULL +
-            static_cast<uint64_t>(ts_before.tv_nsec);
+            static_cast<uint64_t>(m_ts_before.tv_sec) * 1000000000ULL +
+            static_cast<uint64_t>(m_ts_before.tv_nsec);
         const uint64_t after_ns =
-            static_cast<uint64_t>(ts_after.tv_sec) * 1000000000ULL +
-            static_cast<uint64_t>(ts_after.tv_nsec);
+            static_cast<uint64_t>(m_ts_after.tv_sec) * 1000000000ULL +
+            static_cast<uint64_t>(m_ts_after.tv_nsec);
 
         host_time_ns = before_ns + ((after_ns - before_ns) >> 1);
         interval = after_ns - before_ns;

@@ -7,9 +7,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <unordered_map>
-#include <chrono>
 
 class Regression;
 class LatencyLogPrinter;
@@ -18,13 +18,11 @@ class Tuner;
 class LatencyTracker {
 public:
     explicit        LatencyTracker(uint16_t producer_num, std::size_t buffer_capacity = 1024);
+    void            run();
+    bool            pushRecord(const TimeRecord& record);
     void            attachRegression(Regression* regression);
     void            attachLogPrinter(LatencyLogPrinter* log_printer);
-    TraceBuffer&    readBuffer(uint16_t producer_idx);
-    void            setMeasurementEnabled(bool enabled);
-    void            setPrintInterval(std::chrono::seconds interval);
-    void            run();
-    // void            attachTuner(Tuner* tuner);
+    
 
 private:
     struct EventKey {
@@ -63,15 +61,10 @@ private:
         }
     };
 
-    struct LatencyStatsState {
-        LatencyStats stats {};
-    };
-
     struct PendingEventState {
         uint64_t frame_start_host_ns {0};
         uint64_t dma_emit_host_ns {0};
         uint64_t frame_start_to_dma_emit_ns {0};
-        bool has_frame_start {false};
         bool has_dma_emit {false};
     };
 
@@ -84,17 +77,15 @@ private:
                        std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it);
     void _updateStats(const StageLatency& latency);
     void _incrementDrop(uint16_t que_idx, stage prev_stage, stage curr_stage);
-    void _resetStats();
+    LatencyStats& _readOrCreateStats(uint16_t que_idx, stage prev_stage, stage curr_stage);
 
-    std::vector<std::unique_ptr<TraceBuffer>> m_trace_buffer;
+    std::vector<std::unique_ptr<TraceBuffer<TimeRecord>>> m_trace_buffer;
     uint16_t m_capacity {0};
     uint16_t m_next_buffer_idx {0};
     Regression* m_regressions {nullptr};
     LatencyLogPrinter* m_log_printer {nullptr};
-    bool m_measurement_enabled {false};
-    std::chrono::seconds m_print_interval {std::chrono::seconds(1)};
-    std::chrono::steady_clock::time_point m_last_print_time {std::chrono::steady_clock::now()};
+    std::mutex m_run_mutex;
     std::unordered_map<EventKey, PendingEventState, EventKeyHash> m_pending_records;
-    std::unordered_map<StageKey, LatencyStatsState, StageKeyHash> m_latency_stats;
+    std::unordered_map<StageKey, LatencyStats, StageKeyHash> m_latency_stats;
     // Tuner* m_tuner {nullptr};
 };

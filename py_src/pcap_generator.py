@@ -255,34 +255,62 @@ class MoldUDP64Frame:
 # Edit these message fields directly instead of editing large hex strings.
 
 side = "B"  # "B" for buy, "S" for sell
-symbol = "AAPL"
-stock_locate = 13  # in decimal
+symbol = "HSBC"
+stock_locate = 3816  # in decimal
+# MANUAL_MESSAGE_FRAMES = [
+#     MoldUDP64Frame(
+#         session="NASDQTEST",
+#         sequence_number=1,
+#         messages=[
+#             TYPE_A(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=14400007075802,
+#                 order_reference_number=1,
+#                 buy_sell_indicator="B",
+#                 shares=100000,
+#                 stock=symbol,
+#                 price="000.09",
+#             ),
+#             TYPE_A(
+#                 stock_locate=stock_locate,
+#                 tracking_number=0,
+#                 timestamp=14400007075802,
+#                 order_reference_number=2,
+#                 buy_sell_indicator="S",
+#                 shares=100,
+#                 stock=symbol,
+#                 price="000.10",
+#             ),
+#         ],
+#     )
+# ]
+
 MANUAL_MESSAGE_FRAMES = [
     MoldUDP64Frame(
         session="NASDQTEST",
-        sequence_number=1,
+        sequence_number=2,
         messages=[
-            # TYPE_A(
-            #     stock_locate=stock_locate,
-            #     tracking_number=0,
-            #     timestamp=14400007075802,
-            #     order_reference_number=1,
-            #     buy_sell_indicator=side,
-            #     shares=10,
-            #     stock=symbol,
-            #     price="000.01",
-            # ),
             TYPE_E(
                 stock_locate=stock_locate,
                 tracking_number=2,
                 timestamp=14788203892840,
                 order_reference_number=1,
-                executed_shares=10,
+                executed_shares=10000,
+                match_number=17959,
+            ),
+            TYPE_E(
+                stock_locate=stock_locate,
+                tracking_number=2,
+                timestamp=14788203892840,
+                order_reference_number=2,
+                executed_shares=100,
                 match_number=17959,
             ),
         ],
     )
 ]
+
 # MANUAL_MESSAGE_FRAMES = [
 #     MoldUDP64Frame(
 #         session="NASDQTEST",

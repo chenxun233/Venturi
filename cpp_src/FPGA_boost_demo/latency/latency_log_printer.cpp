@@ -1,10 +1,33 @@
 #include "latency_log_printer.h"
 
-#include "../driver/fpga_dev.h"
-
-#include <chrono>
 #include <cstdio>
 #include <stdexcept>
+
+namespace {
+
+const char* readIntentActionName(OrderIntentAction action) {
+    switch (action) {
+        case OrderIntentAction::Buy:
+            return "BUY";
+        case OrderIntentAction::Sell:
+            return "SELL";
+        default:
+            return "NONE";
+    }
+}
+
+const char* readSymbolName(uint16_t stock_locate) {
+    switch (stock_locate) {
+        case 0x000d:
+            return "AAPL";
+        case 0x0ee8:
+            return "HSBC";
+        default:
+            return "UNKNOWN";
+    }
+}
+
+} // namespace
 
 LatencyLogPrinter::LatencyLogPrinter(std::size_t capacity)
     : m_records(capacity),
@@ -18,16 +41,11 @@ LatencyLogPrinter::~LatencyLogPrinter() {
     stop();
 }
 
-void LatencyLogPrinter::attachDebugDevice(FPGADev* device) {
-    m_debug_device = device;
-}
-
 bool LatencyLogPrinter::pushLatency(const LatencyLogRecord& record) {
     return _pushRecord(AsyncLogRecord {
         .kind = AsyncLogKind::Latency,
         .latency = record,
-        .snapshot = {},
-        .queue_poll = {}
+        .snapshot = {}
     });
 }
 
@@ -36,16 +54,16 @@ bool LatencyLogPrinter::pushSnapshot(const FpgaSyncSnapshot& snapshot) {
         .kind = AsyncLogKind::Snapshot,
         .latency = {},
         .snapshot = snapshot,
-        .queue_poll = {}
+        .execution = {}
     });
 }
 
-bool LatencyLogPrinter::pushQueuePoll(const QueuePollLogRecord& record) {
+bool LatencyLogPrinter::pushExecution(const ExecutionLogRecord& record) {
     return _pushRecord(AsyncLogRecord {
-        .kind = AsyncLogKind::QueuePoll,
+        .kind = AsyncLogKind::Execution,
         .latency = {},
         .snapshot = {},
-        .queue_poll = record
+        .execution = record
     });
 }
 
@@ -122,78 +140,35 @@ void LatencyLogPrinter::_run() {
 }
 
 void LatencyLogPrinter::_handleRecord(const AsyncLogRecord& record) {
-    if (record.kind == AsyncLogKind::QueuePoll) {
-        _ensureQueuePollCapacity(record.queue_poll.que_idx);
-        m_latest_queue_polls[record.queue_poll.que_idx] = record.queue_poll;
-        m_has_queue_poll[record.queue_poll.que_idx] = true;
+    if (record.kind == AsyncLogKind::Snapshot) {
+        std::printf("SyncSnapshot fpga_tick=%llu host_time_ns=%llu interval_ns=%llu\n",
+                    static_cast<unsigned long long>(record.snapshot.fpga_tick),
+                    static_cast<unsigned long long>(record.snapshot.host_time_ns),
+                    static_cast<unsigned long long>(record.snapshot.interval_ns));
+        std::fflush(stdout);
         return;
     }
-
-    if (record.kind == AsyncLogKind::Snapshot) {
-        // std::printf("SyncSnapshot fpga_tick=%llu host_time_ns=%llu interval_ns=%llu\n",
-        //             static_cast<unsigned long long>(record.snapshot.fpga_tick),
-        //             static_cast<unsigned long long>(record.snapshot.host_time_ns),
-        //             static_cast<unsigned long long>(record.snapshot.interval_ns));
-        for (std::size_t queue_idx = 0; queue_idx < m_has_queue_poll.size(); ++queue_idx) {
-            if (!m_has_queue_poll[queue_idx]) {
-                continue;
-            }
-            const QueuePollLogRecord& queue_poll = m_latest_queue_polls[queue_idx];
-            std::printf("que %u, record_count %llu, prod_ptr %llu, drop_count %llu\n",
-                        queue_poll.que_idx,
-                        static_cast<unsigned long long>(queue_poll.record_count),
-                        static_cast<unsigned long long>(queue_poll.prod_ptr),
-                        static_cast<unsigned long long>(queue_poll.drop_count));
-        }
-        _printDebugCounters();
+    if (record.kind == AsyncLogKind::Execution) {
+        std::printf("Execution action=%s symbol=%s stock_locate=0x%04x price=%u shares=%u\n",
+                    readIntentActionName(record.execution.intent.action),
+                    readSymbolName(record.execution.stock_locate),
+                    record.execution.stock_locate,
+                    record.execution.intent.price,
+                    record.execution.intent.shares);
         std::fflush(stdout);
         return;
     }
 
-    // std::printf("LatencyNs queue=%u event_ts=%llu frame_start_to_dma_emit_ns=%llu dma_emit_to_decode_ns=%llu\n",
-    //             record.latency.que_idx,
-    //             static_cast<unsigned long long>(record.latency.event_ts),
-    //             static_cast<unsigned long long>(record.latency.frame_start_to_dma_emit_ns),
-    //             static_cast<unsigned long long>(record.latency.dma_emit_to_decode_ns));
-    // std::fflush(stdout);
+    std::printf("LatencyNs%s queue=%u event_ts=%llu frame_start_to_dma_emit_ns=%llu dma_emit_to_decode_ns=%lld\n",
+                (record.latency.dma_emit_to_decode_ns < 0) ? "[NEG]" : "",
+                record.latency.que_idx,
+                static_cast<unsigned long long>(record.latency.event_ts),
+                static_cast<unsigned long long>(record.latency.frame_start_to_dma_emit_ns),
+                static_cast<long long>(record.latency.dma_emit_to_decode_ns));
+    std::fflush(stdout);
+    return;
 }
 
 std::size_t LatencyLogPrinter::_slotIndex(std::size_t idx) const {
     return idx & m_capacity_mask;
-}
-
-void LatencyLogPrinter::_ensureQueuePollCapacity(std::size_t queue_idx) {
-    if (queue_idx < m_latest_queue_polls.size()) {
-        return;
-    }
-    m_latest_queue_polls.resize(queue_idx + 1);
-    m_has_queue_poll.resize(queue_idx + 1, false);
-}
-
-void LatencyLogPrinter::_printDebugCounters() {
-    if (m_debug_device == nullptr) {
-        return;
-    }
-
-    uint64_t pcs_frame_count = 0;
-    uint64_t frame_count = 0;
-    uint64_t parser_msg_count = 0;
-    std::vector<uint64_t> builder_event_counts;
-    if (!m_debug_device->readRxDebugCounters(pcs_frame_count,
-                                             frame_count,
-                                             parser_msg_count,
-                                             builder_event_counts)) {
-        return;
-    }
-
-    std::printf("rx_dbg pcs_frame_count=%llu frame_count=%llu parser_msg_count=%llu",
-                static_cast<unsigned long long>(pcs_frame_count),
-                static_cast<unsigned long long>(frame_count),
-                static_cast<unsigned long long>(parser_msg_count));
-    for (std::size_t queue_idx = 0; queue_idx < builder_event_counts.size(); ++queue_idx) {
-        std::printf(" builder_event_count[%zu]=%llu",
-                    queue_idx,
-                    static_cast<unsigned long long>(builder_event_counts[queue_idx]));
-    }
-    std::printf("\n");
 }

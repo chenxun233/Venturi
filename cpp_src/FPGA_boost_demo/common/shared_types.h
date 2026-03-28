@@ -73,27 +73,42 @@ struct LatencyLogRecord {
     uint16_t    que_idx {0};
     uint64_t    event_ts {0};
     uint64_t    frame_start_to_dma_emit_ns {0};
-    uint64_t    dma_emit_to_decode_ns {0};
+    int64_t     dma_emit_to_decode_ns {0};
 };
 
-struct QueuePollLogRecord {
-    uint16_t    que_idx {0};
-    uint64_t    record_count {0};
-    uint64_t    prod_ptr {0};
-    uint64_t    drop_count {0};
+enum class OrderIntentAction : uint8_t {
+    None,
+    Buy,
+    Sell
+};
+
+struct OrderIntentPayload {
+    OrderIntentAction action {OrderIntentAction::None};
+    uint32_t price {0};
+    uint32_t shares {0};
+};
+
+struct OrderIntent {
+    uint16_t stock_locate {0};
+    OrderIntentPayload intent {};
+};
+
+struct ExecutionLogRecord {
+    uint16_t stock_locate {0};
+    OrderIntentPayload intent {};
 };
 
 enum class AsyncLogKind : uint8_t {
     Latency,
     Snapshot,
-    QueuePoll
+    Execution
 };
 
 struct AsyncLogRecord {
     AsyncLogKind kind {AsyncLogKind::Latency};
     LatencyLogRecord latency {};
     FpgaSyncSnapshot snapshot {};
-    QueuePollLogRecord queue_poll {};
+    ExecutionLogRecord execution {};
 };
 
 

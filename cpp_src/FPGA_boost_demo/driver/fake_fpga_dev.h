@@ -26,12 +26,12 @@ public:
 
     void _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const override;
     uint64_t _readDropCount(uint16_t que_idx) const override;
-    void _readProdPtrAndTime(uint16_t que_idx,
+    void _readProdPtrSnapshot(uint16_t que_idx,
                             uint64_t& prod_ptr,
                             uint64_t& fpga_tick,
                             uint64_t& host_time_ns,
                             uint64_t& interval,
-                            bool get_time) const override;
+                            bool get_time) override;
     const uint8_t* _pollOneRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
     void _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) override;
     bool isValid() const override { return true; }

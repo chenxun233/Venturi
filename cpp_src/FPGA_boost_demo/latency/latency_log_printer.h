@@ -9,17 +9,14 @@
 #include <thread>
 #include <vector>
 
-class FPGADev;
-
 class LatencyLogPrinter {
 public:
     explicit LatencyLogPrinter(std::size_t capacity = 1024);
     ~LatencyLogPrinter();
 
-    void attachDebugDevice(FPGADev* device);
     bool pushLatency(const LatencyLogRecord& record);
     bool pushSnapshot(const FpgaSyncSnapshot& snapshot);
-    bool pushQueuePoll(const QueuePollLogRecord& record);
+    bool pushExecution(const ExecutionLogRecord& record);
     void start();
     void stop();
     uint64_t readDropCount() const;
@@ -29,14 +26,9 @@ private:
     bool _pushRecord(const AsyncLogRecord& record);
     void _handleRecord(const AsyncLogRecord& record);
     std::size_t _slotIndex(std::size_t idx) const;
-    void _ensureQueuePollCapacity(std::size_t queue_idx);
-    void _printDebugCounters();
 
     std::vector<AsyncLogRecord> m_records;
-    std::vector<QueuePollLogRecord> m_latest_queue_polls;
-    std::vector<bool> m_has_queue_poll;
     std::size_t m_capacity_mask {0};
-    FPGADev* m_debug_device {nullptr};
     std::mutex m_push_mutex;
     std::mutex m_wait_mutex;
     std::condition_variable m_record_cv;

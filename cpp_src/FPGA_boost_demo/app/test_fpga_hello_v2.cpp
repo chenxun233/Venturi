@@ -12,11 +12,9 @@
  *   1: BAR0 register and REG_SYNC_ENABLE test
  *   2: interrupt placeholder
  *   3: legacy DMA smoke-test placeholder
- *   4: replay validator for live tcpreplay traffic
  */
 
 #include "fpga_dev.h"
-#include "fpga_replay_validator.h"
 #include "../../common/log.h"
 #include <cstdio>
 #include <cstdlib>
@@ -72,14 +70,8 @@ int main(int argc, char* argv[]) {
             break;
         case 3:
             break;
-        case 4:
-        {
-            FpgaReplayValidator validator(*dev);
-            validator.run();
-            break;
-        }
         default:
-            printf("Unknown test: %d (valid: 1=register+sync, 2=interrupt placeholder, 3=DMA placeholder, 4=replay validator)\n",
+            printf("Unknown test: %d (valid: 1=register+sync, 2=interrupt placeholder, 3=DMA placeholder)\n",
                    test_num_int);
             break;
     }

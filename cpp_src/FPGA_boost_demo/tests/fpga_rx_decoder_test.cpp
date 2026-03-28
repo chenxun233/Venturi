@@ -64,7 +64,7 @@ TEST(FpgaRxDecoderTest, decodesKnownRawBytesIntoExpectedFields) {
     std::array<FPGAEventDesc, 4> out {};
     FirstEventMask mask {};
 
-    const std::size_t count = decoder.decodeRawBatch(mask, nullptr, out.data(), out.size());
+    const std::size_t count = decoder.decodeRawBatch(mask, out.data(), out.size());
 
     ASSERT_EQ(count, 1U);
     EXPECT_EQ(mask.count, 1U);
@@ -99,7 +99,7 @@ TEST(FpgaRxDecoderTest, decodesSyncSnapshotAndPublishesConsumerProgress) {
     FpgaSyncSnapshot snapshot {};
     FirstEventMask mask {};
 
-    const std::size_t count = decoder.decodeRawBatchSync(mask, nullptr, out.data(), snapshot, true, out.size());
+    const std::size_t count = decoder.decodeRawBatchSync(mask, out.data(), snapshot, true, out.size());
 
     ASSERT_EQ(count, 1U);
     EXPECT_EQ(mask.count, 0U);
@@ -121,5 +121,5 @@ TEST(FpgaRxDecoderTest, constructsDecoderWithFakeSourcePattern) {
     std::array<FPGAEventDesc, 1> out {};
     FirstEventMask mask {};
 
-    EXPECT_EQ(decoder.decodeRawBatch(mask, nullptr, out.data(), out.size()), 1U);
+    EXPECT_EQ(decoder.decodeRawBatch(mask, out.data(), out.size()), 1U);
 }

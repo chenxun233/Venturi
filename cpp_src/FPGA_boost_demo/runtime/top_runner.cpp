@@ -24,21 +24,6 @@ void printRegressionStatus(const RegressionPara& para,
     // std::fflush(stdout);
 }
 
-void printQueueDebugState(FPGADev& device, std::size_t queue_count) {
-    for (std::size_t queue_idx = 0; queue_idx < queue_count; ++queue_idx) {
-        uint64_t prod_ptr = 0;
-        uint64_t drop_count = 0;
-        if (!device.readQueueDebugState(static_cast<uint16_t>(queue_idx), prod_ptr, drop_count)) {
-            continue;
-        }
-        std::printf("QueueState queue=%zu prod_ptr=%llu drop_count=%llu\n",
-                    queue_idx,
-                    static_cast<unsigned long long>(prod_ptr),
-                    static_cast<unsigned long long>(drop_count));
-    }
-    std::fflush(stdout);
-}
-
 } // namespace
 
 TopRunner::TopRunner(FPGADev& device)
@@ -100,7 +85,7 @@ void TopRunner::run() {
             return;
         }
 
-        m_rx_engines[engine_idx].engine->attachTraceBuffer(m_latency_tracker->readBuffer(engine_idx));
+        m_rx_engines[engine_idx].engine->attachLatencyTracker(*m_latency_tracker);
         if (m_rx_engines[engine_idx].use_sync_path) {
             ++sync_path_count;
         }
@@ -124,8 +109,6 @@ void TopRunner::run() {
         break;
     }
 
-    m_latency_tracker->setMeasurementEnabled(true);
-
     m_running.store(true, std::memory_order_release);
 
     std::thread control_thread([this]() {
@@ -139,11 +122,8 @@ void TopRunner::run() {
                 const RegressionPara para = m_regression->returnParaSnapshot();
                 const FpgaSyncSnapshot snapshot = m_sync_snapshot;
                 printRegressionStatus(para, snapshot, regression_frozen);
-                // printQueueDebugState(m_device, m_rx_engines.size());
                 last_regression_print = now;
             }
-
-            m_latency_tracker->run();
             std::this_thread::sleep_for(m_control_loop_sleep);
         }
     });
@@ -165,6 +145,10 @@ void TopRunner::run() {
                                            get_time,
                                            m_sync_snapshot)
                     : engine.pollBatch(MAX_POLL_RECORDS, get_time);
+
+                if (count > 0) {
+                    m_latency_tracker->run();
+                }
 
                 if (count == 0) {
                     std::this_thread::yield();

@@ -2,6 +2,7 @@
 
 #include "../../common/basic_dev.h"
 #include "../../common/dma_memory_allocator.h"
+#include "../common/shared_types.h"
 #include "basic_rx_source.h"
 #include <vector>
 #include <array>
@@ -9,11 +10,11 @@
 #include <cstdint>
 #include <string>
 #include "log.h"
+#include <ctime>
 
 #define SLOT_SIZE_BYTES 32 // 32 bytes, 256 bits.
 
 class FPGARxDecoder;
-class FpgaReplayValidator;
 
 class FPGADev : public BasicDev, public BasicRxSource {
 public:
@@ -27,12 +28,8 @@ public:
     bool    setTxRingBuffers(uint16_t tx_que_num, uint32_t slot_num, uint32_t slot_size) override;
     void    setSync(bool enable);
     bool    validateRxAll();
+    bool    readSyncTimestamp(FpgaSyncSnapshot& snapshot) const;
     bool    isValid() const override { return m_is_valid; }
-    bool    readQueueDebugState(uint16_t que_idx, uint64_t& prod_ptr, uint64_t& drop_count) const;
-    bool    readRxDebugCounters(uint64_t& pcs_frame_count,
-                                uint64_t& frame_count,
-                                uint64_t& parser_msg_count,
-                                std::vector<uint64_t>& builder_event_counts) const;
 
 
 
@@ -43,6 +40,7 @@ private:
     static constexpr uint64_t REG_ID                        = 0x04;
     static constexpr uint64_t REG_RX_SYMBOL_NUM             = 0x14;
     static constexpr uint64_t REG_SYNC_ENABLE               = 0x0C;
+    static constexpr uint64_t REG_SYNC_TIMESTAMP            = 0x114;
     static constexpr uint64_t REG_RX_QUE_IOVA               = 0x40;
     static constexpr uint64_t REG_RX_QUE_STRIDE             = 0x40;
     static constexpr uint64_t REG_RX_QUE_SLOT_NUM_OFFSET    = 0x08;
@@ -53,11 +51,6 @@ private:
     static constexpr uint64_t REG_RX_QUE_STAT_OFFSET        = 0x30;
     static constexpr uint64_t REG_RX_QUE_SYMBOL_LOC_OFFSET  = 0x34;
     static constexpr uint64_t REG_RX_QUE_PRICE_BASE_OFFSET  = 0x38;
-    static constexpr uint64_t REG_RX_DBG_PCS_FRAME_COUNT    = 0x0F8;
-    static constexpr uint64_t REG_RX_DBG_FRAME_COUNT        = 0x100;
-    static constexpr uint64_t REG_RX_DBG_MSG_COUNT          = 0x108;
-    static constexpr uint64_t REG_RX_DBG_EVENT_COUNT_BASE   = 0x110;
-    static constexpr uint64_t REG_RX_DBG_EVENT_COUNT_STRIDE = 0x08;
     static constexpr uint64_t RX_DMA_CFG_ID                 = 0x4d5f52585f434647ULL;
 
     struct QueueConfig {
@@ -70,7 +63,6 @@ private:
     
 private:
     friend class FPGARxDecoder;
-    friend class FpgaReplayValidator;
     // This should only be called by friend classes (adaptors)
     // this function works with __readProdPtr() or __readProdPtrAndTick()
 
@@ -78,12 +70,12 @@ private:
     void            _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) override;
     void            _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const override;
     uint64_t        _readDropCount(uint16_t que_idx) const override;
-    void            _readProdPtrAndTime(uint16_t que_idx,
+    void            _readProdPtrSnapshot(uint16_t que_idx,
                                         uint64_t& prod_ptr,
                                         uint64_t& fpga_tick,
                                         uint64_t& host_time_ns,
                                         uint64_t& interval,
-                                        bool get_time ) const override;
+                                        bool get_time ) override;
 private:
     void        _initStatus(DevStatus* stats) override;
     uint32_t    _getRegAddr(uint16_t que_idx, uint32_t reg_offset) const;
@@ -98,4 +90,6 @@ private:
     bool m_sync_enable {false};
     bool m_hw_ready {false};
     bool m_is_valid {false};
+    timespec m_ts_before {};
+    timespec m_ts_after {};
 };
