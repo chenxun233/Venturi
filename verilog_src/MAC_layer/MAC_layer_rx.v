@@ -18,8 +18,6 @@ module MAC_layer_rx #(
     output reg [CTRL_WIDTH-1:0]     o_axi_rx_keep    ,
     output reg                      o_axi_rx_last    ,
     output wire                     o_frame_started  ,
-    output wire [47:0]              o_frame_ts       ,
-    output wire [47:0]              o_dma_ts_gray    ,
     input  wire                     i_axi_rx_ready
 );
     
@@ -44,15 +42,6 @@ module MAC_layer_rx #(
 
 assign o_frame_started = (cur_state == IDLE || cur_state == TERM) && (|sof_location) && i_rx_status && i_axi_rx_ready;
 
-timestamper #(
-    .COUNTER_WIDTH (48)
-) timestamp_inst (
-    .i_clk               (i_xgmii_rx_clk),
-    .i_rst               (i_xgmii_rx_rst),
-    .i_event             (o_frame_started),
-    .o_mac_timestamp     (o_frame_ts    ),
-    .o_dma_timestamp_gray(o_dma_ts_gray)
-);
 
 
 

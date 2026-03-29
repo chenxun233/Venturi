@@ -430,9 +430,18 @@ MAC_layer_rx #(
     .o_axi_rx_keep    (w_axi_rx_keep    ),
     .o_axi_rx_last    (w_axi_rx_last    ),
     .o_frame_started  (mac_frame_started),
-    .o_frame_ts       (w_frame_ts       ),
-    .o_dma_ts_gray    (w_dma_ts_gray_rx ),
     .i_axi_rx_ready   (w_axi_rx_ready   )
+);
+
+
+timestamper #(
+    .COUNTER_WIDTH (48)
+) timestamp_inst (
+    .i_clk               (w_xgmii_rx_clk    ),
+    .i_rst               (rx_logic_reset_156),
+    .i_event             (mac_frame_started ),
+    .o_mac_timestamp     (w_frame_ts        ),
+    .o_dma_timestamp_gray(w_dma_ts_gray_rx  )
 );
 
 order_book_parser order_book_parser_inst (

@@ -54,7 +54,7 @@ constexpr std::size_t kInitSyncMaxAttempts = 100000;
 constexpr std::size_t kLatencyQueueCapacity = 1024;
 constexpr std::size_t kLatencyLogCapacity = 4096;
 constexpr std::size_t kExecutorQueueCapacity = 1024;
-constexpr uint64_t      accepted_interval_ns = 2000;
+constexpr uint64_t    accepted_interval_ns = 2000;
 
 bool initSync(FPGARxEngine& sync_engine,
               Regression& regression,
