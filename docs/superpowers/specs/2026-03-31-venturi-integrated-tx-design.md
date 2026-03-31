@@ -19,6 +19,7 @@ The client transport is OUCH-over-SoupBinTCP over a direct physical link between
 
 - Integrate the TX client into `Venturi.cpp`
 - Keep `dummy_exchange_server` as a separate executable
+- Delete the previously added separate standalone client executable and its related client-only wiring
 - Use fixed client-side network/session settings
 - Keep TX on the same thread as `Executor`
 - Keep retrying TX connection in the background of the executor loop, not by spawning a dedicated TX thread
@@ -299,6 +300,7 @@ There is no separate client executable in the final design.
 The first implementation plan should:
 
 - remove the separate standalone client executable from the target design
+- delete the previously added separate client app target and its related client-only docs/build wiring
 - keep only the exchange as a separate app
 - integrate the TX session/protocol into the existing `Venturi.cpp` path
 - keep TX driven by executor thread only
@@ -309,4 +311,3 @@ The plan should not introduce:
 - a new client app
 - a TX worker thread
 - runtime-configurable client network/session CLI
-
