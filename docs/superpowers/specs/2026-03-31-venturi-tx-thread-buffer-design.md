@@ -10,6 +10,7 @@ Refine the TX architecture in `FPGA_boost_demo` so that:
 - `dummy_exchange_server` remains a separate executable
 - `Executor` and `TxEngine` have an explicit producer/consumer boundary
 - `Executor` writes outbound execution intents into a TX-owned buffer
+- `Executor` writes outbound payloads that are already ready to be sent by `TxEngine`
 - `TxEngine` owns a dedicated TX thread that handles send, reconnect, heartbeat, and feedback receive
 
 The transport remains OUCH-over-SoupBinTCP over the direct physical NIC link.
@@ -72,7 +73,7 @@ Responsibilities:
 
 - consume strategy-generated intents from existing per-producer intent buffers
 - record execution-side logs as it already does
-- translate the internal execution decision into a TX handoff record only if needed
+- convert the internal execution decision into a TX handoff payload that is already ready for the TX module to send
 - push that record into `TxEngine`’s exposed buffer interface
 
 `Executor` no longer drives socket progress, reconnect, heartbeat, or feedback polling.
@@ -137,16 +138,16 @@ This matches the intended single-producer/single-consumer usage pattern of `Trac
 
 ### TX Record Type
 
-The design should add a focused TX handoff record inside `FPGA_boost_demo`, carrying the fields `TxEngine` needs to serialize and track orders, such as:
+The design should add a focused TX handoff record inside `FPGA_boost_demo`, carrying a payload that is already ready to be sent plus the metadata `TxEngine` needs for tracking and logging, such as:
 
+- prebuilt outbound OUCH payload bytes
 - `UserRefNum`
 - stock locate
-- side
 - price
 - shares
 - any local timestamps needed for TX logging
 
-This record should be TX-specific and not leak unrelated executor internals into the transport layer.
+This record should be TX-specific and not leak unrelated executor internals into the transport layer. `TxEngine` should not need to reinterpret strategy intent in order to build the outbound application payload. It should receive something that is already logically ready to transmit.
 
 ### Overflow Policy
 
@@ -188,7 +189,7 @@ This keeps ownership clear and avoids shared transport state across threads.
 
 1. Strategy produces an order intent.
 2. `Executor` drains its existing intent buffer.
-3. `Executor` converts the intent into a TX handoff record.
+3. `Executor` converts the intent into a TX handoff payload record that is already ready to be sent by `TxEngine`.
 4. `Executor` pushes that record into `TxEngine`’s `TraceBuffer`.
 5. `TxEngine` worker thread pops the record and sends it immediately if connected.
 
@@ -301,4 +302,3 @@ The plan should not:
 - add a new generic queue implementation
 - move behavior into `Intel_demo`
 - revert to executor-driven transport progress
-
