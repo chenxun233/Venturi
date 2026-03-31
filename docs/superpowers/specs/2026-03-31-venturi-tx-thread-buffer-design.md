@@ -9,9 +9,10 @@ Refine the TX architecture in `FPGA_boost_demo` so that:
 - `Venturi.cpp` remains the top-level client application
 - `dummy_exchange_server` remains a separate executable
 - `Executor` and `TxEngine` have an explicit producer/consumer boundary
-- `Executor` writes outbound execution intents into a TX-owned buffer
+- `Executor` writes TX-ready outbound payload records into a TX-owned buffer
 - `Executor` writes outbound payloads that are already ready to be sent by `TxEngine`
-- `TxEngine` owns a dedicated TX thread that handles send, reconnect, heartbeat, and feedback receive
+- `Venturi.cpp` owns the TX thread explicitly
+- `TxEngine` runs on that thread and handles send, reconnect, heartbeat, and feedback receive
 
 The transport remains OUCH-over-SoupBinTCP over the direct physical NIC link.
 
@@ -21,7 +22,7 @@ The transport remains OUCH-over-SoupBinTCP over the direct physical NIC link.
 
 - Keep client logic inside `Venturi.cpp`
 - Keep server logic in `dummy_exchange_server`
-- Add a dedicated TX worker thread
+- Add a dedicated TX worker thread owned by `Venturi.cpp`
 - Reuse the existing `TraceBuffer<T>` for the executor-to-TX handoff
 - Keep queue overflow policy as drop-oldest
 - Push TX feedback to the existing async log printer
@@ -62,8 +63,8 @@ New responsibility:
 
 - create `TxEngine`
 - attach the shared log printer to it
-- start the TX worker thread at startup
-- stop the TX worker thread at shutdown
+- create the TX `std::thread` at startup
+- join the TX `std::thread` at shutdown
 
 ### `Executor`
 
@@ -80,12 +81,11 @@ Responsibilities:
 
 ### `TxEngine`
 
-`TxEngine` becomes a true autonomous TX subsystem.
+`TxEngine` becomes a passive TX subsystem with a blocking run loop.
 
 Responsibilities:
 
 - expose a producer-facing buffer write interface for executor
-- own a dedicated TX worker thread
 - own the SoupBinTCP session and socket
 - continuously:
   - read from the TX handoff buffer
@@ -96,6 +96,13 @@ Responsibilities:
   - check for feedback from the server
   - decode OUCH responses
   - push feedback into the log printer
+
+Interface shape:
+
+- `pushPayload(const TxOutboundRecord&)`
+- `run(const std::atomic<bool>& running)`
+
+`TxEngine` should not own thread lifecycle internally. It owns TX state and behavior, while `Venturi.cpp` owns the thread that calls `run(...)`.
 
 ### `dummy_exchange_server`
 
@@ -111,14 +118,14 @@ The key design rule is:
 - `Executor` writes
 - `TxEngine` reads
 
-There should be no hidden transport progression embedded inside executor logic.
+There should be no hidden transport progression embedded inside executor logic, and no hidden thread lifecycle embedded inside `TxEngine`.
 
 The interface should read naturally as a producer/consumer handoff, for example:
 
 - `executor.attachTx(tx_engine)`
-- `tx_engine.pushExecution(...)`
+- `tx_engine.pushPayload(...)`
 
-or a similarly explicit naming scheme where it is obvious that the executor is writing into a TX-owned buffer, not performing transport work itself.
+and `Venturi.cpp` should create the worker thread explicitly around `tx_engine.run(running)`.
 
 ## Buffer Design
 
@@ -131,7 +138,7 @@ No new general-purpose queue type should be introduced for this handoff.
 ### Producer/Consumer Model
 
 - producer: `Executor`
-- consumer: `TxEngine` worker thread
+- consumer: the TX thread running `TxEngine::run(...)`
 - queue type: `TraceBuffer<TxOutboundRecord>`
 
 This matches the intended single-producer/single-consumer usage pattern of `TraceBuffer`.
@@ -175,7 +182,7 @@ The application should end up with five functional threads:
 
 This is acceptable because the TX thread has one clear purpose and makes the subsystem boundary explicit.
 
-The TX worker thread should be the only thread that:
+The TX thread, created and joined by `Venturi.cpp`, should be the only thread that:
 
 - touches the TX socket
 - advances SoupBinTCP session state
@@ -191,7 +198,7 @@ This keeps ownership clear and avoids shared transport state across threads.
 2. `Executor` drains its existing intent buffer.
 3. `Executor` converts the intent into a TX handoff payload record that is already ready to be sent by `TxEngine`.
 4. `Executor` pushes that record into `TxEngine`’s `TraceBuffer`.
-5. `TxEngine` worker thread pops the record and sends it immediately if connected.
+5. the TX thread running `TxEngine::run(...)` pops the record and sends it immediately if connected.
 
 ### Disconnected Path
 
@@ -203,7 +210,7 @@ If disconnected:
 
 ### Feedback Path
 
-The TX worker thread also loops on receive:
+The TX thread also loops on receive:
 
 - read Soup packets
 - decode sequenced OUCH responses
@@ -272,7 +279,7 @@ There should be no change in `Intel_demo` behavior or design.
 
 ### Integration-Level
 
-- `Venturi.cpp` builds with TX thread enabled
+- `Venturi.cpp` builds with explicit top-level TX thread ownership
 - `dummy_exchange_server` still works with the integrated client
 - send path from executor to TX buffer to socket works
 - receive path from socket to feedback log printer works
@@ -285,7 +292,7 @@ Two processes:
 1. `dummy_exchange_server`
 2. `Venturi.cpp`-based top app
 
-Inside the client process, TX is now a separate internal thread with explicit buffer ownership.
+Inside the client process, TX is a separate top-level thread created in `Venturi.cpp`, with explicit buffer ownership inside `TxEngine`.
 
 ## Implementation Boundary
 
@@ -293,7 +300,8 @@ The first implementation plan should:
 
 - refactor the executor/TX relationship into explicit producer/consumer form
 - reuse `TraceBuffer` for executor-to-TX handoff
-- give `TxEngine` its own worker thread
+- move TX thread ownership to `Venturi.cpp`
+- make `TxEngine` a passive runnable with `run(const std::atomic<bool>& running)`
 - keep the exchange as a separate executable
 - keep all feature changes inside `FPGA_boost_demo` plus required CMake wiring
 
