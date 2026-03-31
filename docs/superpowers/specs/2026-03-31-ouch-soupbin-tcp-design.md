@@ -76,6 +76,16 @@ The lack of a default route on these test ports prevents them from being used as
 
 ## Architecture
 
+This demo uses two separate executables:
+
+- one server executable for the dummy exchange
+- one client executable for the order gateway
+
+The intended operator flow is:
+
+- start the dummy exchange server in terminal 1
+- start the gateway client in terminal 2
+
 ### Order Gateway
 
 The order gateway runs on `enp1s0f0` and acts as the SoupBinTCP client.
@@ -117,6 +127,33 @@ The current `Executor -> TxEngine` boundary is preserved conceptually:
 - a new dummy exchange module is added alongside the existing host-side demo components
 
 This keeps the new work aligned with the current host-side application structure instead of introducing an unrelated code path.
+
+## Executable Layout
+
+The first implementation should produce separate binaries instead of one combined process:
+
+- `dummy_exchange_server`
+  - binds to `192.168.50.2:<port>`
+  - listens for one SoupBinTCP client
+  - owns exchange-side session, sequencing, validation, and delayed fills
+
+- `order_gateway_client`
+  - binds locally to `192.168.50.1`
+  - connects to `192.168.50.2:<port>`
+  - owns Soup login, heartbeat, order submission, reconnect, and response correlation
+  - can either ingest synthetic test orders directly or receive intents from the existing executor path
+
+Operationally, the demo is run with two terminals:
+
+1. terminal 1 starts `dummy_exchange_server`
+2. terminal 2 starts `order_gateway_client`
+
+This separation is preferable for the demo because:
+
+- it mirrors a real client/exchange process boundary
+- it makes startup ordering explicit
+- it simplifies socket lifecycle debugging
+- it makes reconnect tests easier because either side can be restarted independently
 
 ## Protocol Model
 
@@ -357,8 +394,8 @@ The first implementation plan should produce:
 
 - a SoupBinTCP codec layer
 - a simplified OUCH subset codec layer
-- a gateway client bound to `enp1s0f0`
-- a dummy exchange server bound to `enp5s0f0`
+- a standalone gateway client executable bound to `enp1s0f0`
+- a standalone dummy exchange server executable bound to `enp5s0f0`
 - integration of the gateway send path with the existing executor path
 - enough tests to validate framing, login, order response flow, and reconnect behavior
 
