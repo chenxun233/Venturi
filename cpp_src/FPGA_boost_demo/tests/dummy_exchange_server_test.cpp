@@ -64,3 +64,35 @@ TEST(DummyExchangeServerTest, freshSessionStartsSequencingAtOne) {
     EXPECT_EQ(server.readSessionNextSequenceForTest(1), 2U);
     EXPECT_EQ(server.readSessionNextSequenceForTest(2), 2U);
 }
+
+TEST(DummyExchangeServerTest, bufferedReadWaitsUntilWholeSoupPacketArrives) {
+    DummyExchangeServer server({});
+
+    std::vector<uint8_t> partial {0x00, 0x11, 'L', 'c', 'l'};
+    const uint64_t session_id = server.createSessionForTest();
+    server.appendReadBytesForTest(session_id, partial);
+
+    EXPECT_FALSE(server.tryReadPacketTypeForTest(session_id).has_value());
+}
+
+TEST(DummyExchangeServerTest, flushQueueConsumesWholeFrontPacket) {
+    DummyExchangeServer server({});
+    const uint64_t session_id = server.createSessionForTest();
+
+    server.queuePacketForTest(session_id, {0x00, 0x01, 'H'});
+
+    EXPECT_TRUE(server.consumeQueuedBytesForTest(session_id, 3));
+    EXPECT_EQ(server.readQueuedPacketCountForTest(session_id), 0U);
+}
+
+TEST(DummyExchangeServerTest, timerTickQueuesHeartbeatForIdleLoggedInSession) {
+    DummyExchangeServer server({});
+    const uint64_t session_id = server.createSessionForTest();
+    server.markLoggedInForTest(session_id);
+    server.setLastSendAgoForTest(session_id, std::chrono::seconds(2));
+
+    server.handleTimerTickForTest();
+
+    ASSERT_TRUE(server.peekFrontPacketTypeForTest(session_id).has_value());
+    EXPECT_EQ(*server.peekFrontPacketTypeForTest(session_id), static_cast<uint8_t>('H'));
+}

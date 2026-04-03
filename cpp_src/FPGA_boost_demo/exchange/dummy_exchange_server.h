@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -47,6 +48,16 @@ class DummyExchangeServer {
 public:
     explicit DummyExchangeServer(DummyExchangeConfig config);
 
+    uint64_t createSessionForTest();
+    void appendReadBytesForTest(uint64_t session_id, const std::vector<uint8_t>& bytes);
+    std::optional<uint8_t> tryReadPacketTypeForTest(uint64_t session_id);
+    void queuePacketForTest(uint64_t session_id, const std::vector<uint8_t>& bytes);
+    bool consumeQueuedBytesForTest(uint64_t session_id, std::size_t count);
+    std::size_t readQueuedPacketCountForTest(uint64_t session_id) const;
+    void markLoggedInForTest(uint64_t session_id);
+    void setLastSendAgoForTest(uint64_t session_id, std::chrono::seconds age);
+    void handleTimerTickForTest();
+    std::optional<uint8_t> peekFrontPacketTypeForTest(uint64_t session_id) const;
     ExchangeValidationResult validateEnterOrder(const ExchangeEnterOrder& order) const;
     HandledOrderResult handleEnterOrderForTest(uint64_t session_id, const ExchangeEnterOrder& order);
     uint64_t readSessionNextSequenceForTest(uint64_t session_id) const;
@@ -62,7 +73,17 @@ private:
         std::chrono::steady_clock::time_point due_time {};
     };
 
+    struct OutboundPacket {
+        std::vector<uint8_t> bytes {};
+        std::size_t offset {0};
+    };
+
     struct SessionState {
+        bool is_logged_in {false};
+        std::vector<uint8_t> read_buffer {};
+        std::vector<OutboundPacket> write_queue {};
+        std::chrono::steady_clock::time_point last_send {};
+        std::chrono::steady_clock::time_point last_receive {};
         uint64_t next_sequence {1};
         uint64_t next_order_ref_num {1};
         uint64_t next_match_number {1};
@@ -72,6 +93,8 @@ private:
     };
 
     SessionState& _findOrCreateTestSession(uint64_t session_id);
+    void _handleTimerTick(SessionState& session, std::chrono::steady_clock::time_point now);
+    std::optional<uint8_t> _tryReadPacketType(SessionState& session);
     HandledOrderResult _handleEnterOrder(SessionState& session, const ExchangeEnterOrder& order);
     uint64_t _readTimestampNs() const;
     uint64_t _readNextSequence(const SessionState& session) const;

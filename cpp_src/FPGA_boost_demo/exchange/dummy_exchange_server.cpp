@@ -365,7 +365,111 @@ ExchangeValidationResult DummyExchangeServer::validateEnterOrder(const ExchangeE
 }
 
 DummyExchangeServer::SessionState& DummyExchangeServer::_findOrCreateTestSession(uint64_t session_id) {
-    return m_test_sessions[session_id];
+    auto& session = m_test_sessions[session_id];
+    if (session.last_send == std::chrono::steady_clock::time_point {}) {
+        const auto now = std::chrono::steady_clock::now();
+        session.last_send = now;
+        session.last_receive = now;
+    }
+    return session;
+}
+
+uint64_t DummyExchangeServer::createSessionForTest() {
+    const uint64_t session_id = static_cast<uint64_t>(m_test_sessions.size() + 1);
+    (void)_findOrCreateTestSession(session_id);
+    return session_id;
+}
+
+void DummyExchangeServer::appendReadBytesForTest(uint64_t session_id, const std::vector<uint8_t>& bytes) {
+    auto& session = _findOrCreateTestSession(session_id);
+    session.read_buffer.insert(session.read_buffer.end(), bytes.begin(), bytes.end());
+}
+
+std::optional<uint8_t> DummyExchangeServer::tryReadPacketTypeForTest(uint64_t session_id) {
+    return _tryReadPacketType(_findOrCreateTestSession(session_id));
+}
+
+void DummyExchangeServer::queuePacketForTest(uint64_t session_id, const std::vector<uint8_t>& bytes) {
+    auto& session = _findOrCreateTestSession(session_id);
+    session.write_queue.push_back(OutboundPacket {.bytes = bytes, .offset = 0});
+}
+
+bool DummyExchangeServer::consumeQueuedBytesForTest(uint64_t session_id, std::size_t count) {
+    auto& session = _findOrCreateTestSession(session_id);
+    while (count > 0 && !session.write_queue.empty()) {
+        auto& front = session.write_queue.front();
+        const std::size_t remaining = front.bytes.size() - front.offset;
+        const std::size_t chunk = std::min(remaining, count);
+        front.offset += chunk;
+        count -= chunk;
+        if (front.offset == front.bytes.size()) {
+            session.write_queue.erase(session.write_queue.begin());
+        }
+    }
+    return count == 0;
+}
+
+std::size_t DummyExchangeServer::readQueuedPacketCountForTest(uint64_t session_id) const {
+    const auto found = m_test_sessions.find(session_id);
+    if (found == m_test_sessions.end()) {
+        return 0;
+    }
+    return found->second.write_queue.size();
+}
+
+void DummyExchangeServer::markLoggedInForTest(uint64_t session_id) {
+    _findOrCreateTestSession(session_id).is_logged_in = true;
+}
+
+void DummyExchangeServer::setLastSendAgoForTest(uint64_t session_id, std::chrono::seconds age) {
+    _findOrCreateTestSession(session_id).last_send = std::chrono::steady_clock::now() - age;
+}
+
+void DummyExchangeServer::handleTimerTickForTest() {
+    const auto now = std::chrono::steady_clock::now();
+    for (auto& [session_id, session] : m_test_sessions) {
+        (void)session_id;
+        _handleTimerTick(session, now);
+    }
+}
+
+std::optional<uint8_t> DummyExchangeServer::peekFrontPacketTypeForTest(uint64_t session_id) const {
+    const auto found = m_test_sessions.find(session_id);
+    if (found == m_test_sessions.end() || found->second.write_queue.empty() ||
+        found->second.write_queue.front().bytes.size() < 3) {
+        return std::nullopt;
+    }
+    return found->second.write_queue.front().bytes[2];
+}
+
+std::optional<uint8_t> DummyExchangeServer::_tryReadPacketType(SessionState& session) {
+    if (session.read_buffer.size() < kSoupHeaderSize) {
+        return std::nullopt;
+    }
+
+    const uint16_t encoded_length = readBigEndian16(session.read_buffer.data());
+    const std::size_t packet_size = static_cast<std::size_t>(encoded_length) + 2U;
+    if (encoded_length == 0 || session.read_buffer.size() < packet_size) {
+        return std::nullopt;
+    }
+
+    const uint8_t type = session.read_buffer[2];
+    session.read_buffer.erase(session.read_buffer.begin(), session.read_buffer.begin() + packet_size);
+    return type;
+}
+
+void DummyExchangeServer::_handleTimerTick(SessionState& session, std::chrono::steady_clock::time_point now) {
+    if (!session.is_logged_in) {
+        return;
+    }
+    if (now - session.last_send < std::chrono::seconds(1)) {
+        return;
+    }
+    session.write_queue.push_back(OutboundPacket {
+        .bytes = writeSoupPacket(kSoupServerHeartbeatType, nullptr, 0),
+        .offset = 0,
+    });
+    session.last_send = now;
 }
 
 HandledOrderResult DummyExchangeServer::handleEnterOrderForTest(uint64_t session_id,
