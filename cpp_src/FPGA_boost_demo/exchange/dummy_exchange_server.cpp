@@ -7,11 +7,13 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <string_view>
-#include <sys/select.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 
@@ -189,11 +191,6 @@ std::vector<uint8_t> writeLoginAcceptedFrame(std::string_view session, uint64_t 
     return writeSoupPacket(kSoupLoginAcceptedType, payload.data(), payload.size());
 }
 
-std::vector<uint8_t> writeLoginRejectedFrame(char reason) {
-    const uint8_t payload = static_cast<uint8_t>(reason);
-    return writeSoupPacket(kSoupLoginRejectedType, &payload, 1U);
-}
-
 std::vector<uint8_t> writeOuchAccepted(const AcceptedMessage& accepted) {
     std::vector<uint8_t> bytes(kOuchAcceptedSize, 0);
     bytes[0] = kOuchAcceptedType;
@@ -225,56 +222,6 @@ std::vector<uint8_t> writeOuchRejected(const RejectedMessage& rejected) {
     writeBigEndian32(bytes.data() + 9, rejected.tag);
     writeBigEndian16(bytes.data() + 13, rejected.reason);
     return bytes;
-}
-
-bool sendAll(int fd, const std::vector<uint8_t>& bytes) {
-    std::size_t offset = 0;
-    while (offset < bytes.size()) {
-        const ssize_t written = ::send(fd,
-                                       bytes.data() + static_cast<std::ptrdiff_t>(offset),
-                                       bytes.size() - offset,
-                                       0);
-        if (written <= 0) {
-            return false;
-        }
-        offset += static_cast<std::size_t>(written);
-    }
-    return true;
-}
-
-bool readExact(int fd, uint8_t* out, std::size_t size) {
-    std::size_t offset = 0;
-    while (offset < size) {
-        const ssize_t count = ::recv(fd, out + static_cast<std::ptrdiff_t>(offset), size - offset, 0);
-        if (count <= 0) {
-            return false;
-        }
-        offset += static_cast<std::size_t>(count);
-    }
-    return true;
-}
-
-std::optional<SoupPacket> readSoupPacket(int fd) {
-    std::array<uint8_t, 2> header {};
-    if (!readExact(fd, header.data(), header.size())) {
-        return std::nullopt;
-    }
-
-    const uint16_t encoded_length = readBigEndian16(header.data());
-    if (encoded_length == 0) {
-        return std::nullopt;
-    }
-
-    std::vector<uint8_t> bytes(header.begin(), header.end());
-    bytes.resize(static_cast<std::size_t>(encoded_length) + 2U);
-    if (!readExact(fd, bytes.data() + static_cast<std::ptrdiff_t>(header.size()), encoded_length)) {
-        return std::nullopt;
-    }
-
-    SoupPacket packet {};
-    packet.type = bytes[2];
-    packet.payload.assign(bytes.begin() + 3, bytes.end());
-    return packet;
 }
 
 bool parseLoginRequest(const SoupPacket& packet, LoginRequest& request) {
@@ -339,6 +286,10 @@ int openListenSocket(const DummyExchangeConfig& config) {
 DummyExchangeServer::DummyExchangeServer(DummyExchangeConfig config)
     : m_config(std::move(config)) {}
 
+void DummyExchangeServer::requestStopForTest() {
+    m_stop_requested.store(true);
+}
+
 ExchangeValidationResult DummyExchangeServer::validateEnterOrder(const ExchangeEnterOrder& order) const {
     if (order.stock_locate != 0x000d && order.stock_locate != 0x0ee8) {
         return ExchangeValidationResult {
@@ -366,6 +317,7 @@ ExchangeValidationResult DummyExchangeServer::validateEnterOrder(const ExchangeE
 
 DummyExchangeServer::SessionState& DummyExchangeServer::_findOrCreateTestSession(uint64_t session_id) {
     auto& session = m_test_sessions[session_id];
+    session.session_id = session_id;
     if (session.last_send == std::chrono::steady_clock::time_point {}) {
         const auto now = std::chrono::steady_clock::now();
         session.last_send = now;
@@ -459,17 +411,203 @@ std::optional<uint8_t> DummyExchangeServer::_tryReadPacketType(SessionState& ses
 }
 
 void DummyExchangeServer::_handleTimerTick(SessionState& session, std::chrono::steady_clock::time_point now) {
-    if (!session.is_logged_in) {
-        return;
+    for (auto it = session.pending_fills.begin(); it != session.pending_fills.end();) {
+        if (it->due_time > now) {
+            ++it;
+            continue;
+        }
+
+        const std::vector<uint8_t> payload = writeOuchExecuted(ExecutedMessage {
+            .timestamp_ns = _readTimestampNs(),
+            .tag = it->tag,
+            .executed_shares = it->executed_shares,
+            .price = it->price,
+            .match_number = it->match_number,
+        });
+        _storeSequenced(session, payload);
+        _queueSoupFrame(session, kSoupSequencedDataType, payload.data(), payload.size());
+        it = session.pending_fills.erase(it);
     }
-    if (now - session.last_send < std::chrono::seconds(1)) {
-        return;
+
+    if (session.is_logged_in && now - session.last_send >= std::chrono::seconds(1)) {
+        _queueSoupFrame(session, kSoupServerHeartbeatType, nullptr, 0);
     }
+}
+
+bool DummyExchangeServer::_setNonBlocking(int fd) const {
+    const int flags = ::fcntl(fd, F_GETFL, 0);
+    if (flags < 0) {
+        return false;
+    }
+    return ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) == 0;
+}
+
+int DummyExchangeServer::_openTimerFd() const {
+    const int timer_fd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (timer_fd < 0) {
+        throw std::runtime_error("failed to create timer fd");
+    }
+
+    itimerspec spec {};
+    spec.it_interval.tv_sec = 0;
+    spec.it_interval.tv_nsec = 100000000;
+    spec.it_value = spec.it_interval;
+    if (::timerfd_settime(timer_fd, 0, &spec, nullptr) != 0) {
+        ::close(timer_fd);
+        throw std::runtime_error("failed to arm timer fd");
+    }
+    return timer_fd;
+}
+
+void DummyExchangeServer::_acceptClients(int epoll_fd, int listen_fd) {
+    while (true) {
+        const int client_fd = ::accept(listen_fd, nullptr, nullptr);
+        if (client_fd < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return;
+            }
+            return;
+        }
+
+        if (!_setNonBlocking(client_fd)) {
+            ::close(client_fd);
+            continue;
+        }
+
+        SessionState session {};
+        session.fd = client_fd;
+        session.session_id = m_next_live_session_id++;
+        session.last_send = std::chrono::steady_clock::now();
+        session.last_receive = session.last_send;
+        m_live_sessions.emplace(client_fd, std::move(session));
+
+        epoll_event event {};
+        event.events = EPOLLIN | EPOLLRDHUP;
+        event.data.fd = client_fd;
+        if (::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) != 0) {
+            m_live_sessions.erase(client_fd);
+            ::close(client_fd);
+        }
+    }
+}
+
+std::optional<std::vector<uint8_t>> DummyExchangeServer::_tryReadPayload(SessionState& session) {
+    if (session.read_buffer.size() < 2U) {
+        return std::nullopt;
+    }
+
+    const uint16_t encoded_length = readBigEndian16(session.read_buffer.data());
+    const std::size_t packet_size = static_cast<std::size_t>(encoded_length) + 2U;
+    if (encoded_length == 0 || session.read_buffer.size() < packet_size) {
+        return std::nullopt;
+    }
+
+    std::vector<uint8_t> payload(session.read_buffer.begin() + 2, session.read_buffer.begin() + packet_size);
+    session.read_buffer.erase(session.read_buffer.begin(), session.read_buffer.begin() + packet_size);
+    return payload;
+}
+
+bool DummyExchangeServer::_receiveClientData(SessionState& session) {
+    std::array<uint8_t, 1024> buffer {};
+    while (true) {
+        const ssize_t count = ::recv(session.fd, buffer.data(), buffer.size(), 0);
+        if (count > 0) {
+            session.read_buffer.insert(session.read_buffer.end(), buffer.begin(), buffer.begin() + count);
+            session.last_receive = std::chrono::steady_clock::now();
+            continue;
+        }
+        if (count == 0) {
+            return false;
+        }
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return true;
+        }
+        return false;
+    }
+}
+
+bool DummyExchangeServer::_flushQueuedPackets(SessionState& session) {
+    while (!session.write_queue.empty()) {
+        auto& front = session.write_queue.front();
+        const ssize_t written = ::send(session.fd,
+                                       front.bytes.data() + static_cast<std::ptrdiff_t>(front.offset),
+                                       front.bytes.size() - front.offset,
+                                       MSG_NOSIGNAL);
+        if (written <= 0) {
+            return false;
+        }
+
+        front.offset += static_cast<std::size_t>(written);
+        session.last_send = std::chrono::steady_clock::now();
+        if (front.offset == front.bytes.size()) {
+            session.write_queue.erase(session.write_queue.begin());
+        }
+    }
+    return true;
+}
+
+void DummyExchangeServer::_queueSoupFrame(SessionState& session,
+                                          uint8_t type,
+                                          const uint8_t* payload,
+                                          std::size_t payload_size) {
     session.write_queue.push_back(OutboundPacket {
-        .bytes = writeSoupPacket(kSoupServerHeartbeatType, nullptr, 0),
+        .bytes = writeSoupPacket(type, payload, payload_size),
         .offset = 0,
     });
-    session.last_send = now;
+}
+
+bool DummyExchangeServer::_handleClientPacket(SessionState& session,
+                                              uint8_t type,
+                                              const std::vector<uint8_t>& payload) {
+    if (!session.is_logged_in) {
+        SoupPacket packet {};
+        packet.type = type;
+        packet.payload = payload;
+
+        LoginRequest login {};
+        if (!parseLoginRequest(packet, login)) {
+            _queueSoupFrame(session, kSoupLoginRejectedType, reinterpret_cast<const uint8_t*>("A"), 1U);
+            return _flushQueuedPackets(session) && false;
+        }
+
+        const std::string username = trimSpaces(login.username);
+        const std::string password = trimSpaces(login.password);
+        const std::string requested_session = trimSpaces(login.requested_session);
+        if (username != m_config.username || password != m_config.password ||
+            (!requested_session.empty() && requested_session != m_config.session_id)) {
+            _queueSoupFrame(session, kSoupLoginRejectedType, reinterpret_cast<const uint8_t*>("A"), 1U);
+            return _flushQueuedPackets(session) && false;
+        }
+
+        session.is_logged_in = true;
+        _queueSoupFrame(session, kSoupLoginAcceptedType, writeLoginAcceptedFrame(m_config.session_id, 1).data() + 3, 30);
+        return _flushQueuedPackets(session);
+    }
+
+    if (type == kSoupClientHeartbeatType) {
+        return true;
+    }
+    if (type == kSoupLogoutRequestType) {
+        return false;
+    }
+    if (type != kSoupUnsequencedDataType) {
+        return false;
+    }
+
+    const ExchangeEnterOrder order = readEnterOrder(payload);
+    const auto handled = _handleEnterOrder(session, order);
+    if (!handled.is_duplicate) {
+        for (const auto& message : handled.outbound_messages) {
+            _queueSoupFrame(session, kSoupSequencedDataType, message.data(), message.size());
+        }
+    }
+    return _flushQueuedPackets(session);
+}
+
+void DummyExchangeServer::_closeSession(int epoll_fd, int fd) {
+    (void)::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+    ::close(fd);
+    m_live_sessions.erase(fd);
 }
 
 HandledOrderResult DummyExchangeServer::handleEnterOrderForTest(uint64_t session_id,
@@ -536,141 +674,124 @@ HandledOrderResult DummyExchangeServer::_handleEnterOrder(SessionState& session,
 }
 
 int DummyExchangeServer::run() {
+    m_stop_requested.store(false);
+    m_live_sessions.clear();
+
     const int listen_fd = openListenSocket(m_config);
+    if (!_setNonBlocking(listen_fd)) {
+        ::close(listen_fd);
+        throw std::runtime_error("failed to make listen socket nonblocking");
+    }
     std::printf("dummy_exchange_server listening on %s:%u\n", m_config.listen_ip.c_str(), m_config.port);
     std::fflush(stdout);
 
-    const int client_fd = ::accept(listen_fd, nullptr, nullptr);
-    if (client_fd < 0) {
+    const int epoll_fd = ::epoll_create1(EPOLL_CLOEXEC);
+    if (epoll_fd < 0) {
         ::close(listen_fd);
-        std::perror("accept");
-        return 1;
+        throw std::runtime_error("failed to create epoll");
     }
 
-    auto login_packet = readSoupPacket(client_fd);
-    if (!login_packet.has_value()) {
-        ::close(client_fd);
+    const int timer_fd = _openTimerFd();
+
+    epoll_event listen_event {};
+    listen_event.events = EPOLLIN;
+    listen_event.data.fd = listen_fd;
+    epoll_event timer_event {};
+    timer_event.events = EPOLLIN;
+    timer_event.data.fd = timer_fd;
+    if (::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_fd, &listen_event) != 0 ||
+        ::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_fd, &timer_event) != 0) {
+        ::close(timer_fd);
+        ::close(epoll_fd);
         ::close(listen_fd);
-        return 1;
+        throw std::runtime_error("failed to register epoll fd");
     }
 
-    LoginRequest login {};
-    if (!parseLoginRequest(*login_packet, login)) {
-        (void)sendAll(client_fd, writeLoginRejectedFrame('A'));
-        ::close(client_fd);
-        ::close(listen_fd);
-        return 1;
-    }
-
-    const std::string username = trimSpaces(login.username);
-    const std::string password = trimSpaces(login.password);
-    const std::string requested_session = trimSpaces(login.requested_session);
-    if (username != m_config.username || password != m_config.password ||
-        (!requested_session.empty() && requested_session != m_config.session_id)) {
-        (void)sendAll(client_fd, writeLoginRejectedFrame('A'));
-        ::close(client_fd);
-        ::close(listen_fd);
-        return 1;
-    }
-
-    uint64_t next_sequence = login.requested_sequence == 0 ? 1 : login.requested_sequence;
-    if (next_sequence > _readNextSequence(m_single_session)) {
-        next_sequence = _readNextSequence(m_single_session);
-    }
-    (void)sendAll(client_fd, writeLoginAcceptedFrame(m_config.session_id, next_sequence));
-
-    for (uint64_t sequence = next_sequence; sequence < _readNextSequence(m_single_session); ++sequence) {
-        const auto& payload = m_single_session.sequenced_history[static_cast<std::size_t>(sequence - 1)];
-        if (!sendAll(client_fd, writeSoupPacket(kSoupSequencedDataType, payload.data(), payload.size()))) {
-            ::close(client_fd);
+    std::array<epoll_event, 32> events {};
+    while (!m_stop_requested.load()) {
+        const int ready = ::epoll_wait(epoll_fd, events.data(), static_cast<int>(events.size()), -1);
+        if (ready < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            ::close(timer_fd);
+            ::close(epoll_fd);
             ::close(listen_fd);
             return 1;
         }
-    }
 
-    auto last_send = std::chrono::steady_clock::now();
-    auto last_receive = std::chrono::steady_clock::now();
-    while (true) {
-        fd_set read_set;
-        FD_ZERO(&read_set);
-        FD_SET(client_fd, &read_set);
-
-        timeval timeout {};
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 100000;
-        int ready = ::select(client_fd + 1, &read_set, nullptr, nullptr, &timeout);
-        if (ready < 0) {
-            break;
-        }
-
-        const auto now = std::chrono::steady_clock::now();
-        if (ready > 0 && FD_ISSET(client_fd, &read_set)) {
-            auto packet = readSoupPacket(client_fd);
-            if (!packet.has_value()) {
-                break;
+        for (int index = 0; index < ready; ++index) {
+            const epoll_event& event = events[static_cast<std::size_t>(index)];
+            if (event.data.fd == listen_fd) {
+                _acceptClients(epoll_fd, listen_fd);
+                continue;
             }
-            last_receive = now;
-            if (packet->type == kSoupUnsequencedDataType) {
-                const ExchangeEnterOrder order = readEnterOrder(packet->payload);
-                const auto handled = handleEnterOrder(order);
-                if (!handled.is_duplicate) {
-                    for (const auto& payload : handled.outbound_messages) {
-                        if (!sendAll(client_fd, writeSoupPacket(kSoupSequencedDataType, payload.data(), payload.size()))) {
-                            ready = -1;
-                            break;
-                        }
-                        last_send = std::chrono::steady_clock::now();
+            if (event.data.fd == timer_fd) {
+                uint64_t expirations = 0;
+                const ssize_t timer_read = ::read(timer_fd, &expirations, sizeof(expirations));
+                if (timer_read < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+                    ::close(timer_fd);
+                    ::close(epoll_fd);
+                    ::close(listen_fd);
+                    return 1;
+                }
+                const auto now = std::chrono::steady_clock::now();
+                std::vector<int> expired_fds {};
+                for (auto& [fd, session] : m_live_sessions) {
+                    _handleTimerTick(session, now);
+                    if (!session.write_queue.empty() && !_flushQueuedPackets(session)) {
+                        expired_fds.push_back(fd);
+                        continue;
+                    }
+                    if (now - session.last_receive >= std::chrono::seconds(15)) {
+                        expired_fds.push_back(fd);
                     }
                 }
-            } else if (packet->type == kSoupLogoutRequestType) {
-                break;
-            } else if (packet->type == kSoupClientHeartbeatType) {
-                continue;
-            }
-        }
-
-        if (ready < 0) {
-            break;
-        }
-
-        for (auto it = m_single_session.pending_fills.begin(); it != m_single_session.pending_fills.end();) {
-            if (it->due_time > now) {
-                ++it;
+                for (const int fd : expired_fds) {
+                    _closeSession(epoll_fd, fd);
+                }
                 continue;
             }
 
-            const std::vector<uint8_t> payload = writeOuchExecuted(ExecutedMessage {
-                .timestamp_ns = _readTimestampNs(),
-                .tag = it->tag,
-                .executed_shares = it->executed_shares,
-                .price = it->price,
-                .match_number = it->match_number,
-            });
-            _storeSequenced(m_single_session, payload);
-            if (!sendAll(client_fd, writeSoupPacket(kSoupSequencedDataType, payload.data(), payload.size()))) {
-                ready = -1;
-                break;
+            auto found = m_live_sessions.find(event.data.fd);
+            if (found == m_live_sessions.end()) {
+                continue;
             }
-            last_send = std::chrono::steady_clock::now();
-            it = m_single_session.pending_fills.erase(it);
-        }
-        if (ready < 0) {
-            break;
-        }
-
-        if (now - last_send >= std::chrono::seconds(1)) {
-            if (!sendAll(client_fd, writeSoupPacket(kSoupServerHeartbeatType, nullptr, 0))) {
-                break;
+            SessionState& session = found->second;
+            if ((event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) != 0U) {
+                _closeSession(epoll_fd, event.data.fd);
+                continue;
             }
-            last_send = std::chrono::steady_clock::now();
-        }
-
-        if (now - last_receive >= std::chrono::seconds(15)) {
-            break;
+            if (!_receiveClientData(session)) {
+                _closeSession(epoll_fd, event.data.fd);
+                continue;
+            }
+            while (true) {
+                auto packet = _tryReadPayload(session);
+                if (!packet.has_value()) {
+                    break;
+                }
+                if (packet->empty()) {
+                    _closeSession(epoll_fd, event.data.fd);
+                    break;
+                }
+                const uint8_t type = packet->front();
+                const std::vector<uint8_t> payload(packet->begin() + 1, packet->end());
+                if (!_handleClientPacket(session, type, payload)) {
+                    _closeSession(epoll_fd, event.data.fd);
+                    break;
+                }
+            }
         }
     }
 
-    ::close(client_fd);
+    for (auto& [fd, session] : m_live_sessions) {
+        (void)session;
+        ::close(fd);
+    }
+    m_live_sessions.clear();
+    ::close(timer_fd);
+    ::close(epoll_fd);
     ::close(listen_fd);
     return 0;
 }

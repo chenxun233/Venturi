@@ -48,6 +48,7 @@ class DummyExchangeServer {
 public:
     explicit DummyExchangeServer(DummyExchangeConfig config);
 
+    void requestStopForTest();
     uint64_t createSessionForTest();
     void appendReadBytesForTest(uint64_t session_id, const std::vector<uint8_t>& bytes);
     std::optional<uint8_t> tryReadPacketTypeForTest(uint64_t session_id);
@@ -79,6 +80,8 @@ private:
     };
 
     struct SessionState {
+        int fd {-1};
+        uint64_t session_id {0};
         bool is_logged_in {false};
         std::vector<uint8_t> read_buffer {};
         std::vector<OutboundPacket> write_queue {};
@@ -94,6 +97,15 @@ private:
 
     SessionState& _findOrCreateTestSession(uint64_t session_id);
     void _handleTimerTick(SessionState& session, std::chrono::steady_clock::time_point now);
+    bool _setNonBlocking(int fd) const;
+    int _openTimerFd() const;
+    void _acceptClients(int epoll_fd, int listen_fd);
+    std::optional<std::vector<uint8_t>> _tryReadPayload(SessionState& session);
+    bool _receiveClientData(SessionState& session);
+    bool _flushQueuedPackets(SessionState& session);
+    void _queueSoupFrame(SessionState& session, uint8_t type, const uint8_t* payload, std::size_t payload_size);
+    bool _handleClientPacket(SessionState& session, uint8_t type, const std::vector<uint8_t>& payload);
+    void _closeSession(int epoll_fd, int fd);
     std::optional<uint8_t> _tryReadPacketType(SessionState& session);
     HandledOrderResult _handleEnterOrder(SessionState& session, const ExchangeEnterOrder& order);
     uint64_t _readTimestampNs() const;
@@ -103,6 +115,9 @@ private:
     void _storeSequenced(SessionState& session, const std::vector<uint8_t>& payload);
 
     DummyExchangeConfig m_config {};
+    std::atomic_bool m_stop_requested {false};
     SessionState m_single_session {};
     std::unordered_map<uint64_t, SessionState> m_test_sessions {};
+    uint64_t m_next_live_session_id {1};
+    std::unordered_map<int, SessionState> m_live_sessions {};
 };
