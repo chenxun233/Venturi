@@ -118,6 +118,39 @@ This is intentional:
 
 The split is a module boundary, not a thread boundary.
 
+## Thread Arrangement In Venturi.cpp
+
+`Venturi.cpp` should make the module-to-thread arrangement explicit instead of hiding it inside a combined TX module.
+
+The intended top-level arrangement is:
+
+- control thread
+- executor thread
+- TX thread
+- RX thread per queue
+
+Within that arrangement:
+
+- `Executor` runs in the executor thread
+- `GatewayEngine` and `TxEngine` are both constructed explicitly in `Venturi.cpp`
+- the TX thread runs the gateway/transport pipeline explicitly, not through a monolithic protocol-specific `TxEngine`
+
+The wiring in `Venturi.cpp` should make it obvious which modules share a thread and which modules do not. A reader should be able to identify, from the top-level application wiring alone:
+
+- that `GatewayEngine` and `TxEngine` currently share the TX thread
+- that `Executor` is separate
+- that the design could later place `GatewayEngine` and `TxEngine` on different threads without redesigning module internals
+
+This does not require splitting them into separate threads now. It requires making the current thread placement a visible application-level decision.
+
+Examples of acceptable explicitness include:
+
+- constructing `GatewayEngine` and `TxEngine` as separate objects in `Venturi.cpp`
+- naming the TX thread in terms of the gateway/transport pipeline rather than a single opaque module
+- using a top-level lambda or runner object in `Venturi.cpp` that clearly sequences `GatewayEngine` and `TxEngine` within the TX thread
+
+The goal is architectural readability and future reassignment flexibility, not immediate multithreading.
+
 ## Interface Boundary
 
 The interface between `GatewayEngine` and `TxEngine` is message/payload oriented.
@@ -191,10 +224,11 @@ This makes each module easier to reason about in isolation.
 Recommended implementation order:
 
 1. define the new module boundaries and interface types
-2. move protocol-specific logic from `TxEngine` into `GatewayEngine`
-3. make `Executor` forward pure intents into `GatewayEngine`
-4. reduce `TxEngine` to generic transport behavior
-5. update tests around the new layering
+2. make the thread arrangement explicit in `Venturi.cpp`
+3. move protocol-specific logic from `TxEngine` into `GatewayEngine`
+4. make `Executor` forward pure intents into `GatewayEngine`
+5. reduce `TxEngine` to generic transport behavior
+6. update tests around the new layering
 
 The refactor keeps behavior equivalent while changing ownership and boundaries.
 
