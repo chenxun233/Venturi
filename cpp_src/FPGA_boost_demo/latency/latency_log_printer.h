@@ -17,6 +17,7 @@ public:
     bool pushLatency(const LatencyLogRecord& record);
     bool pushSnapshot(const FpgaSyncSnapshot& snapshot);
     bool pushExecution(const ExecutionLogRecord& record);
+    bool pushTxEvent(const TxLogRecord& record);
     void start();
     void stop();
     uint64_t readDropCount() const;

@@ -318,10 +318,10 @@ ExchangeValidationResult DummyExchangeServer::validateEnterOrder(const ExchangeE
 DummyExchangeServer::SessionState& DummyExchangeServer::_findOrCreateTestSession(uint64_t session_id) {
     auto& session = m_test_sessions[session_id];
     session.session_id = session_id;
-    if (session.last_send == std::chrono::steady_clock::time_point {}) {
+    if (session.last_send_time == std::chrono::steady_clock::time_point {}) {
         const auto now = std::chrono::steady_clock::now();
-        session.last_send = now;
-        session.last_receive = now;
+        session.last_send_time = now;
+        session.last_receive_time = now;
     }
     return session;
 }
@@ -374,7 +374,7 @@ void DummyExchangeServer::markLoggedInForTest(uint64_t session_id) {
 }
 
 void DummyExchangeServer::setLastSendAgoForTest(uint64_t session_id, std::chrono::seconds age) {
-    _findOrCreateTestSession(session_id).last_send = std::chrono::steady_clock::now() - age;
+    _findOrCreateTestSession(session_id).last_send_time = std::chrono::steady_clock::now() - age;
 }
 
 void DummyExchangeServer::handleTimerTickForTest() {
@@ -429,7 +429,7 @@ void DummyExchangeServer::_handleTimerTick(SessionState& session, std::chrono::s
         it = session.pending_fills.erase(it);
     }
 
-    if (session.is_logged_in && now - session.last_send >= std::chrono::seconds(1)) {
+    if (session.is_logged_in && now - session.last_send_time >= std::chrono::seconds(1)) {
         _queueSoupFrame(session, kSoupServerHeartbeatType, nullptr, 0);
     }
 }
@@ -477,8 +477,8 @@ void DummyExchangeServer::_acceptClients(int epoll_fd, int listen_fd) {
         SessionState session {};
         session.fd = client_fd;
         session.session_id = m_next_live_session_id++;
-        session.last_send = std::chrono::steady_clock::now();
-        session.last_receive = session.last_send;
+        session.last_send_time = std::chrono::steady_clock::now();
+        session.last_receive_time = session.last_send_time;
         m_live_sessions.emplace(client_fd, std::move(session));
 
         epoll_event event {};
@@ -513,7 +513,7 @@ bool DummyExchangeServer::_receiveClientData(SessionState& session) {
         const ssize_t count = ::recv(session.fd, buffer.data(), buffer.size(), 0);
         if (count > 0) {
             session.read_buffer.insert(session.read_buffer.end(), buffer.begin(), buffer.begin() + count);
-            session.last_receive = std::chrono::steady_clock::now();
+            session.last_receive_time = std::chrono::steady_clock::now();
             continue;
         }
         if (count == 0) {
@@ -538,7 +538,7 @@ bool DummyExchangeServer::_flushQueuedPackets(SessionState& session) {
         }
 
         front.offset += static_cast<std::size_t>(written);
-        session.last_send = std::chrono::steady_clock::now();
+        session.last_send_time = std::chrono::steady_clock::now();
         if (front.offset == front.bytes.size()) {
             session.write_queue.erase(session.write_queue.begin());
         }
@@ -743,7 +743,7 @@ int DummyExchangeServer::run() {
                         expired_fds.push_back(fd);
                         continue;
                     }
-                    if (now - session.last_receive >= std::chrono::seconds(15)) {
+                    if (now - session.last_receive_time >= std::chrono::seconds(15)) {
                         expired_fds.push_back(fd);
                     }
                 }

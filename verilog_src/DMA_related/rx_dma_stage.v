@@ -71,7 +71,7 @@ localparam CL_SYMBOL_NUM = (SYMBOL_NUM > 1) ? clog2(SYMBOL_NUM) : 1;
 
 reg [63:0] que_prod_ptr [0:SYMBOL_NUM-1];
 reg [63:0] que_drop_count [0:SYMBOL_NUM-1];
-reg [SYMBOL_NUM*48-1:0] prev_frame_ts;
+reg [SYMBOL_NUM*48-1:0] prev_frame_ts_by_que;
 
 reg [1:0]                state;
 reg [CL_SYMBOL_NUM-1:0]  current_que_idx;
@@ -93,20 +93,20 @@ wire [31:0]   ask_best_price        = i_event_payload [PAYLOAD_W*current_que_idx
 wire [31:0]   ask_best_shares       = i_event_payload [PAYLOAD_W*current_que_idx+159 -: 32];
 wire [31:0]   bid_best_price        = i_event_payload [PAYLOAD_W*current_que_idx+127 -: 32];
 wire [31:0]   bid_best_shares       = i_event_payload [PAYLOAD_W*current_que_idx+95 -: 32];
-wire [47:0]      cur_frame_ts       = i_event_payload [PAYLOAD_W*current_que_idx+63 -: 48]; // the tick when frame arrives at MAC layer
-wire [47:0]     event_tk            = i_dma_timestamp ;
+wire [47:0]   frame_ts              = i_event_payload [PAYLOAD_W*current_que_idx+63 -: 48]; // the tick when frame arrives at MAC layer
+wire [47:0]   event_tk              = i_dma_timestamp ;
 wire [15:0]   stock_locate          = i_event_payload [PAYLOAD_W*current_que_idx+15 -: 16];   
 // wire [47:0]   frame_latency         = latch_dma_ts > frame_start_tk ? latch_dma_ts - frame_start_tk : 48'd0; // the latency from the frame starts to DMA stage output.
 integer que_idx;
 integer prev_sel_idx;
 reg [47:0] prev_frame_ts_cur;
-wire [7:0] current_is_first_event = (cur_frame_ts != prev_frame_ts_cur) ? 8'h01 : 8'h00;
+wire [7:0] is_first_event = (frame_ts != prev_frame_ts_cur) ? 8'h01 : 8'h00;
 
 always @(*) begin
     prev_frame_ts_cur = 48'd0;
     for (prev_sel_idx = 0; prev_sel_idx < SYMBOL_NUM; prev_sel_idx = prev_sel_idx + 1) begin
         if (current_que_idx == prev_sel_idx[CL_SYMBOL_NUM-1:0])
-            prev_frame_ts_cur = prev_frame_ts[prev_sel_idx*48 +: 48];
+            prev_frame_ts_cur = prev_frame_ts_by_que[prev_sel_idx*48 +: 48];
     end
 end
 
@@ -157,7 +157,7 @@ always @(posedge i_clk or posedge i_rst) begin
         for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
             que_prod_ptr[que_idx]   <= 64'd0;
             que_drop_count[que_idx] <= 64'd0;
-            prev_frame_ts[que_idx*48 +: 48] <= 48'd0;
+            prev_frame_ts_by_que[que_idx*48 +: 48] <= 48'd0;
         end
     end else if (i_reg_reset) begin
         state                   <= ST_IDLE;
@@ -167,7 +167,7 @@ always @(posedge i_clk or posedge i_rst) begin
         for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
             que_prod_ptr[que_idx]   <= 64'd0;
             que_drop_count[que_idx] <= 64'd0;
-            prev_frame_ts[que_idx*48 +: 48] <= 48'd0;
+            prev_frame_ts_by_que[que_idx*48 +: 48] <= 48'd0;
   
         end
     end
@@ -189,9 +189,9 @@ always @(posedge i_clk or posedge i_rst) begin
                         que_drop_count[current_que_idx] <= que_drop_count[current_que_idx] + 64'd1;
                         state <= ST_IDLE;
                     end else begin
-                        record_que          <= {current_is_first_event, ask_best_price, ask_best_shares, bid_best_price, bid_best_shares, cur_frame_ts, stock_locate};
-                        if (current_is_first_event != 8'd0) begin
-                            prev_frame_ts[current_que_idx*48 +: 48] <= cur_frame_ts;
+                        record_que          <= {is_first_event, ask_best_price, ask_best_shares, bid_best_price, bid_best_shares, frame_ts, stock_locate};
+                        if (is_first_event != 8'd0) begin
+                            prev_frame_ts_by_que[current_que_idx*48 +: 48] <= frame_ts;
                         end
                         write_addr          <= calc_write_addr(
                             i_que_iova_addr[current_que_idx*64 +: 64],

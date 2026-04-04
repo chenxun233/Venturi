@@ -45,7 +45,9 @@ bool LatencyLogPrinter::pushLatency(const LatencyLogRecord& record) {
     return _pushRecord(AsyncLogRecord {
         .kind = AsyncLogKind::Latency,
         .latency = record,
-        .snapshot = {}
+        .snapshot = {},
+        .execution = {},
+        .tx = {}
     });
 }
 
@@ -54,7 +56,8 @@ bool LatencyLogPrinter::pushSnapshot(const FpgaSyncSnapshot& snapshot) {
         .kind = AsyncLogKind::Snapshot,
         .latency = {},
         .snapshot = snapshot,
-        .execution = {}
+        .execution = {},
+        .tx = {}
     });
 }
 
@@ -63,7 +66,18 @@ bool LatencyLogPrinter::pushExecution(const ExecutionLogRecord& record) {
         .kind = AsyncLogKind::Execution,
         .latency = {},
         .snapshot = {},
-        .execution = record
+        .execution = record,
+        .tx = {}
+    });
+}
+
+bool LatencyLogPrinter::pushTxEvent(const TxLogRecord& record) {
+    return _pushRecord(AsyncLogRecord {
+        .kind = AsyncLogKind::Tx,
+        .latency = {},
+        .snapshot = {},
+        .execution = {},
+        .tx = record
     });
 }
 
@@ -155,6 +169,43 @@ void LatencyLogPrinter::_handleRecord(const AsyncLogRecord& record) {
                     record.execution.stock_locate,
                     record.execution.intent.price,
                     record.execution.intent.shares);
+        std::fflush(stdout);
+        return;
+    }
+    if (record.kind == AsyncLogKind::Tx) {
+        const char* event_name = "UNKNOWN";
+        switch (record.tx.event) {
+            case TxEventKind::ConnectionEstablished:
+                event_name = "CONNECTION_ESTABLISHED";
+                break;
+            case TxEventKind::ConnectionLost:
+                event_name = "CONNECTION_LOST";
+                break;
+            case TxEventKind::OrderSent:
+                event_name = "ORDER_SENT";
+                break;
+            case TxEventKind::OrderAccepted:
+                event_name = "ORDER_ACCEPTED";
+                break;
+            case TxEventKind::OrderRejected:
+                event_name = "ORDER_REJECTED";
+                break;
+            case TxEventKind::OrderFilled:
+                event_name = "ORDER_FILLED";
+                break;
+            case TxEventKind::OrderDropped:
+                event_name = "ORDER_DROPPED";
+                break;
+        }
+        std::printf("TxEvent event=%s user_ref=%u symbol=%s stock_locate=0x%04x price=%u shares=%u reason=0x%04x match=%llu\n",
+                    event_name,
+                    record.tx.tag,
+                    readSymbolName(record.tx.stock_locate),
+                    record.tx.stock_locate,
+                    record.tx.price,
+                    record.tx.shares,
+                    record.tx.reason,
+                    static_cast<unsigned long long>(record.tx.match_number));
         std::fflush(stdout);
         return;
     }

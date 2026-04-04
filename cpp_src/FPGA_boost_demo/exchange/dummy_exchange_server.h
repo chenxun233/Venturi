@@ -85,8 +85,8 @@ private:
         bool is_logged_in {false};
         std::vector<uint8_t> read_buffer {};
         std::vector<OutboundPacket> write_queue {};
-        std::chrono::steady_clock::time_point last_send {};
-        std::chrono::steady_clock::time_point last_receive {};
+        std::chrono::steady_clock::time_point last_send_time {};
+        std::chrono::steady_clock::time_point last_receive_time {};
         uint64_t next_sequence {1};
         uint64_t next_order_ref_num {1};
         uint64_t next_match_number {1};

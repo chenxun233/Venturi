@@ -38,17 +38,20 @@ bool LatencyTracker::pushRecord(const TimeRecord& record) {
 //     m_tuner = tuner;
 // }
 
-void LatencyTracker::run() {
+std::size_t LatencyTracker::run() {
     const std::lock_guard<std::mutex> lock(m_run_mutex);
+    std::size_t processed_count = 0;
     TimeRecord record {};
     for (uint16_t offset = 0; offset < m_capacity; ++offset) {
         const uint16_t producer_idx = (m_next_buffer_idx + offset) & (m_capacity - 1);
         while (m_trace_buffer[producer_idx]->pop(record)) {
             _processRecord(record);
+            ++processed_count;
         }
     }
 
     m_next_buffer_idx = (m_next_buffer_idx + 1) & (m_capacity - 1);
+    return processed_count;
 }
 
 void LatencyTracker::_processRecord(const TimeRecord& record) {

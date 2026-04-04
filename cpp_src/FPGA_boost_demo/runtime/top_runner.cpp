@@ -11,6 +11,8 @@
 #include <thread>
 
 namespace {
+constexpr auto kLatencyTrackerSleep = std::chrono::microseconds(50);
+
 void printRegressionStatus(const RegressionPara& para,
                            const FpgaSyncSnapshot& snapshot,
                            bool regression_frozen) {
@@ -127,6 +129,15 @@ void TopRunner::run() {
             std::this_thread::sleep_for(m_control_loop_sleep);
         }
     });
+    std::thread latency_thread([this]() {
+        while (m_running.load(std::memory_order_acquire)) {
+            const std::size_t processed = m_latency_tracker->run();
+            if (processed == 0) {
+                std::this_thread::sleep_for(kLatencyTrackerSleep);
+            }
+        }
+        (void)m_latency_tracker->run();
+    });
 
     std::vector<std::thread> rx_threads;
     rx_threads.reserve(m_rx_engines.size());
@@ -146,10 +157,6 @@ void TopRunner::run() {
                                            m_sync_snapshot)
                     : engine.pollBatch(MAX_POLL_RECORDS, get_time);
 
-                if (count > 0) {
-                    m_latency_tracker->run();
-                }
-
                 if (count == 0) {
                     std::this_thread::yield();
                     continue;
@@ -167,6 +174,9 @@ void TopRunner::run() {
     m_running.store(false, std::memory_order_release);
     if (control_thread.joinable()) {
         control_thread.join();
+    }
+    if (latency_thread.joinable()) {
+        latency_thread.join();
     }
 }
 

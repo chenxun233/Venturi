@@ -18,7 +18,7 @@ class Tuner;
 class LatencyTracker {
 public:
     explicit        LatencyTracker(uint16_t producer_num, std::size_t buffer_capacity = 1024);
-    void            run();
+    std::size_t     run();
     bool            pushRecord(const TimeRecord& record);
     void            attachRegression(Regression* regression);
     void            attachLogPrinter(LatencyLogPrinter* log_printer);

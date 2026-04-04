@@ -6,6 +6,7 @@
 #include "../sync/regression.h"
 #include "../sync/sync_handler.h"
 #include "../tx/executor.h"
+#include "../tx/tx_translator.h"
 #include "../tx/tx_engine.h"
 #include "../../common/log.h"
 
@@ -55,13 +56,21 @@ constexpr std::size_t kLatencyQueueCapacity = 1024;
 constexpr std::size_t kLatencyLogCapacity = 4096;
 constexpr std::size_t kExecutorQueueCapacity = 1024;
 constexpr uint64_t    accepted_interval_ns = 2000;
+constexpr auto kLatencyTrackerSleep = std::chrono::microseconds(50);
+constexpr std::string_view kTxBindIp = "192.168.50.1";
+constexpr std::string_view kTxServerIp = "192.168.50.2";
+constexpr uint16_t kTxServerPort = 9000;
+constexpr std::string_view kTxUsername = "client";
+constexpr std::string_view kTxPassword = "secret";
+constexpr std::string_view kTxSession = "SESSION01";
 
-bool initSync(FPGARxEngine& sync_engine,
+bool initSync(FPGADev& device,
               Regression& regression,
               FpgaSyncSnapshot& snapshot) {
-
     for (std::size_t attempt = 0; attempt < kInitSyncMaxAttempts; ++attempt) {
-        snapshot = sync_engine.initSync();
+        if (!device.readSyncTimestamp(snapshot)) {
+            continue;
+        }
         if (snapshot.interval_ns != 0 && snapshot.interval_ns <= accepted_interval_ns) {
             regression.updateSnapshot(snapshot);
         }
@@ -77,7 +86,7 @@ bool initSync(FPGARxEngine& sync_engine,
 } // namespace
 
 int main() {
-    FPGADev device("0000:05:00.0");
+    FPGADev device("0000:01:00.0");
     if (!device.initHardware()) {
         error("Failed to initialize FPGA device");
         return 1;
@@ -106,7 +115,19 @@ int main() {
     DummyStrategy strategy0;
     DummyStrategy strategy1;
     Executor executor(kQueueCount, kExecutorQueueCapacity);
-    TxEngine tx_engine;
+    TxTranslator tx_translator(TxTranslatorConfig {
+        .username = std::string(kTxUsername),
+        .password = std::string(kTxPassword),
+        .requested_session = std::string(kTxSession),
+        .heartbeat_interval = std::chrono::seconds(1),
+        .intent_capacity = kExecutorQueueCapacity,
+        .pending_capacity = 1024,
+    });
+    TxEngine tx_engine(GatewayClientConfig {
+        .bind_ip = std::string(kTxBindIp),
+        .server_ip = std::string(kTxServerIp),
+        .port = kTxServerPort,
+    });
     LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
     LatencyLogPrinter latency_log_printer(kLatencyLogCapacity);
 
@@ -117,7 +138,9 @@ int main() {
     latency_tracker.attachLogPrinter(&latency_log_printer);
     latency_log_printer.start();
     executor.attachLogPrinter(&latency_log_printer);
-    executor.attachTx(&tx_engine);
+    tx_translator.attachLogPrinter(&latency_log_printer);
+    tx_engine.attachLogPrinter(&latency_log_printer);
+    executor.attachTranslator(&tx_translator);
     strategy0.attachExecutor(executor, 0);
     strategy1.attachExecutor(executor, 1);
     latency_tracker.attachRegression(&regression);
@@ -130,7 +153,7 @@ int main() {
     std::mutex snapshot_mutex;
     FpgaSyncSnapshot sync_snapshot {};
     bool has_latest_snapshot {false};
-    if (!initSync(engine0, regression, sync_snapshot)) {
+    if (!initSync(device, regression, sync_snapshot)) {
         error("initSync failed to converge within %zu attempts", kInitSyncMaxAttempts);
         latency_log_printer.stop();
         return 1;
@@ -170,14 +193,52 @@ int main() {
                 }
                 print_countdown = kSnapshotPrintPeriod;
             }
-
+            const std::size_t processed = latency_tracker.run();
+            if (processed > 0){
+                (void)latency_tracker.run();
+            }
             std::this_thread::sleep_for(kControlLoopSleep);
         }
     });
     std::thread executor_thread([&]() {
         executor.run(running);
     });
+    std::thread tx_thread([&]() {
+        while (running.load(std::memory_order_acquire)) {
+            bool did_work = false;
+            did_work = tx_engine.runTransportStep() || did_work;
+            if (tx_engine.takeConnectEvent()) {
+                tx_translator.handleTransportConnected();
+                did_work = true;
+            }
 
+            tx_translator.runTransportMaintenance();
+
+            TxOutboundRecord outbound {};
+            while (tx_translator.popOutbound(outbound)) {
+                if (!tx_engine.pushPayload(outbound)) {
+                    tx_translator.restoreOutbound(outbound);
+                    break;
+                }
+                did_work = true;
+            }
+
+            for (const std::vector<uint8_t>& payload : tx_engine.drainInboundPayloads()) {
+                tx_translator.handleInboundPayload(payload);
+                did_work = true;
+            }
+            if (tx_engine.takeDisconnectEvent()) {
+                tx_translator.handleTransportDisconnect();
+                did_work = true;
+            }
+
+            if (!did_work) {
+                std::this_thread::sleep_for(kControlLoopSleep);
+            }
+        }
+    });
+
+    
     std::vector<std::thread> rx_threads;
     rx_threads.emplace_back([&]() {
         while (running.load(std::memory_order_acquire)) {
@@ -193,7 +254,6 @@ int main() {
             }
             if (count > 0) {
                 strategy0.onEvents(engine0.readEventBuffer().data(), count);
-                latency_tracker.run();
             }
             if (count == 0) {
                 std::this_thread::yield();
@@ -205,7 +265,6 @@ int main() {
             const std::size_t count = engine1.pollBatch(MAX_POLL_RECORDS, false);
             if (count > 0) {
                 strategy1.onEvents(engine1.readEventBuffer().data(), count);
-                latency_tracker.run();
             }
             if (count == 0) {
                 std::this_thread::yield();
@@ -223,6 +282,9 @@ int main() {
     }
     if (executor_thread.joinable()) {
         executor_thread.join();
+    }
+    if (tx_thread.joinable()) {
+        tx_thread.join();
     }
     latency_log_printer.stop();
 

@@ -10,7 +10,7 @@
 #include <vector>
 
 class LatencyLogPrinter;
-class TxEngine;
+class TxTranslator;
 
 class Executor {
 public:
@@ -18,7 +18,7 @@ public:
     ~Executor() = default;
 
     void attachLogPrinter(LatencyLogPrinter* log_printer);
-    void attachTx(TxEngine* tx_engine);
+    void attachTranslator(TxTranslator* translator);
     bool pushIntent(uint16_t producer_idx, const OrderIntent& intent);
     void run(const std::atomic<bool>& running);
     void drain();
@@ -30,5 +30,5 @@ private:
     uint16_t m_producer_num {0};
     uint16_t m_next_buffer_idx {0};
     LatencyLogPrinter* m_log_printer {nullptr};
-    TxEngine* m_tx_engine {nullptr};
+    TxTranslator* m_translator {nullptr};
 };

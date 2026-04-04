@@ -98,6 +98,7 @@ make -j$(nproc)
 | `test_app_pcap` | Packet capture to pcap file | Intel 82599 |
 | `test_fpga_hello` | Standalone FPGA test | FPGA (standalone) |
 | `test_fpga_hello_v2` | Infrastructure-based FPGA test | FPGA (common infra) |
+| `dummy_exchange_server` | SoupBinTCP/OUCH demo exchange server | Host TCP demo |
 
 ## Usage Examples
 
@@ -128,6 +129,27 @@ sudo ./test_fpga_hello 0000:03:00.0
 # Run infrastructure-based test
 sudo ./test_fpga_hello_v2 0000:03:00.0
 ```
+
+### OUCH-over-SoupBinTCP Demo
+
+This demo uses two processes on two directly connected NIC ports. The server listens on the dummy-exchange-side NIC and the integrated client path lives inside `test_fpga_rx_adapter` (`Venturi.cpp`).
+
+```bash
+# Build only the demo pieces
+cmake -S cpp_src -B build
+cmake --build build --target dummy_exchange_server test_fpga_rx_adapter
+
+# terminal 1: dummy exchange on enp5s0f0
+./build/dummy_exchange_server \
+  --listen-ip 192.168.50.2 \
+  --port 9000 \
+  --fill-delay-ms 20
+
+# terminal 2: Venturi top app on enp1s0f0
+./build/test_fpga_rx_adapter
+```
+
+The client side is now the existing `Venturi.cpp` path: RX -> strategy -> executor -> `TxEngine`. `TxEngine` binds to `192.168.50.1`, retries when disconnected, and pushes immediate plus async TX logs for connection established/lost, order sent, reject, and fill events.
 
 ## Key Features
 

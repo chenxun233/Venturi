@@ -20,13 +20,12 @@ class Regression;
 class FPGARxEngine{
 
 public:
-    explicit                    FPGARxEngine(FPGADev& device, uint16_t que_idx);
-    FpgaSyncSnapshot            initSync() const;
-    void                        attachLatencyTracker(LatencyTracker& latency_tracker) { m_latency_tracker = &latency_tracker; }
-    void                        attachLogPrinter(LatencyLogPrinter& log_printer) { m_log_printer = &log_printer; }
-    void                        attachRegression(Regression& regression) { m_regression = &regression; }
-    std::size_t                 pollBatch(std::size_t batch_size, bool get_time);
-    std::size_t                 pollBatchSync(std::size_t batch_size,
+    explicit            FPGARxEngine(FPGADev& device,uint16_t que_idx);
+    void                attachLatencyTracker(LatencyTracker& latency_tracker) { m_latency_tracker = &latency_tracker; }
+    void                attachLogPrinter(LatencyLogPrinter& log_printer) { m_log_printer = &log_printer; }
+    void                attachRegression(Regression& regression) { m_regression = &regression; }
+    std::size_t         pollBatch(std::size_t batch_size, bool get_time);
+    std::size_t         pollBatchSync(std::size_t batch_size,
                                                 bool get_time,
                                                 FpgaSyncSnapshot& snapshot);
     const std::array<FPGAEventDesc, MAX_POLL_RECORDS>& readEventBuffer() const;
@@ -34,7 +33,6 @@ public:
 
 private:
     timespec            m_ts_captured {};
-    FPGADev&            m_device;
     FPGARxDecoder       m_decoder;
     LatencyTracker*     m_latency_tracker{nullptr};
     LatencyLogPrinter*  m_log_printer{nullptr};

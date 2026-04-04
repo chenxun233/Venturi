@@ -1,10 +1,9 @@
 #include "executor.h"
 
 #include "../latency/latency_log_printer.h"
-#include "tx_engine.h"
+#include "tx_translator.h"
 
 #include <stdexcept>
-#include <thread>
 
 Executor::Executor(uint16_t producer_num, std::size_t buffer_capacity)
     : m_producer_num(producer_num) {
@@ -21,8 +20,8 @@ void Executor::attachLogPrinter(LatencyLogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
-void Executor::attachTx(TxEngine* tx_engine) {
-    m_tx_engine = tx_engine;
+void Executor::attachTranslator(TxTranslator* translator) {
+    m_translator = translator;
 }
 
 bool Executor::pushIntent(uint16_t producer_idx, const OrderIntent& intent) {
@@ -42,14 +41,8 @@ void Executor::drain() {
 }
 
 void Executor::run(const std::atomic<bool>& running) {
-    OrderIntent intent {};
     while (running.load(std::memory_order_acquire)) {
-        for (uint16_t idx = 0; idx < m_producer_num; ++idx) {
-            while (m_intent_buffers[idx]->pop(intent)) {
-
-                _executeIntent(intent);
-            }
-        }
+        drain();
     }
     drain();
 }
@@ -61,7 +54,10 @@ void Executor::_executeIntent(const OrderIntent& intent) {
             .intent = intent.intent
         });
     }
-    if (m_tx_engine != nullptr) {
-        m_tx_engine->sendIntent(intent);
+
+    if (m_translator == nullptr) {
+        return;
     }
+
+    (void)m_translator->pushIntent(intent);
 }

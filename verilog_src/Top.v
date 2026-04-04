@@ -493,31 +493,31 @@ order_book_builder #(
 
 rx_debug_counters #(
     .SYMBOL_NUM (SYMBOL_NUM)
-) rx_debug_counters_inst (
-    .i_clk_156           (w_xgmii_rx_clk),
-    .i_rst               (rx_logic_reset_156),
-    .i_pcs_frame_started (pcs_frame_started),
-    .i_frame_started     (mac_frame_started),
-    .i_msg_valid         (msg_valid),
-    .i_event_valid       (builder_event_valid),
+) rx_debug_counters_inst    (
+    .i_clk_156              (w_xgmii_rx_clk),
+    .i_rst                  (rx_logic_reset_156),
+    .i_pcs_frame_started    (pcs_frame_started),
+    .i_frame_started        (mac_frame_started),
+    .i_msg_valid            (msg_valid),
+    .i_event_valid          (builder_event_valid),
     .o_pcs_frame_count_gray (rx_dbg_pcs_frame_count_gray),
-    .o_frame_count_gray  (rx_dbg_frame_count_gray),
-    .o_msg_count_gray    (rx_dbg_msg_count_gray),
-    .o_event_count_gray  (rx_dbg_event_count_gray)
+    .o_frame_count_gray     (rx_dbg_frame_count_gray),
+    .o_msg_count_gray       (rx_dbg_msg_count_gray),
+    .o_event_count_gray     (rx_dbg_event_count_gray)
 );
 
 rx_debug_counter_bridge #(
     .SYMBOL_NUM (SYMBOL_NUM)
 ) rx_debug_counter_bridge_inst (
-    .i_user_clk         (user_clk_250),
+    .i_user_clk             (user_clk_250),
     .i_pcs_frame_count_gray (rx_dbg_pcs_frame_count_gray),
-    .i_frame_count_gray (rx_dbg_frame_count_gray),
-    .i_msg_count_gray   (rx_dbg_msg_count_gray),
-    .i_event_count_gray (rx_dbg_event_count_gray),
-    .o_pcs_frame_count  (rx_dbg_pcs_frame_count),
-    .o_frame_count      (rx_dbg_frame_count),
-    .o_msg_count        (rx_dbg_msg_count),
-    .o_event_count      (rx_dbg_event_count)
+    .i_frame_count_gray     (rx_dbg_frame_count_gray),
+    .i_msg_count_gray       (rx_dbg_msg_count_gray),
+    .i_event_count_gray     (rx_dbg_event_count_gray),
+    .o_pcs_frame_count      (rx_dbg_pcs_frame_count),
+    .o_frame_count          (rx_dbg_frame_count),
+    .o_msg_count            (rx_dbg_msg_count),
+    .o_event_count          (rx_dbg_event_count)
 );
 
 bit_synchronizer #(

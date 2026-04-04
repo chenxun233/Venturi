@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <ctime>
@@ -33,7 +34,6 @@ struct FPGAEventDesc {
     uint64_t frame_start_tk {0};
     uint64_t event_tk       {0};
     uint16_t stock_locate   {0};
-    
 };
 
 enum stage {
@@ -98,10 +98,40 @@ struct ExecutionLogRecord {
     OrderIntentPayload intent {};
 };
 
+enum class TxEventKind : uint8_t {
+    ConnectionEstablished,
+    ConnectionLost,
+    OrderSent,
+    OrderAccepted,
+    OrderRejected,
+    OrderFilled,
+    OrderDropped
+};
+
+struct TxOutboundRecord {
+    uint32_t                tag    {0};
+    uint16_t                stock_locate    {0};
+    uint32_t                price           {0};
+    uint32_t                shares          {0};
+    std::array<uint8_t, 64> payload         {};
+    uint8_t                 payload_length  {0};
+};
+
+struct TxLogRecord {
+    TxEventKind event       {TxEventKind::ConnectionEstablished};
+    uint32_t tag   {0};
+    uint16_t stock_locate   {0};
+    uint32_t price          {0};
+    uint32_t shares         {0};
+    uint16_t reason         {0};
+    uint64_t match_number   {0};
+};
+
 enum class AsyncLogKind : uint8_t {
     Latency,
     Snapshot,
-    Execution
+    Execution,
+    Tx
 };
 
 struct AsyncLogRecord {
@@ -109,6 +139,7 @@ struct AsyncLogRecord {
     LatencyLogRecord latency {};
     FpgaSyncSnapshot snapshot {};
     ExecutionLogRecord execution {};
+    TxLogRecord tx {};
 };
 
 

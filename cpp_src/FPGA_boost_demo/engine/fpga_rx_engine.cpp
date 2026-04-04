@@ -35,26 +35,19 @@ void pushTraceRecords(LatencyTracker* latency_tracker,
             static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL +
             static_cast<uint64_t>(ts.tv_nsec);
         latency_tracker->pushRecord(record);
-        // printf("TraceBuffer push: que_idx: %u, frame_start_tk: %lu, event_tk: %lu, time_captured: %lu\n",
-        //        record.que_idx, event.frame_start_tk, event.event_tk, record.time_captured);
+    //     printf("=====TraceBuffer push: que_idx: %u, frame_start_tk: %lu, event_tk: %lu, time_captured: %lu\n",
+    //            record.que_idx, event.frame_start_tk, event.event_tk, record.time_captured);
     }
 }
 
 } // namespace
 
-FPGARxEngine::FPGARxEngine(FPGADev& device, uint16_t que_idx)
-    : m_device(device),
+FPGARxEngine::FPGARxEngine(FPGADev& device, uint16_t que_idx):
       m_decoder(device, que_idx),
       m_que_idx(que_idx) {
     if (!m_decoder.isValid()) {
         throw std::runtime_error("Failed to initialize FPGARxDecoder in FPGARxEngine");
     }
-}
-
-FpgaSyncSnapshot FPGARxEngine::initSync() const {
-    FpgaSyncSnapshot snapshot {};
-    (void)m_device.readSyncTimestamp(snapshot);
-    return snapshot;
 }
 
 const std::array<FPGAEventDesc, MAX_POLL_RECORDS>& FPGARxEngine::readEventBuffer() const {

@@ -3,11 +3,7 @@
 
 #include <cstring>
 #include <ctime>
-    // m_rx_queues.resize(m_basic_para.rx_que_num);
-    // m_rx_queues[0].symbol_name = "AAPL";
-    // m_rx_queues[0].stock_locate = 0x000d;
-    // m_rx_queues[1].symbol_name = "HSBC";
-    // m_rx_queues[1].stock_locate = 0x0ee8;
+
 
 FPGADev::FPGADev(std::string pci_addr)
     : BasicDev(std::move(pci_addr)) {
