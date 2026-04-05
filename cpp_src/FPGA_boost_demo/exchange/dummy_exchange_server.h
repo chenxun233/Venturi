@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 constexpr std::size_t kOuchExecutedSize = 36; // outbound, order executed message size in bytes.
 constexpr std::size_t kMaxSoupPayloadSize = 64;
@@ -120,7 +119,6 @@ private:
         uint64_t next_sequence {1};
         uint64_t next_order_ref_num {1};
         uint64_t next_match_number {1};
-        std::unordered_map<uint32_t, HandledOrderResult> order_results {};
         FixedRingBuffer<PendingFill, kMaxPendingFills> pending_fills {};
     };
 
@@ -159,6 +157,7 @@ private:
 
     SessionSlot& _acquireSessionSlot(SessionSlotMode mode);
     void _releaseSessionSlot(SessionSlot& slot);
+    SessionSlot* _resolveLiveSlot(const EventToken& token);
     SessionSlot& _resolveTestSlot(TestSessionHandle session);
     const SessionSlot& _resolveTestSlot(TestSessionHandle session) const;
     void _queOutBound(ClientState& client, std::chrono::steady_clock::time_point now);
@@ -169,10 +168,13 @@ private:
     bool _receiveClientData(ClientState& client);
     bool _sendQueFront(ClientState& client);
     void _queueSoupFrame(ClientState& client, uint8_t type, const uint8_t* payload, std::size_t payload_size);
-    bool _handleClientPacket(ClientState& client, uint8_t type, const EncodedPayload& payload);
-    void _closeSession(int epoll_fd, int fd);
+    bool _handleClientPacket(SessionSlot& slot, uint8_t type, const EncodedPayload& payload);
+    void _closeLiveSession(int epoll_fd, SessionSlot& slot);
     std::optional<uint8_t> _tryReadPacketType(ClientState& client);
-    HandledOrderResult _handleEnterOrder(ClientState& client, const ExchangeEnterOrder& order);
+    std::optional<HandledOrderResult> _findReplayResult(const SessionSlot& slot, uint32_t user_ref_num) const;
+    bool _insertReplayResult(SessionSlot& slot, uint32_t user_ref_num, const HandledOrderResult& result);
+    HandledOrderResult _buildReplayCapacityReject(SessionSlot& slot, uint32_t user_ref_num);
+    HandledOrderResult _handleEnterOrder(SessionSlot& slot, const ExchangeEnterOrder& order);
     bool _isOutQueueEmpty(const ClientState& client) const;
     std::size_t _readOutQueueSize(const ClientState& client) const;
     OutboundPacket& _readOutQueueFront(ClientState& client);
@@ -192,7 +194,8 @@ private:
     std::size_t m_free_slot_count {0};
     uint64_t m_next_test_session_id {1};
     uint64_t m_next_live_session_id {1};
-    std::unordered_map<int, ClientState> m_live_clients {};
+    EventToken m_listen_event_token {.kind = EventToken::Kind::Listen};
+    EventToken m_timer_event_token {.kind = EventToken::Kind::Timer};
 
 private:
 };

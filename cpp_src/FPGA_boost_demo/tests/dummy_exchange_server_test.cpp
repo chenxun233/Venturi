@@ -389,6 +389,73 @@ TEST(DummyExchangeServerTest, acceptedOrderLaterQueuesExecutedMessageOnTimerTick
     EXPECT_EQ(packet[3], static_cast<uint8_t>('E'));
 }
 
+TEST(DummyExchangeServerTest, extraClientIsRejectedWhenSessionPoolIsFull) {
+    DummyExchangeConfig config {};
+    config.listen_ip = "127.0.0.1";
+    config.port = 9109;
+    config.session_capacity = 1;
+
+    DummyExchangeServer server(config);
+    std::jthread server_thread([&server]() {
+        EXPECT_EQ(server.run(), 0);
+    });
+    ServerStopGuard stop_guard {&server};
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    const int first_fd = connectClient(config.port);
+    ASSERT_GE(first_fd, 0);
+    const int second_fd = connectClient(config.port);
+    ASSERT_GE(second_fd, 0);
+
+    ASSERT_TRUE(sendAll(first_fd, buildLoginPacket(config)));
+
+    uint8_t type = 0;
+    std::vector<uint8_t> payload {};
+    ASSERT_TRUE(readPacketType(first_fd, type, payload));
+    EXPECT_EQ(type, static_cast<uint8_t>('A'));
+
+    EXPECT_FALSE(sendAll(second_fd, buildLoginPacket(config)) && readPacketType(second_fd, type, payload));
+
+    ::close(first_fd);
+    ::close(second_fd);
+}
+
+TEST(DummyExchangeServerTest, closedLiveSlotCanBeReusedByNextClient) {
+    DummyExchangeConfig config {};
+    config.listen_ip = "127.0.0.1";
+    config.port = 9110;
+    config.session_capacity = 1;
+
+    DummyExchangeServer server(config);
+    std::jthread server_thread([&server]() {
+        EXPECT_EQ(server.run(), 0);
+    });
+    ServerStopGuard stop_guard {&server};
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    const int first_fd = connectClient(config.port);
+    ASSERT_GE(first_fd, 0);
+    ASSERT_TRUE(sendAll(first_fd, buildLoginPacket(config)));
+
+    uint8_t type = 0;
+    std::vector<uint8_t> payload {};
+    ASSERT_TRUE(readPacketType(first_fd, type, payload));
+    EXPECT_EQ(type, static_cast<uint8_t>('A'));
+    ::close(first_fd);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    const int second_fd = connectClient(config.port);
+    ASSERT_GE(second_fd, 0);
+    ASSERT_TRUE(sendAll(second_fd, buildLoginPacket(config)));
+    ASSERT_TRUE(readPacketType(second_fd, type, payload));
+    EXPECT_EQ(type, static_cast<uint8_t>('A'));
+
+    ::close(second_fd);
+}
+
 TEST(DummyExchangeServerTest, oneClientDisconnectDoesNotStopOtherClient) {
     DummyExchangeConfig config {};
     config.listen_ip = "127.0.0.1";

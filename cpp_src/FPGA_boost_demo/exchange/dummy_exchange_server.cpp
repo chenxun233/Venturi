@@ -59,6 +59,7 @@ static_assert(kMaxSoupPayloadSize >= kOuchRejectedSize,
 constexpr uint16_t kRejectUnsupportedSymbol = 0x0011;
 constexpr uint16_t kRejectInvalidShares = 0x0002;
 constexpr uint16_t kRejectInvalidPrice = 0x0015;
+constexpr uint16_t kRejectReplayCapacity = 0x00ff;
 
 const char* readSoupTypeName(uint8_t type) {
     switch (type) {
@@ -695,19 +696,24 @@ void DummyExchangeServer::_acceptClients(int epoll_fd, int listen_fd) {
             continue;
         }
 
-        ClientState client {};
-        client.fd = client_fd;
-        client.session_id = m_next_live_session_id++;
-        client.last_send_time = std::chrono::steady_clock::now();
-        client.last_receive_time = client.last_send_time;
-        m_live_clients.emplace(client_fd, std::move(client));
+        if (m_free_slot_count == 0) {
+            ::close(client_fd);
+            continue;
+        }
+
+        SessionSlot& slot = _acquireSessionSlot(SessionSlotMode::Live);
+        slot.client.fd = client_fd;
+        slot.client.session_id = m_next_live_session_id++;
+        slot.client.last_send_time = std::chrono::steady_clock::now();
+        slot.client.last_receive_time = slot.client.last_send_time;
+        slot.event_token.generation = slot.generation;
 
         epoll_event event {};
         event.events = EPOLLIN | EPOLLRDHUP;
-        event.data.fd = client_fd;
+        event.data.ptr = &slot.event_token;
         if (::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) != 0) {
-            m_live_clients.erase(client_fd);
             ::close(client_fd);
+            _releaseSessionSlot(slot);
         }
     }
 }
@@ -799,9 +805,10 @@ void DummyExchangeServer::_queueSoupFrame(ClientState& client,
     }
 }
 
-bool DummyExchangeServer::_handleClientPacket(ClientState& client,
+bool DummyExchangeServer::_handleClientPacket(SessionSlot& slot,
                                               uint8_t type,
                                               const EncodedPayload& payload) {
+    ClientState& client = slot.client;
     if (!client.is_logged_in) {
         SoupPacket packet {};
         packet.type = type;
@@ -842,7 +849,7 @@ bool DummyExchangeServer::_handleClientPacket(ClientState& client,
     }
 
     const ExchangeEnterOrder order = readEnterOrder(payload);
-    const auto handled = _handleEnterOrder(client, order);
+    const auto handled = _handleEnterOrder(slot, order);
     if (!handled.is_duplicate) {
         for (std::size_t index = 0; index < handled.outbound_message_count; ++index) {
             const auto& message = handled.outbound_messages[index];
@@ -852,30 +859,109 @@ bool DummyExchangeServer::_handleClientPacket(ClientState& client,
     return _sendQueFront(client);
 }
 
-void DummyExchangeServer::_closeSession(int epoll_fd, int fd) {
-    (void)::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
-    ::close(fd);
-    m_live_clients.erase(fd);
+DummyExchangeServer::SessionSlot* DummyExchangeServer::_resolveLiveSlot(const EventToken& token) {
+    if (token.kind != EventToken::Kind::LiveSession || token.slot_index >= m_session_slots.size()) {
+        return nullptr;
+    }
+
+    SessionSlot& slot = m_session_slots[token.slot_index];
+    if (slot.mode != SessionSlotMode::Live || slot.generation != token.generation) {
+        return nullptr;
+    }
+    return &slot;
+}
+
+void DummyExchangeServer::_closeLiveSession(int epoll_fd, SessionSlot& slot) {
+    if (slot.mode != SessionSlotMode::Live) {
+        return;
+    }
+
+    const int fd = slot.client.fd;
+    if (fd >= 0) {
+        (void)::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr);
+        ::close(fd);
+    }
+    _releaseSessionSlot(slot);
 }
 
 HandledOrderResult DummyExchangeServer::handleEnterOrderForTest(TestSessionHandle session,
                                                                 const ExchangeEnterOrder& order) {
-    return _handleEnterOrder(_resolveTestSlot(session).client, order);
+    return _handleEnterOrder(_resolveTestSlot(session), order);
 }
 
 uint64_t DummyExchangeServer::readSessionNextSequenceForTest(TestSessionHandle session) const {
     return _readNextSequence(_resolveTestSlot(session).client);
 }
+std::optional<HandledOrderResult> DummyExchangeServer::_findReplayResult(const SessionSlot& slot,
+                                                                         uint32_t user_ref_num) const {
+    if (slot.replay_entries.empty()) {
+        return std::nullopt;
+    }
 
+    const std::size_t capacity = slot.replay_entries.size();
+    const std::size_t start = static_cast<std::size_t>(user_ref_num) % capacity;
+    for (std::size_t offset = 0; offset < capacity; ++offset) {
+        const ReplayEntry& entry = slot.replay_entries[(start + offset) % capacity];
+        if (!entry.is_occupied) {
+            return std::nullopt;
+        }
+        if (entry.user_ref_num == user_ref_num) {
+            return entry.result;
+        }
+    }
+    return std::nullopt;
+}
 
+bool DummyExchangeServer::_insertReplayResult(SessionSlot& slot,
+                                              uint32_t user_ref_num,
+                                              const HandledOrderResult& result) {
+    if (slot.replay_entries.empty() || slot.replay_count >= slot.replay_entries.size()) {
+        return false;
+    }
 
-HandledOrderResult DummyExchangeServer::_handleEnterOrder(ClientState& client,
+    const std::size_t capacity = slot.replay_entries.size();
+    const std::size_t start = static_cast<std::size_t>(user_ref_num) % capacity;
+    for (std::size_t offset = 0; offset < capacity; ++offset) {
+        ReplayEntry& entry = slot.replay_entries[(start + offset) % capacity];
+        if (!entry.is_occupied) {
+            entry.is_occupied = true;
+            entry.user_ref_num = user_ref_num;
+            entry.result = result;
+            ++slot.replay_count;
+            return true;
+        }
+        if (entry.user_ref_num == user_ref_num) {
+            entry.result = result;
+            return true;
+        }
+    }
+    return false;
+}
+
+HandledOrderResult DummyExchangeServer::_buildReplayCapacityReject(SessionSlot& slot, uint32_t user_ref_num) {
+    ClientState& client = slot.client;
+    HandledOrderResult reject {};
+    reject.validation = ExchangeValidationResult {
+        .kind = ExchangeValidationKind::Rejected,
+        .reject_reason = kRejectReplayCapacity,
+    };
+    reject.outbound_messages[0] = writeOuchRejected(RejectedMessage {
+        .timestamp_ns = _readTimestampNs(),
+        .user_ref_num = user_ref_num,
+        .reason = kRejectReplayCapacity,
+    });
+    reject.outbound_message_count = 1;
+    ++client.next_sequence;
+    return reject;
+}
+
+HandledOrderResult DummyExchangeServer::_handleEnterOrder(SessionSlot& slot,
                                                           const ExchangeEnterOrder& order) {
-    const auto existing = client.order_results.find(order.user_ref_num);
-    if (existing != client.order_results.end()) {
-        HandledOrderResult replay = existing->second;
-        replay.is_duplicate = true;
-        return replay;
+    ClientState& client = slot.client;
+    if (const auto replay = _findReplayResult(slot, order.user_ref_num); replay.has_value()) {
+        HandledOrderResult result = *replay;
+        result.is_duplicate = true;
+        return result;
     }
 
     HandledOrderResult result {};
@@ -915,13 +1001,19 @@ HandledOrderResult DummyExchangeServer::_handleEnterOrder(ClientState& client,
         ++client.next_match_number;
     }
 
-    client.order_results.emplace(order.user_ref_num, result);
+    if (!_insertReplayResult(slot, order.user_ref_num, result)) {
+        return _buildReplayCapacityReject(slot, order.user_ref_num);
+    }
     return result;
 }
 
 int DummyExchangeServer::run() {
     m_stop_requested.store(false);
-    m_live_clients.clear();
+    for (auto& slot : m_session_slots) {
+        if (slot.mode == SessionSlotMode::Live) {
+            _releaseSessionSlot(slot);
+        }
+    }
 
     const int listen_fd = openListenSocket(m_config);
     if (!_setNonBlocking(listen_fd)) {
@@ -941,10 +1033,10 @@ int DummyExchangeServer::run() {
 
     epoll_event listen_event {};
     listen_event.events = EPOLLIN;
-    listen_event.data.fd = listen_fd;
+    listen_event.data.ptr = &m_listen_event_token;
     epoll_event timer_event {};
     timer_event.events = EPOLLIN;
-    timer_event.data.fd = timer_fd;
+    timer_event.data.ptr = &m_timer_event_token;
     if (::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listen_fd, &listen_event) != 0 ||
         ::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_fd, &timer_event) != 0) {
         ::close(timer_fd);
@@ -968,11 +1060,15 @@ int DummyExchangeServer::run() {
 
         for (int index = 0; index < ready; ++index) {
             const epoll_event& event = events[static_cast<std::size_t>(index)];
-            if (event.data.fd == listen_fd) {
+            auto* token = static_cast<EventToken*>(event.data.ptr);
+            if (token == nullptr) {
+                continue;
+            }
+            if (token->kind == EventToken::Kind::Listen) {
                 _acceptClients(epoll_fd, listen_fd);
                 continue;
             }
-            if (event.data.fd == timer_fd) {
+            if (token->kind == EventToken::Kind::Timer) {
                 uint64_t expirations = 0;
                 const ssize_t timer_read = ::read(timer_fd, &expirations, sizeof(expirations));
                 if (timer_read < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -982,30 +1078,33 @@ int DummyExchangeServer::run() {
                     return 1;
                 }
                 const auto now = std::chrono::steady_clock::now();
-                for (auto& [fd, client] : m_live_clients) {
-                    _queOutBound(client, now);
-                    if (!_isOutQueueEmpty(client) && !_sendQueFront(client)) {
-                         _closeSession(epoll_fd, fd);
+                for (auto& slot : m_session_slots) {
+                    if (slot.mode != SessionSlotMode::Live) {
                         continue;
                     }
-                    if (now - client.last_receive_time >= std::chrono::seconds(15)) {
-                        _closeSession(epoll_fd, fd);
+                    _queOutBound(slot.client, now);
+                    if (!_isOutQueueEmpty(slot.client) && !_sendQueFront(slot.client)) {
+                        _closeLiveSession(epoll_fd, slot);
+                        continue;
+                    }
+                    if (now - slot.client.last_receive_time >= std::chrono::seconds(15)) {
+                        _closeLiveSession(epoll_fd, slot);
                     }
                 }
                 continue;
             }
 
-            auto found = m_live_clients.find(event.data.fd);
-            if (found == m_live_clients.end()) {
+            SessionSlot* slot = _resolveLiveSlot(*token);
+            if (slot == nullptr) {
                 continue;
             }
-            ClientState& client = found->second;
+            ClientState& client = slot->client;
             if ((event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) != 0U) {
-                _closeSession(epoll_fd, event.data.fd);
+                _closeLiveSession(epoll_fd, *slot);
                 continue;
             }
             if (!_receiveClientData(client)) {
-                _closeSession(epoll_fd, event.data.fd);
+                _closeLiveSession(epoll_fd, *slot);
                 continue;
             }
             while (true) {
@@ -1013,19 +1112,23 @@ int DummyExchangeServer::run() {
                 if (!packet.has_value()) {
                     break;
                 }
-                if (!_handleClientPacket(client, packet->type, packet->payload)) {
-                    _closeSession(epoll_fd, event.data.fd);
+                if (!_handleClientPacket(*slot, packet->type, packet->payload)) {
+                    _closeLiveSession(epoll_fd, *slot);
                     break;
                 }
             }
         }
     }
 
-    for (auto& [fd, client] : m_live_clients) {
-        (void)client;
-        ::close(fd);
+    for (auto& slot : m_session_slots) {
+        if (slot.mode != SessionSlotMode::Live) {
+            continue;
+        }
+        if (slot.client.fd >= 0) {
+            ::close(slot.client.fd);
+        }
+        _releaseSessionSlot(slot);
     }
-    m_live_clients.clear();
     ::close(timer_fd);
     ::close(epoll_fd);
     ::close(listen_fd);
