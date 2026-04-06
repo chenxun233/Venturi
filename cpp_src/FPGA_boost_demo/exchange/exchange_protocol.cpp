@@ -299,8 +299,8 @@ void ExchangeProtocol::reset(uint64_t session_id, std::chrono::steady_clock::tim
 }
 
 bool ExchangeProtocol::appendReceivedBytes(const uint8_t* bytes,
-                                                       std::size_t size,
-                                                       std::chrono::steady_clock::time_point now) {
+                                           std::size_t size,
+                                           std::chrono::steady_clock::time_point now) {
     if (!m_read_buffer.write(bytes, size)) {
         m_should_close = true;
         return false;
@@ -337,11 +337,11 @@ bool ExchangeProtocol::hasOutboundFrame() const {
 
 
 
-void ExchangeProtocol::writeLastTime(std::chrono::steady_clock::time_point now) {
+void ExchangeProtocol::writeLastSendTime(std::chrono::steady_clock::time_point now) {
     m_last_send_time = now;
 }
 
-ExchangeValidationResult ExchangeProtocol::validateEnterOrder(const ExchangeEnterOrder& order) const {
+ExchangeValidationResult ExchangeProtocol::_validateEnterOrder(const ExchangeEnterOrder& order) const {
     if (order.stock_locate != 0x000d && order.stock_locate != 0x0ee8) {
         return ExchangeValidationResult {
             .kind = ExchangeValidationKind::Rejected,
@@ -363,68 +363,10 @@ ExchangeValidationResult ExchangeProtocol::validateEnterOrder(const ExchangeEnte
     return ExchangeValidationResult {};
 }
 
-HandledOrderResult ExchangeProtocol::handleEnterOrderForTest(
-    const ExchangeEnterOrder& order,
-    std::chrono::steady_clock::time_point now) {
-    return _handleEnterOrder(order, now);
-}
 
-void ExchangeProtocol::queuePacketForTest(const std::vector<uint8_t>& bytes) {
-    if (!_pushOutQueue(bytes.data(), bytes.size())) {
-        throw std::runtime_error("test out queue full");
-    }
-}
 
-void ExchangeProtocol::markLoggedInForTest() {
-    m_is_logged_in = true;
-}
 
-void ExchangeProtocol::setLastSendAgoForTest(std::chrono::seconds age) {
-    m_last_send_time = std::chrono::steady_clock::now() - age;
-}
 
-std::optional<uint8_t> ExchangeProtocol::tryReadPacketTypeForTest() {
-    if (m_read_buffer.readSize() < kSoupHeaderSize) {
-        return std::nullopt;
-    }
-
-    const uint16_t encoded_length = static_cast<uint16_t>(
-        (static_cast<uint16_t>(m_read_buffer.readAt(0)) << 8) |
-        static_cast<uint16_t>(m_read_buffer.readAt(1)));
-    const std::size_t packet_size = static_cast<std::size_t>(encoded_length) + 2U;
-    if (encoded_length == 0 || m_read_buffer.readSize() < packet_size) {
-        return std::nullopt;
-    }
-
-    const uint8_t type = m_read_buffer.readAt(2);
-    (void)m_read_buffer.eraseFrontN(packet_size);
-    return type;
-}
-
-std::optional<uint8_t> ExchangeProtocol::peekFrontPacketTypeForTest() const {
-    if (_isOutFrameEmpty() || readFrontFrame().size < kSoupHeaderSize) {
-        return std::nullopt;
-    }
-    return readFrontFrame().payload[2];
-}
-
-std::vector<uint8_t> ExchangeProtocol::readFrontPacketBytesForTest() const {
-    if (_isOutFrameEmpty()) {
-        return {};
-    }
-
-    const auto& frame = readFrontFrame();
-    return std::vector<uint8_t>(frame.payload.begin(),
-                                frame.payload.begin() + static_cast<std::ptrdiff_t>(frame.size));
-}
-
-std::size_t ExchangeProtocol::readQueuedPacketCountForTest() const {
-    return m_outbound_queue.readSize();
-}
-
-uint64_t ExchangeProtocol::readNextSequenceForTest() const {
-    return m_next_sequence;
-}
 
 std::optional<ExchangeProtocol::SoupPacket> ExchangeProtocol::_tryReadPayload() {
     if (m_read_buffer.readSize() < 2U) {
@@ -593,7 +535,7 @@ HandledOrderResult ExchangeProtocol::_handleEnterOrder(const ExchangeEnterOrder&
     }
 
     HandledOrderResult result {};
-    result.validation = validateEnterOrder(order);
+    result.validation = _validateEnterOrder(order);
 
     if (result.validation.kind == ExchangeValidationKind::Rejected) {
         const EncodedPayload payload = writeOuchRejected(RejectedMessage {

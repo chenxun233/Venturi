@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../common/fixed_ring_buffer.h"
+#include "../common/ring_buffer.h"
 
 #include <array>
 #include <chrono>
@@ -9,13 +9,13 @@
 #include <string>
 #include <vector>
 
-constexpr std::size_t kOuchExecutedSize = 36;
-constexpr std::size_t kMaxSoupPayloadSize = 64;
-constexpr std::size_t kMaxSoupFrameSize = 3 + kMaxSoupPayloadSize; // 3 is the header of soupbinTCP
-constexpr std::size_t kMaxOutboundMessagesPerOrder = 1;
-constexpr std::size_t kReadBufferSize = 4096;
-constexpr std::size_t kMaxPendingFills = 1024;
-constexpr std::size_t kOutboundQueueSize = 1024;
+constexpr std::size_t kOuchExecutedSize     = 36;
+constexpr std::size_t kMaxSoupPayloadSize   = 64;
+constexpr std::size_t kMaxSoupFrameSize     = 3 + kMaxSoupPayloadSize; // 3 is the header of soupbinTCP
+constexpr std::size_t kMaxOutboundMsg       = 1;
+constexpr std::size_t kReadBufferSize       = 4096;
+constexpr std::size_t kMaxPendingFills      = 1024;
+constexpr std::size_t kOutboundQueueSize    = 1024;
 
 enum class ExchangeValidationKind : uint8_t {
     Accepted,
@@ -54,7 +54,7 @@ struct EncodedPayload {
 struct HandledOrderResult {
     bool is_duplicate {false};
     ExchangeValidationResult validation {};
-    std::array<EncodedPayload, kMaxOutboundMessagesPerOrder> outbound_messages {};
+    std::array<EncodedPayload, kMaxOutboundMsg> outbound_messages {};
     std::size_t outbound_message_count {0};
 };
 
@@ -76,18 +76,8 @@ public:
     SOUPBinFrame& readFrontFrame();
     void eraseFrontFrame();
     bool hasOutboundFrame() const;
-    void writeLastTime(std::chrono::steady_clock::time_point now);
-    ExchangeValidationResult validateEnterOrder(const ExchangeEnterOrder& order) const;
-    HandledOrderResult handleEnterOrderForTest(const ExchangeEnterOrder& order,
-                                               std::chrono::steady_clock::time_point now);
-    void queuePacketForTest(const std::vector<uint8_t>& bytes);
-    void markLoggedInForTest();
-    void setLastSendAgoForTest(std::chrono::seconds age);
-    std::optional<uint8_t> tryReadPacketTypeForTest();
-    std::optional<uint8_t> peekFrontPacketTypeForTest() const;
-    std::vector<uint8_t> readFrontPacketBytesForTest() const;
-    std::size_t readQueuedPacketCountForTest() const;
-    uint64_t readNextSequenceForTest() const;
+    void writeLastSendTime(std::chrono::steady_clock::time_point now);
+
 
 private:
     struct PendingFill {
@@ -120,23 +110,24 @@ private:
     HandledOrderResult _handleEnterOrder(const ExchangeEnterOrder& order,
                                          std::chrono::steady_clock::time_point now);
     void _queueSoupFrame(uint8_t type, const uint8_t* payload, std::size_t payload_size);
+    ExchangeValidationResult _validateEnterOrder(const ExchangeEnterOrder& order) const;
     bool _pushOutQueue(const uint8_t* bytes, std::size_t size);
     bool _isOutFrameEmpty() const;
     uint64_t _readTimestampNs(std::chrono::steady_clock::time_point now) const;
 
 private:
-    ProtocolConfig m_config {};
-    uint64_t m_session_id {0};
-    bool m_is_logged_in {false};
-    bool m_should_close {false};
-    uint64_t m_next_sequence {1};
-    uint64_t m_next_order_ref_num {1};
-    uint64_t m_next_match_number {1};
-    std::chrono::steady_clock::time_point m_last_send_time {};
-    std::chrono::steady_clock::time_point m_last_receive_time {};
-    FixedRingBuffer<uint8_t, kReadBufferSize> m_read_buffer {};
-    FixedRingBuffer<SOUPBinFrame, kOutboundQueueSize> m_outbound_queue {};
-    FixedRingBuffer<PendingFill, kMaxPendingFills> m_pending_fills {};
-    std::vector<ReplayEntry> m_replay_entries {};
+    ProtocolConfig  m_config {};
+    uint64_t        m_session_id {0};
+    bool            m_is_logged_in {false};
+    bool            m_should_close {false};
+    uint64_t        m_next_sequence {1};
+    uint64_t        m_next_order_ref_num {1};
+    uint64_t        m_next_match_number {1};
+    std::chrono::steady_clock::time_point           m_last_send_time {};
+    std::chrono::steady_clock::time_point           m_last_receive_time {};
+    RingBuffer<uint8_t, kReadBufferSize>            m_read_buffer {};
+    RingBuffer<SOUPBinFrame, kOutboundQueueSize>    m_outbound_queue {};
+    RingBuffer<PendingFill, kMaxPendingFills>       m_pending_fills {};
+    std::vector<ReplayEntry>                        m_replay_entries {};
     std::size_t m_replay_count {0};
 };

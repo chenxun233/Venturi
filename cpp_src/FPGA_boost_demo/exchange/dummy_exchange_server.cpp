@@ -332,7 +332,7 @@ bool DummyExchangeServer::_sendFrame(SessionSlot& slot,
             }
 
             frame.offset += static_cast<std::size_t>(written);
-            slot.protocol.writeLastTime(now);
+            slot.protocol.writeLastSendTime(now);
             if (frame.offset >= frame.size) {
                 printSOUPFrameInfo(slot.transport.session_id, frame.payload.data(), frame.size);
                 slot.protocol.eraseFrontFrame();

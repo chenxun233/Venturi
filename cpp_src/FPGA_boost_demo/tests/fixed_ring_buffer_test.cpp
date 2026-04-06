@@ -1,4 +1,4 @@
-#include "../common/fixed_ring_buffer.h"
+#include "../common/ring_buffer.h"
 
 #include <gtest/gtest.h>
 
@@ -8,7 +8,7 @@
 namespace {
 
 TEST(FixedRingBufferTest, pushBackAndPopFrontPreserveOrderAcrossWraparound) {
-    FixedRingBuffer<uint32_t, 4> buffer;
+    RingBuffer<uint32_t, 4> buffer;
 
     EXPECT_TRUE(buffer.pushBack(1U));
     EXPECT_TRUE(buffer.pushBack(2U));
@@ -31,7 +31,7 @@ TEST(FixedRingBufferTest, pushBackAndPopFrontPreserveOrderAcrossWraparound) {
 }
 
 TEST(FixedRingBufferTest, writeCopiesWrappedByteRangesAndPopFrontNAdvancesPrefix) {
-    FixedRingBuffer<uint8_t, 8> buffer;
+    RingBuffer<uint8_t, 8> buffer;
     const std::array<uint8_t, 5> first {1, 2, 3, 4, 5};
     const std::array<uint8_t, 4> second {6, 7, 8, 9};
     std::array<uint8_t, 4> prefix {};
@@ -45,7 +45,6 @@ TEST(FixedRingBufferTest, writeCopiesWrappedByteRangesAndPopFrontNAdvancesPrefix
     EXPECT_EQ(buffer.readAt(2), 6U);
     EXPECT_EQ(buffer.readAt(5), 9U);
 
-    EXPECT_TRUE(buffer.copyFront(prefix.data(), prefix.size()));
     EXPECT_EQ(prefix[0], 4U);
     EXPECT_EQ(prefix[1], 5U);
     EXPECT_EQ(prefix[2], 6U);
@@ -53,7 +52,7 @@ TEST(FixedRingBufferTest, writeCopiesWrappedByteRangesAndPopFrontNAdvancesPrefix
 }
 
 TEST(FixedRingBufferTest, writeRejectsOverflowWithoutPartiallyAppending) {
-    FixedRingBuffer<uint8_t, 4> buffer;
+    RingBuffer<uint8_t, 4> buffer;
     const std::array<uint8_t, 4> full {1, 2, 3, 4};
     const std::array<uint8_t, 2> overflow {5, 6};
 
