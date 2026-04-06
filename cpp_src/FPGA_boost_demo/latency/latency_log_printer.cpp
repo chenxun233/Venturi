@@ -90,7 +90,7 @@ bool LatencyLogPrinter::_pushRecord(const AsyncLogRecord& record) {
         return false;
     }
 
-    m_records[_slotIndex(tail)] = record;
+    m_records[_wrapIndexP1(tail)] = record;
     m_tail.store(tail + 1, std::memory_order_release);
     m_record_cv.notify_one();
     return true;
@@ -118,7 +118,7 @@ void LatencyLogPrinter::stop() {
     AsyncLogRecord record {};
     while (m_head.load(std::memory_order_acquire) != m_tail.load(std::memory_order_acquire)) {
         const std::size_t head = m_head.load(std::memory_order_relaxed);
-        record = m_records[_slotIndex(head)];
+        record = m_records[_wrapIndexP1(head)];
         m_head.store(head + 1, std::memory_order_release);
         _handleRecord(record);
     }
@@ -145,7 +145,7 @@ void LatencyLogPrinter::_run() {
             continue;
         }
 
-        record = m_records[_slotIndex(head)];
+        record = m_records[_wrapIndexP1(head)];
         m_head.store(head + 1, std::memory_order_release);
         wait_lock.unlock();
         _handleRecord(record);
@@ -199,7 +199,7 @@ void LatencyLogPrinter::_handleRecord(const AsyncLogRecord& record) {
         }
         std::printf("TxEvent event=%s user_ref=%u symbol=%s stock_locate=0x%04x price=%u shares=%u reason=0x%04x match=%llu\n",
                     event_name,
-                    record.tx.tag,
+                    record.tx.user_ref_num,
                     readSymbolName(record.tx.stock_locate),
                     record.tx.stock_locate,
                     record.tx.price,
@@ -220,6 +220,6 @@ void LatencyLogPrinter::_handleRecord(const AsyncLogRecord& record) {
     return;
 }
 
-std::size_t LatencyLogPrinter::_slotIndex(std::size_t idx) const {
+std::size_t LatencyLogPrinter::_wrapIndexP1(std::size_t idx) const {
     return idx & m_capacity_mask;
 }

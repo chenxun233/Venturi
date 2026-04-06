@@ -50,26 +50,25 @@ private:
     void _flushBlockedRecords();
     void _rebuildBlockedRecords();
     void _recordPendingOrder(const TxOutboundRecord& record);
-    void _erasePendingOrder(uint32_t tag);
-    void _handleAccepted(uint32_t tag,
-                         uint16_t stock_locate,
+    void _erasePendingOrder(uint32_t user_ref_num);
+    void _handleAccepted(uint32_t user_ref_num,
                          uint32_t shares,
                          uint32_t price);
-    void _handleExecuted(uint32_t tag,
+    void _handleExecuted(uint32_t user_ref_num,
                          uint32_t executed_shares,
                          uint32_t price,
                          uint64_t match_number);
-    void _handleRejected(uint32_t tag, uint16_t reason);
-    void _logOrderAccepted(uint32_t tag,
+    void _handleRejected(uint32_t user_ref_num, uint16_t reason);
+    void _logOrderAccepted(uint32_t user_ref_num,
                            uint16_t stock_locate,
                            uint32_t shares,
                            uint32_t price);
-    void _logOrderRejected(uint32_t tag, uint16_t reason);
-    void _logOrderFilled(uint32_t tag,
+    void _logOrderRejected(uint32_t user_ref_num, uint16_t reason);
+    void _logOrderFilled(uint32_t user_ref_num,
                          uint32_t shares,
                          uint32_t price,
                          uint64_t match_number);
-    void _logOrderDropped(uint32_t tag);
+    void _logOrderDropped(uint32_t user_ref_num);
     void _pushTxEvent(const TxLogRecord& record);
     void _clearReadyRecords();
     void _normalizeReadyRecords();

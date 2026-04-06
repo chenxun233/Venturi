@@ -153,6 +153,7 @@ target_include_directories(Venturi PRIVATE
 
 add_executable(dummy_server
     ${FPGA_EXCHANGE_DIR}/dummy_exchange_server.cpp
+    ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
     ${FPGA_APP_DIR}/dummy_exchange_server_main.cpp
 )
 target_include_directories(dummy_server PRIVATE
@@ -205,6 +206,7 @@ if(TARGET GTest::gtest_main)
 
     add_executable(dummy_exchange_server_test
         ${FPGA_EXCHANGE_DIR}/dummy_exchange_server.cpp
+        ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
         ${FPGA_TEST_DIR}/dummy_exchange_server_test.cpp
     )
     target_include_directories(dummy_exchange_server_test PRIVATE
@@ -243,6 +245,30 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
+    add_executable(fixed_ring_buffer_test
+        ${FPGA_TEST_DIR}/fixed_ring_buffer_test.cpp
+    )
+    target_include_directories(fixed_ring_buffer_test PRIVATE
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(fixed_ring_buffer_test PRIVATE
+        GTest::gtest_main
+    )
+
+    add_executable(dummy_exchange_protocol_session_test
+        ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
+        ${FPGA_TEST_DIR}/dummy_exchange_protocol_session_test.cpp
+    )
+    target_include_directories(dummy_exchange_protocol_session_test PRIVATE
+        ${FPGA_EXCHANGE_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(dummy_exchange_protocol_session_test PRIVATE
+        GTest::gtest_main
+    )
+
     include(GoogleTest)
     gtest_discover_tests(fpga_rx_decoder_test)
     gtest_discover_tests(regression_test)
@@ -250,6 +276,8 @@ if(TARGET GTest::gtest_main)
     gtest_discover_tests(dummy_exchange_server_test)
     gtest_discover_tests(tx_log_record_test)
     gtest_discover_tests(trace_buffer_overwrite_test)
+    gtest_discover_tests(fixed_ring_buffer_test)
+    gtest_discover_tests(dummy_exchange_protocol_session_test)
 endif()
 
 ###############################################################################

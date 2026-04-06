@@ -17,13 +17,13 @@ static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::isConnected)
 TEST(TxLogRecordTest, txEventRecordStoresConnectionAndOrderEvents) {
     TxLogRecord record {};
     record.event = TxEventKind::ConnectionEstablished;
-    record.tag = 42;
+    record.user_ref_num = 42;
     record.stock_locate = 0x000d;
     record.price = 123450;
     record.shares = 100;
 
     EXPECT_EQ(record.event, TxEventKind::ConnectionEstablished);
-    EXPECT_EQ(record.tag, 42U);
+    EXPECT_EQ(record.user_ref_num, 42U);
     EXPECT_EQ(record.stock_locate, 0x000d);
     EXPECT_EQ(record.price, 123450U);
     EXPECT_EQ(record.shares, 100U);
@@ -31,10 +31,10 @@ TEST(TxLogRecordTest, txEventRecordStoresConnectionAndOrderEvents) {
 
 TEST(TxLogRecordTest, outboundRecordCarriesPrebuiltPayloadAndMetadata) {
     TxOutboundRecord record {};
-    record.tag = 42;
+    record.user_ref_num = 42;
     record.payload_length = 16;
 
-    EXPECT_EQ(record.tag, 42U);
+    EXPECT_EQ(record.user_ref_num, 42U);
     EXPECT_EQ(record.payload_length, 16U);
 }
 
@@ -48,7 +48,7 @@ TEST(TxLogRecordTest, txEventRecordCanRepresentAcceptedFeedback) {
 TEST(TxLogRecordTest, orderSentHelperDoesNotPrintDirectlyWithoutLogPrinter) {
     TxEngine engine {};
     TxOutboundRecord record {};
-    record.tag = 42;
+    record.user_ref_num = 42;
     record.stock_locate = 0x000d;
     record.price = 123450;
     record.shares = 100;

@@ -20,7 +20,7 @@ public:
     bool        pop(T& record);
 
 private:
-    std::size_t _slotIndex(std::size_t idx) const;
+    std::size_t _wrapIndexP1(std::size_t idx) const;
 
     std::vector<T>  m_records;
     std::size_t     m_capacity_mask {0};
@@ -58,7 +58,7 @@ bool TraceBuffer<T>::push(const T& record) {
         return false;
     }
 
-    m_records[_slotIndex(tail)] = record;
+    m_records[_wrapIndexP1(tail)] = record;
     m_tail.store(tail + 1, std::memory_order_release);
     return true;
 }
@@ -71,14 +71,14 @@ bool TraceBuffer<T>::pushDropOldest(const T& record, T* dropped_record) {
     const bool dropped = (tail - head == readCapacity());
     if (dropped) {
         if (dropped_record != nullptr) {
-            *dropped_record = m_records[_slotIndex(head)];
+            *dropped_record = m_records[_wrapIndexP1(head)];
         }
         m_drop_count.fetch_add(1, std::memory_order_relaxed);
         head += 1;
         m_head.store(head, std::memory_order_release);
     }
 
-    m_records[_slotIndex(tail)] = record;
+    m_records[_wrapIndexP1(tail)] = record;
     m_tail.store(tail + 1, std::memory_order_release);
     return !dropped;
 }
@@ -90,13 +90,13 @@ bool TraceBuffer<T>::pop(T& record) {
         return false;
     }
 
-    record = m_records[_slotIndex(head)];
+    record = m_records[_wrapIndexP1(head)];
     m_head.store(head + 1, std::memory_order_release);
     return true;
 }
 
 
 template <typename T>
-std::size_t TraceBuffer<T>::_slotIndex(std::size_t idx) const {
+std::size_t TraceBuffer<T>::_wrapIndexP1(std::size_t idx) const {
     return idx & m_capacity_mask;
 }

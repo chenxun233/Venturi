@@ -109,7 +109,7 @@ enum class TxEventKind : uint8_t {
 };
 
 struct TxOutboundRecord {
-    uint32_t                tag    {0};
+    uint32_t                user_ref_num    {0};
     uint16_t                stock_locate    {0};
     uint32_t                price           {0};
     uint32_t                shares          {0};
@@ -119,7 +119,7 @@ struct TxOutboundRecord {
 
 struct TxLogRecord {
     TxEventKind event       {TxEventKind::ConnectionEstablished};
-    uint32_t tag   {0};
+    uint32_t user_ref_num   {0};
     uint16_t stock_locate   {0};
     uint32_t price          {0};
     uint32_t shares         {0};

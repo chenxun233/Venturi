@@ -19,3 +19,4 @@ corundum_exanic_x10/
 .cache/
 mkdocs/
 docs/
+build/

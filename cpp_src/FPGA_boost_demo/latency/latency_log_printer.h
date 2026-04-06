@@ -26,7 +26,7 @@ private:
     void _run();
     bool _pushRecord(const AsyncLogRecord& record);
     void _handleRecord(const AsyncLogRecord& record);
-    std::size_t _slotIndex(std::size_t idx) const;
+    std::size_t _wrapIndexP1(std::size_t idx) const;
 
     std::vector<AsyncLogRecord> m_records;
     std::size_t m_capacity_mask {0};

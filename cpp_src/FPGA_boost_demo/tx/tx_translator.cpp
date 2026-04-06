@@ -30,9 +30,9 @@ constexpr std::size_t kUsernameWidth = 6;
 constexpr std::size_t kPasswordWidth = 10;
 
 constexpr std::size_t kOuchEnterOrderSize = 16;
-constexpr std::size_t kOuchAcceptedSize = 32;
-constexpr std::size_t kOuchExecutedSize = 29;
-constexpr std::size_t kOuchRejectedSize = 15;
+constexpr std::size_t kOuchAcceptedSize = 64;
+constexpr std::size_t kOuchExecutedSize = 36;
+constexpr std::size_t kOuchRejectedSize = 31;
 
 uint16_t readBigEndian16(const uint8_t* bytes) {
     return static_cast<uint16_t>((static_cast<uint16_t>(bytes[0]) << 8) |
@@ -177,7 +177,7 @@ void writeClientHeartbeatFrame(TxOutboundRecord& record) {
 }
 
 void writeOrderFrame(TxOutboundRecord& record,
-                     uint32_t tag,
+                     uint32_t user_ref_num,
                      uint16_t stock_locate,
                      uint32_t shares,
                      uint32_t price,
@@ -186,7 +186,7 @@ void writeOrderFrame(TxOutboundRecord& record,
 
     uint8_t* payload = record.payload.data() + static_cast<std::ptrdiff_t>(kSoupHeaderSize);
     payload[0] = kOuchEnterOrderType;
-    writeBigEndian32(payload + 1, tag);
+    writeBigEndian32(payload + 1, user_ref_num);
     payload[5] = static_cast<uint8_t>(side);
     writeBigEndian16(payload + 6, stock_locate);
     writeBigEndian32(payload + 8, shares);
@@ -316,16 +316,15 @@ void TxTranslator::handleInboundPayload(const std::vector<uint8_t>& payload) {
     ++m_next_expected_sequence;
     if (frame_payload_size == kOuchAcceptedSize && frame_payload[0] == kOuchAcceptedType) {
         _handleAccepted(readBigEndian32(frame_payload + 9),
-                        readBigEndian16(frame_payload + 14),
-                        readBigEndian32(frame_payload + 16),
-                        readBigEndian32(frame_payload + 20));
+                        readBigEndian32(frame_payload + 14),
+                        static_cast<uint32_t>(readBigEndian64(frame_payload + 26)));
         return;
     }
     if (frame_payload_size == kOuchExecutedSize && frame_payload[0] == kOuchExecutedType) {
         _handleExecuted(readBigEndian32(frame_payload + 9),
                         readBigEndian32(frame_payload + 13),
-                        readBigEndian32(frame_payload + 17),
-                        readBigEndian64(frame_payload + 21));
+                        static_cast<uint32_t>(readBigEndian64(frame_payload + 17)),
+                        readBigEndian64(frame_payload + 26));
         return;
     }
     if (frame_payload_size == kOuchRejectedSize && frame_payload[0] == kOuchRejectedType) {
@@ -392,11 +391,11 @@ bool TxTranslator::_buildOrderFrame(const OrderIntent& intent, TxOutboundRecord&
             return false;
     }
 
-    record.tag = m_next_tag++;
+    record.user_ref_num = m_next_tag++;
     record.stock_locate = intent.stock_locate;
     record.shares = intent.intent.shares;
     record.price = intent.intent.price;
-    writeOrderFrame(record, record.tag, record.stock_locate, record.shares, record.price, side);
+    writeOrderFrame(record, record.user_ref_num, record.stock_locate, record.shares, record.price, side);
     return true;
 }
 
@@ -418,8 +417,8 @@ void TxTranslator::_flushBlockedRecords() {
 
 void TxTranslator::_rebuildBlockedRecords() {
     m_blocked_outbound.clear();
-    for (uint32_t tag : m_pending_orders.ordered_tags) {
-        const auto it = m_pending_orders.records_by_tag.find(tag);
+    for (uint32_t user_ref_num : m_pending_orders.ordered_tags) {
+        const auto it = m_pending_orders.records_by_tag.find(user_ref_num);
         if (it != m_pending_orders.records_by_tag.end()) {
             m_blocked_outbound.push_back(it->second);
         }
@@ -439,79 +438,83 @@ void TxTranslator::_recordPendingOrder(const TxOutboundRecord& record) {
         _logOrderDropped(dropped_tag);
     }
 
-    m_pending_orders.ordered_tags.push_back(record.tag);
-    m_pending_orders.records_by_tag[record.tag] = record;
+    m_pending_orders.ordered_tags.push_back(record.user_ref_num);
+    m_pending_orders.records_by_tag[record.user_ref_num] = record;
 }
 
-void TxTranslator::_erasePendingOrder(uint32_t tag) {
-    m_pending_orders.records_by_tag.erase(tag);
+void TxTranslator::_erasePendingOrder(uint32_t user_ref_num) {
+    m_pending_orders.records_by_tag.erase(user_ref_num);
     const auto it = std::find(m_pending_orders.ordered_tags.begin(),
                               m_pending_orders.ordered_tags.end(),
-                              tag);
+                              user_ref_num);
     if (it != m_pending_orders.ordered_tags.end()) {
         m_pending_orders.ordered_tags.erase(it);
     }
 }
 
-void TxTranslator::_handleAccepted(uint32_t tag,
-                                   uint16_t stock_locate,
+void TxTranslator::_handleAccepted(uint32_t user_ref_num,
                                    uint32_t shares,
                                    uint32_t price) {
-    _erasePendingOrder(tag);
-    _logOrderAccepted(tag, stock_locate, shares, price);
+    uint16_t stock_locate = 0;
+    const auto found = m_pending_orders.records_by_tag.find(user_ref_num);
+    if (found != m_pending_orders.records_by_tag.end()) {
+        stock_locate = found->second.stock_locate;
+    }
+    _erasePendingOrder(user_ref_num);
+    _logOrderAccepted(user_ref_num, stock_locate, shares, price);
 }
 
-void TxTranslator::_handleExecuted(uint32_t tag,
+void TxTranslator::_handleExecuted(uint32_t user_ref_num,
                                    uint32_t executed_shares,
                                    uint32_t price,
                                    uint64_t match_number) {
-    _erasePendingOrder(tag);
-    _logOrderFilled(tag, executed_shares, price, match_number);
+    _erasePendingOrder(user_ref_num);
+    _logOrderFilled(user_ref_num, executed_shares, price, match_number);
 }
 
-void TxTranslator::_handleRejected(uint32_t tag, uint16_t reason) {
-    _erasePendingOrder(tag);
-    _logOrderRejected(tag, reason);
+void TxTranslator::_handleRejected(uint32_t user_ref_num, uint16_t reason) {
+    _erasePendingOrder(user_ref_num);
+    _logOrderRejected(user_ref_num, reason);
 }
 
-void TxTranslator::_logOrderAccepted(uint32_t tag,
+void TxTranslator::_logOrderAccepted(uint32_t user_ref_num,
                                      uint16_t stock_locate,
                                      uint32_t shares,
                                      uint32_t price) {
     _pushTxEvent(TxLogRecord {
         .event = TxEventKind::OrderAccepted,
-        .tag = tag,
+        .user_ref_num = user_ref_num,
         .stock_locate = stock_locate,
         .price = price,
         .shares = shares,
     });
 }
 
-void TxTranslator::_logOrderRejected(uint32_t tag, uint16_t reason) {
+void TxTranslator::_logOrderRejected(uint32_t user_ref_num, uint16_t reason) {
     _pushTxEvent(TxLogRecord {
         .event = TxEventKind::OrderRejected,
-        .tag = tag,
+        .user_ref_num = user_ref_num,
         .reason = reason,
     });
 }
 
-void TxTranslator::_logOrderFilled(uint32_t tag,
+void TxTranslator::_logOrderFilled(uint32_t user_ref_num,
                                    uint32_t shares,
                                    uint32_t price,
                                    uint64_t match_number) {
     _pushTxEvent(TxLogRecord {
         .event = TxEventKind::OrderFilled,
-        .tag = tag,
+        .user_ref_num = user_ref_num,
         .price = price,
         .shares = shares,
         .match_number = match_number,
     });
 }
 
-void TxTranslator::_logOrderDropped(uint32_t tag) {
+void TxTranslator::_logOrderDropped(uint32_t user_ref_num) {
     _pushTxEvent(TxLogRecord {
         .event = TxEventKind::OrderDropped,
-        .tag = tag,
+        .user_ref_num = user_ref_num,
     });
 }
 

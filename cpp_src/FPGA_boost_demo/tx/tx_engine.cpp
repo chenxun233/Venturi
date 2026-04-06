@@ -244,7 +244,7 @@ bool TxEngine::_drainOutboundBuffer() {
     while (m_outbound_buffer->pop(record)) {
         did_work = true;
         if (_sendPayload(record)) {
-            if (record.tag != 0) {
+            if (record.user_ref_num != 0) {
                 _logOrderSent(record);
             }
             continue;
@@ -269,7 +269,7 @@ bool TxEngine::_pollInboundPayloads() {
             return did_work;
         }
         if (status == FrameReadStatus::Disconnected) {
-            _handleDisconnect("server closed the session");
+            _handleDisconnect("server closed the client");
             return true;
         }
 
@@ -293,7 +293,7 @@ void TxEngine::_logConnectionLost() {
 void TxEngine::_logOrderSent(const TxOutboundRecord& record) {
     _pushTxEvent(TxLogRecord {
         .event = TxEventKind::OrderSent,
-        .tag = record.tag,
+        .user_ref_num = record.user_ref_num,
         .stock_locate = record.stock_locate,
         .price = record.price,
         .shares = record.shares

@@ -25,7 +25,6 @@ uint64_t read_le48(const uint8_t* bytes, std::size_t offset) {
     return value;
 }
 
-constexpr uint64_t kTimestampMask48 = (1ULL << 48) - 1ULL;
 
 } // namespace
 

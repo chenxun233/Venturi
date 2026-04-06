@@ -16,7 +16,7 @@ void applyArg(DummyExchangeConfig& config, const std::string& key, const std::st
         config.username = value;
     } else if (key == "--password") {
         config.password = value;
-    } else if (key == "--session") {
+    } else if (key == "--client") {
         config.session_id = value;
     } else if (key == "--price-min") {
         config.price_min = static_cast<uint32_t>(std::stoul(value));
