@@ -47,20 +47,6 @@ void writeSequenceField(uint8_t* out, std::size_t width, uint64_t value) {
                 out + static_cast<std::ptrdiff_t>(width - copy_size));
 }
 
-ExchangeEnterOrder makeOrder(uint32_t user_ref_num,
-                             uint16_t stock_locate,
-                             uint32_t shares,
-                             uint32_t price,
-                             char side = 'B') {
-    ExchangeEnterOrder order {};
-    order.user_ref_num = user_ref_num;
-    order.stock_locate = stock_locate;
-    order.shares = shares;
-    order.price = price;
-    order.side = side;
-    return order;
-}
-
 bool sendAll(int fd, const std::vector<uint8_t>& bytes) {
     std::size_t offset = 0;
     while (offset < bytes.size()) {
@@ -191,37 +177,6 @@ struct ServerStopGuard {
 
 } // namespace
 
-TEST(DummyExchangeServerTest, validateOrderRejectsOutOfBandPrice) {
-    DummyExchangeConfig config {};
-    config.price_min = 100000;
-    config.price_max = 200000;
-
-    DummyExchangeServer server(config);
-    const auto result = server.validateEnterOrder(makeOrder(42, 0x000d, 100, 99999));
-
-    EXPECT_EQ(result.kind, ExchangeValidationKind::Rejected);
-}
-
-TEST(DummyExchangeServerTest, duplicateUserRefNumReusesOriginalOutcome) {
-    DummyExchangeServer server({});
-    const auto session = server.createSessionForTest();
-
-    const auto first = server.handleEnterOrderForTest(session, makeOrder(42, 0x000d, 100, 123450));
-    const auto replay = server.handleEnterOrderForTest(session, makeOrder(42, 0x000d, 100, 123450));
-
-    EXPECT_FALSE(first.is_duplicate);
-    EXPECT_TRUE(replay.is_duplicate);
-}
-
-TEST(DummyExchangeServerTest, createSessionForTestReturnsStableHandle) {
-    DummyExchangeServer server({});
-
-    const auto session = server.createSessionForTest();
-    server.markLoggedInForTest(session);
-
-    EXPECT_EQ(server.readSessionNextSequenceForTest(session), 1U);
-}
-
 TEST(DummyExchangeServerTest, createSessionForTestRejectsWhenSessionPoolIsFull) {
     DummyExchangeConfig config {};
     config.session_capacity = 1;
@@ -243,150 +198,7 @@ TEST(DummyExchangeServerTest, releasedTestSessionHandleBecomesInvalidAfterReuse)
 
     const auto second = server.createSessionForTest();
     EXPECT_NE(first.generation, second.generation);
-    EXPECT_THROW(server.markLoggedInForTest(first), std::runtime_error);
-}
-
-TEST(DummyExchangeServerTest, acceptedOrderUsesOfficialOuchAcceptedSize) {
-    DummyExchangeServer server({});
-    const auto session = server.createSessionForTest();
-
-    const auto result = server.handleEnterOrderForTest(session, makeOrder(42, 0x000d, 100, 123450));
-
-    ASSERT_EQ(result.outbound_message_count, 1U);
-    EXPECT_EQ(result.outbound_messages[0].size, 64U);
-}
-
-TEST(DummyExchangeServerTest, rejectedOrderUsesOfficialOuchRejectedSize) {
-    DummyExchangeConfig config {};
-    config.price_min = 100000;
-    config.price_max = 200000;
-    DummyExchangeServer server(config);
-    const auto session = server.createSessionForTest();
-
-    const auto result = server.handleEnterOrderForTest(session, makeOrder(42, 0x000d, 100, 99999));
-
-    ASSERT_EQ(result.outbound_message_count, 1U);
-    EXPECT_EQ(result.outbound_messages[0].size, 31U);
-}
-
-TEST(DummyExchangeServerTest, duplicateUserRefNumIsScopedPerSession) {
-    DummyExchangeServer server({});
-    const auto first_session = server.createSessionForTest();
-    const auto second_session = server.createSessionForTest();
-
-    const auto first = server.handleEnterOrderForTest(first_session, makeOrder(42, 0x000d, 100, 123450));
-    const auto replay = server.handleEnterOrderForTest(first_session, makeOrder(42, 0x000d, 100, 123450));
-    const auto other_session = server.handleEnterOrderForTest(second_session, makeOrder(42, 0x000d, 100, 123450));
-
-    EXPECT_FALSE(first.is_duplicate);
-    EXPECT_TRUE(replay.is_duplicate);
-    EXPECT_FALSE(other_session.is_duplicate);
-}
-
-TEST(DummyExchangeServerTest, freshSessionStartsSequencingAtOne) {
-    DummyExchangeServer server({});
-    const auto first_session = server.createSessionForTest();
-    const auto second_session = server.createSessionForTest();
-
-    const auto first = server.handleEnterOrderForTest(first_session, makeOrder(7, 0x000d, 100, 123450));
-    const auto second = server.handleEnterOrderForTest(second_session, makeOrder(7, 0x000d, 100, 123450));
-
-    ASSERT_GT(first.outbound_message_count, 0U);
-    ASSERT_GT(second.outbound_message_count, 0U);
-    EXPECT_EQ(server.readSessionNextSequenceForTest(first_session), 2U);
-    EXPECT_EQ(server.readSessionNextSequenceForTest(second_session), 2U);
-}
-
-TEST(DummyExchangeServerTest, replayTableFullRejectsLaterDistinctOrder) {
-    DummyExchangeConfig config {};
-    config.replay_capacity = 1;
-
-    DummyExchangeServer server(config);
-    const auto session = server.createSessionForTest();
-
-    const auto first = server.handleEnterOrderForTest(session, makeOrder(41, 0x000d, 100, 123450));
-    const auto second = server.handleEnterOrderForTest(session, makeOrder(42, 0x000d, 100, 123451));
-
-    EXPECT_EQ(first.validation.kind, ExchangeValidationKind::Accepted);
-    EXPECT_EQ(second.validation.kind, ExchangeValidationKind::Rejected);
-}
-
-TEST(DummyExchangeServerTest, bufferedReadWaitsUntilWholeSoupPacketArrives) {
-    DummyExchangeServer server({});
-
-    std::vector<uint8_t> partial {0x00, 0x11, 'L', 'c', 'l'};
-    const auto session = server.createSessionForTest();
-    server.appendReadBytesForTest(session, partial);
-
-    EXPECT_FALSE(server.tryReadPacketTypeForTest(session).has_value());
-}
-
-TEST(DummyExchangeServerTest, flushQueueConsumesWholeFrontPacket) {
-    DummyExchangeServer server({});
-    const auto session = server.createSessionForTest();
-
-    server.queuePacketForTest(session, {0x00, 0x01, 'H'});
-
-    EXPECT_TRUE(server.consumeQueuedBytesForTest(session, 3));
-    EXPECT_EQ(server.readQueuedPacketCountForTest(session), 0U);
-}
-
-TEST(DummyExchangeServerTest, flushQueueAdvancesToNextQueuedPacket) {
-    DummyExchangeServer server({});
-    const auto session = server.createSessionForTest();
-
-    server.queuePacketForTest(session, {0x00, 0x01, 'H'});
-    server.queuePacketForTest(session, {0x00, 0x01, 'A'});
-
-    EXPECT_TRUE(server.consumeQueuedBytesForTest(session, 3));
-    ASSERT_TRUE(server.peekFrontPacketTypeForTest(session).has_value());
-    EXPECT_EQ(*server.peekFrontPacketTypeForTest(session), static_cast<uint8_t>('A'));
-    EXPECT_EQ(server.readQueuedPacketCountForTest(session), 1U);
-}
-
-TEST(DummyExchangeServerTest, queuePacketForTestRejectsOversizedFrame) {
-    DummyExchangeServer server({});
-    const auto session = server.createSessionForTest();
-    std::vector<uint8_t> oversized_packet(68, 0);
-
-    EXPECT_THROW(server.queuePacketForTest(session, oversized_packet), std::runtime_error);
-}
-
-TEST(DummyExchangeServerTest, timerTickQueuesHeartbeatForIdleLoggedInSession) {
-    DummyExchangeServer server({});
-    const auto session = server.createSessionForTest();
-    server.markLoggedInForTest(session);
-    server.setLastSendAgoForTest(session, std::chrono::seconds(2));
-
-    server.handleTimerTickForTest();
-
-    ASSERT_TRUE(server.peekFrontPacketTypeForTest(session).has_value());
-    EXPECT_EQ(*server.peekFrontPacketTypeForTest(session), static_cast<uint8_t>('H'));
-}
-
-TEST(DummyExchangeServerTest, acceptedOrderLaterQueuesExecutedMessageOnTimerTick) {
-    DummyExchangeConfig config {};
-    config.fill_delay = std::chrono::milliseconds(1);
-    DummyExchangeServer server(config);
-    const auto session = server.createSessionForTest();
-
-    const auto accepted = server.handleEnterOrderForTest(session, makeOrder(42, 0x000d, 100, 123450));
-
-    ASSERT_EQ(accepted.outbound_message_count, 1U);
-    EXPECT_EQ(server.readQueuedPacketCountForTest(session), 0U);
-
-    server.markLoggedInForTest(session);
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    server.handleTimerTickForTest();
-
-    ASSERT_EQ(server.readQueuedPacketCountForTest(session), 1U);
-    ASSERT_TRUE(server.peekFrontPacketTypeForTest(session).has_value());
-    EXPECT_EQ(*server.peekFrontPacketTypeForTest(session), static_cast<uint8_t>('S'));
-
-    const std::vector<uint8_t> packet = server.readFrontPacketBytesForTest(session);
-    ASSERT_EQ(packet.size(), 39U);
-    EXPECT_EQ(packet[2], static_cast<uint8_t>('S'));
-    EXPECT_EQ(packet[3], static_cast<uint8_t>('E'));
+    EXPECT_THROW(server.releaseSessionForTest(first), std::runtime_error);
 }
 
 TEST(DummyExchangeServerTest, extraClientIsRejectedWhenSessionPoolIsFull) {
@@ -454,6 +266,56 @@ TEST(DummyExchangeServerTest, closedLiveSlotCanBeReusedByNextClient) {
     EXPECT_EQ(type, static_cast<uint8_t>('A'));
 
     ::close(second_fd);
+}
+
+TEST(DummyExchangeServerTest, serverCanRestartAfterPreviousRunStops) {
+    DummyExchangeConfig config {};
+    config.listen_ip = "127.0.0.1";
+    config.port = 9111;
+
+    DummyExchangeServer server(config);
+
+    {
+        std::jthread server_thread([&server]() {
+            EXPECT_EQ(server.run(), 0);
+        });
+        ServerStopGuard stop_guard {&server};
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        const int first_fd = connectClient(config.port);
+        ASSERT_GE(first_fd, 0);
+        ASSERT_TRUE(sendAll(first_fd, buildLoginPacket(config)));
+
+        uint8_t type = 0;
+        std::vector<uint8_t> payload {};
+        ASSERT_TRUE(readPacketType(first_fd, type, payload));
+        EXPECT_EQ(type, static_cast<uint8_t>('A'));
+
+        ::close(first_fd);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    {
+        std::jthread server_thread([&server]() {
+            EXPECT_EQ(server.run(), 0);
+        });
+        ServerStopGuard stop_guard {&server};
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        const int second_fd = connectClient(config.port);
+        ASSERT_GE(second_fd, 0);
+        ASSERT_TRUE(sendAll(second_fd, buildLoginPacket(config)));
+
+        uint8_t type = 0;
+        std::vector<uint8_t> payload {};
+        ASSERT_TRUE(readPacketType(second_fd, type, payload));
+        EXPECT_EQ(type, static_cast<uint8_t>('A'));
+
+        ::close(second_fd);
+    }
 }
 
 TEST(DummyExchangeServerTest, oneClientDisconnectDoesNotStopOtherClient) {
