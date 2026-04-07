@@ -16,7 +16,6 @@ class Executor {
 public:
     explicit Executor(uint16_t producer_num, std::size_t buffer_capacity = 1024);
     ~Executor() = default;
-
     void attachLogPrinter(LatencyLogPrinter* log_printer);
     void attachTranslator(TxTranslator* translator);
     bool pushIntent(uint16_t producer_idx, const OrderIntent& intent);

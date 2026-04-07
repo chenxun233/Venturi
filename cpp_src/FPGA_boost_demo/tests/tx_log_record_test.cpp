@@ -2,13 +2,13 @@
 
 #include "../common/shared_types.h"
 #define private public
-#include "../tx/tx_engine.h"
+#include "../tx_engine/tx_engine.h"
 #undef private
 
 #include <string>
 #include <type_traits>
 
-static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::pushPayload)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::takePayload)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::runTransportStep)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::drainInboundPayloads)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::takeConnectEvent)>);

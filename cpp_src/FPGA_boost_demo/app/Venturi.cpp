@@ -1,13 +1,13 @@
 #include "../driver/fpga_dev.h"
-#include "../engine/fpga_rx_engine.h"
+#include "../rx_engine/fpga_rx_engine.h"
 #include "../latency/latency_log_printer.h"
 #include "../latency/latency_tracker.h"
 #include "../strategy/dummy_strategy.h"
 #include "../sync/regression.h"
 #include "../sync/sync_handler.h"
-#include "../tx/executor.h"
-#include "../tx/tx_translator.h"
-#include "../tx/tx_engine.h"
+#include "../tx_engine/executor.h"
+#include "../tx_engine/tx_translator.h"
+#include "../tx_engine/tx_engine.h"
 #include "../../common/log.h"
 
 #include <atomic>
@@ -212,11 +212,11 @@ int main() {
                 did_work = true;
             }
 
-            tx_translator.runTransportMaintenance();
+            tx_translator.runHeartBeat();
 
             TxOutboundRecord outbound {};
             while (tx_translator.popOutbound(outbound)) {
-                if (!tx_engine.pushPayload(outbound)) {
+                if (!tx_engine.takePayload(outbound)) {
                     tx_translator.restoreOutbound(outbound);
                     break;
                 }

@@ -34,13 +34,13 @@ constexpr std::size_t kOuchEnterOrderSize = 16;
 constexpr std::size_t kOuchAcceptedSize = 64;
 constexpr std::size_t kOuchRejectedSize = 31;
 
-static_assert(kMaxSoupPayloadSize >= kSessionSize + kSequenceSize,
+static_assert(kMaxOuchFrameRawSize >= kSessionSize + kSequenceSize,
               "max Soup payload must fit login accepted payload");
-static_assert(kMaxSoupPayloadSize >= kOuchAcceptedSize,
+static_assert(kMaxOuchFrameRawSize >= kOuchAcceptedSize,
               "max Soup payload must fit accepted OUCH payload");
-static_assert(kMaxSoupPayloadSize >= kOuchExecutedSize,
+static_assert(kMaxOuchFrameRawSize >= kOuchExecutedSize,
               "max Soup payload must fit executed OUCH payload");
-static_assert(kMaxSoupPayloadSize >= kOuchRejectedSize,
+static_assert(kMaxOuchFrameRawSize >= kOuchRejectedSize,
               "max Soup payload must fit rejected OUCH payload");
 
 constexpr uint16_t kRejectUnsupportedSymbol = 0x0011;
@@ -52,7 +52,7 @@ struct LoginRequest {
     std::string username {};
     std::string password {};
     std::string requested_session {};
-    uint64_t requested_sequence {1};
+    uint64_t    requested_sequence {1};
 };
 
 struct AcceptedMessage {
@@ -197,8 +197,8 @@ std::array<uint8_t, kSessionSize + kSequenceSize> writeLoginAcceptedPayload(std:
     return payload;
 }
 
-EncodedPayload writeOuchAccepted(const AcceptedMessage& accepted) {
-    EncodedPayload payload {};
+OuchFrameRaw writeOuchAccepted(const AcceptedMessage& accepted) {
+    OuchFrameRaw payload {};
     payload.size = kOuchAcceptedSize;
     payload.bytes[0] = kOuchAcceptedType;
     writeBigEndian64(payload.bytes.data() + 1, accepted.timestamp_ns);
@@ -219,7 +219,7 @@ EncodedPayload writeOuchAccepted(const AcceptedMessage& accepted) {
     return payload;
 }
 
-void writeOuchExecuted(EncodedPayload& payload, const ExecutedMessage& executed) {
+void writeOuchExecuted(OuchFrameRaw& payload, const ExecutedMessage& executed) {
     payload.size = kOuchExecutedSize;
     payload.bytes[0] = kOuchExecutedType;
     writeBigEndian64(payload.bytes.data() + 1, executed.timestamp_ns);
@@ -231,8 +231,8 @@ void writeOuchExecuted(EncodedPayload& payload, const ExecutedMessage& executed)
     writeBigEndian16(payload.bytes.data() + 34, 0);
 }
 
-EncodedPayload writeOuchRejected(const RejectedMessage& rejected) {
-    EncodedPayload payload {};
+OuchFrameRaw writeOuchRejected(const RejectedMessage& rejected) {
+    OuchFrameRaw payload {};
     payload.size = kOuchRejectedSize;
     payload.bytes[0] = kOuchRejectedType;
     writeBigEndian64(payload.bytes.data() + 1, rejected.timestamp_ns);
@@ -243,27 +243,26 @@ EncodedPayload writeOuchRejected(const RejectedMessage& rejected) {
     return payload;
 }
 
-bool parseLoginRequest(uint8_t type, const EncodedPayload& payload, LoginRequest& request) {
+bool parseLoginRequest(uint8_t type, const OuchFrameRaw& ouch_frame_raw, LoginRequest& request) {
     if (type != kSoupLoginRequestType ||
-        payload.size != kUsernameSize + kPasswordSize + kSessionSize + kSequenceSize) {
+        ouch_frame_raw.size != kUsernameSize + kPasswordSize + kSessionSize + kSequenceSize) {
         return false;
     }
 
-    request.username.assign(reinterpret_cast<const char*>(payload.bytes.data()), kUsernameSize);
-    request.password.assign(reinterpret_cast<const char*>(payload.bytes.data() + kUsernameSize), kPasswordSize);
+    request.username.assign(reinterpret_cast<const char*>(ouch_frame_raw.bytes.data()), kUsernameSize);
+    request.password.assign(reinterpret_cast<const char*>(ouch_frame_raw.bytes.data() + kUsernameSize), kPasswordSize);
     request.requested_session.assign(
-        reinterpret_cast<const char*>(payload.bytes.data() + kUsernameSize + kPasswordSize),
+        reinterpret_cast<const char*>(ouch_frame_raw.bytes.data() + kUsernameSize + kPasswordSize),
         kSessionSize);
-    return readSequenceField(payload.bytes.data() + kUsernameSize + kPasswordSize + kSessionSize,
+    return readSequenceField(ouch_frame_raw.bytes.data() + kUsernameSize + kPasswordSize + kSessionSize,
                              kSequenceSize,
                              request.requested_sequence);
 }
 
-ExchangeEnterOrder readEnterOrder(const EncodedPayload& payload) {
+ExchangeEnterOrder readEnterOrder(const OuchFrameRaw& payload) {
     if (payload.size != kOuchEnterOrderSize || payload.bytes[0] != kOuchEnterOrderType) {
         throw std::runtime_error("invalid enter order payload");
     }
-
     ExchangeEnterOrder order {};
     order.user_ref_num = readBigEndian32(payload.bytes.data() + 1);
     order.side = static_cast<char>(payload.bytes[5]);
@@ -289,7 +288,7 @@ void ExchangeProtocol::reset(uint64_t session_id, std::chrono::steady_clock::tim
     m_next_match_number = 1;
     m_last_send_time = now;
     m_last_receive_time = now;
-    m_read_buffer.clear();
+    m_soup_packet_bf.clear();
     m_outbound_queue.clear();
     m_pending_fills.clear();
     m_replay_count = 0;
@@ -298,10 +297,12 @@ void ExchangeProtocol::reset(uint64_t session_id, std::chrono::steady_clock::tim
     }
 }
 
+// this function should be split into two, one is for appending received bytes.
+// and the other is for parsing the in-bound bytes
 bool ExchangeProtocol::appendReceivedBytes(const uint8_t* bytes,
                                            std::size_t size,
                                            std::chrono::steady_clock::time_point now) {
-    if (!m_read_buffer.write(bytes, size)) {
+    if (!m_soup_packet_bf.write(bytes, size)) {
         m_should_close = true;
         return false;
     }
@@ -312,11 +313,19 @@ bool ExchangeProtocol::appendReceivedBytes(const uint8_t* bytes,
         if (!packet.has_value()) {
             return true;
         }
-        if (!_handleClientPacket(packet->type, packet->payload, now)) {
+        if (!_handleInOuchFrame(packet->type, packet->ouch_frame_raw, now)) {
             m_should_close = true;
             return true;
         }
     }
+}
+
+const std::size_t ExchangeProtocol::_getSoupFrameSize() const {
+    const uint16_t encoded_length = static_cast<uint16_t>(
+    (static_cast<uint16_t>(m_soup_packet_bf.readAt(0)) << 8) |
+    static_cast<uint16_t>(m_soup_packet_bf.readAt(1))); // it includes 1-byte length and OUCH frame size.
+    const std::size_t soup_frame_size = static_cast<std::size_t>(encoded_length) + 2U;
+    return soup_frame_size;
 }
 
 void ExchangeProtocol::onTimerTick(std::chrono::steady_clock::time_point now) {
@@ -369,41 +378,38 @@ ExchangeValidationResult ExchangeProtocol::_validateEnterOrder(const ExchangeEnt
 
 
 std::optional<ExchangeProtocol::SoupPacket> ExchangeProtocol::_tryReadPayload() {
-    if (m_read_buffer.readSize() < 2U) {
+    if (m_soup_packet_bf.readSize() < 2U) {
+        return std::nullopt;
+    }
+    const size_t soup_frame_size = _getSoupFrameSize();
+    const uint16_t soup_packet_len = static_cast<uint16_t>(soup_frame_size - 2U);
+    if (soup_packet_len == 0 || m_soup_packet_bf.readSize() < soup_frame_size) {
         return std::nullopt;
     }
 
-    const uint16_t encoded_length = static_cast<uint16_t>(
-        (static_cast<uint16_t>(m_read_buffer.readAt(0)) << 8) |
-        static_cast<uint16_t>(m_read_buffer.readAt(1)));
-    const std::size_t packet_size = static_cast<std::size_t>(encoded_length) + 2U;
-    if (encoded_length == 0 || m_read_buffer.readSize() < packet_size) {
+    SoupPacket soup_packet {};
+    soup_packet.type = m_soup_packet_bf.readAt(2);
+    soup_packet.ouch_frame_raw.size = static_cast<std::size_t>(soup_packet_len - 1U);
+    if (soup_packet.ouch_frame_raw.size > soup_packet.ouch_frame_raw.bytes.size()) { // the capacity
+        soup_packet.type = 0;
+        soup_packet.ouch_frame_raw.size = 0;
+        (void)m_soup_packet_bf.eraseFrontN(soup_frame_size);
+        return soup_packet;
+    }
+    if (!m_soup_packet_bf.copyFrom(kSoupHeaderSize, soup_packet.ouch_frame_raw.bytes.data(), soup_packet.ouch_frame_raw.size)) {
         return std::nullopt;
     }
-
-    SoupPacket packet {};
-    packet.type = m_read_buffer.readAt(2);
-    packet.payload.size = static_cast<std::size_t>(encoded_length - 1U);
-    if (packet.payload.size > packet.payload.bytes.size()) {
-        packet.type = 0;
-        packet.payload.size = 0;
-        (void)m_read_buffer.eraseFrontN(packet_size);
-        return packet;
-    }
-    if (!m_read_buffer.copyFrom(kSoupHeaderSize, packet.payload.bytes.data(), packet.payload.size)) {
-        return std::nullopt;
-    }
-    (void)m_read_buffer.eraseFrontN(packet_size);
-    return packet;
+    (void)m_soup_packet_bf.eraseFrontN(soup_frame_size);
+    return soup_packet;
 }
 
-bool ExchangeProtocol::_handleClientPacket(uint8_t type,
-                                                       const EncodedPayload& payload,
-                                                       std::chrono::steady_clock::time_point now) {
+bool ExchangeProtocol::_handleInOuchFrame(uint8_t type,
+                                           const OuchFrameRaw& ouch_frame_raw,
+                                           std::chrono::steady_clock::time_point now) {
     if (!m_is_logged_in) {
         LoginRequest login {};
-        if (!parseLoginRequest(type, payload, login)) {
-            _queueSoupFrame(kSoupLoginRejectedType, reinterpret_cast<const uint8_t*>("A"), 1U);
+        if (!parseLoginRequest(type, ouch_frame_raw, login)) {
+            _queueOutSoupFrame(kSoupLoginRejectedType, reinterpret_cast<const uint8_t*>("A"), 1U);
             return false;
         }
 
@@ -412,13 +418,13 @@ bool ExchangeProtocol::_handleClientPacket(uint8_t type,
         const std::string requested_session = trimSpaces(login.requested_session);
         if (username != m_config.username || password != m_config.password ||
             (!requested_session.empty() && requested_session != m_config.session_id)) {
-            _queueSoupFrame(kSoupLoginRejectedType, reinterpret_cast<const uint8_t*>("A"), 1U);
+            _queueOutSoupFrame(kSoupLoginRejectedType, reinterpret_cast<const uint8_t*>("A"), 1U);
             return false;
         }
 
         m_is_logged_in = true;
         const auto login_payload = writeLoginAcceptedPayload(m_config.session_id, 1);
-        _queueSoupFrame(kSoupLoginAcceptedType, login_payload.data(), login_payload.size());
+        _queueOutSoupFrame(kSoupLoginAcceptedType, login_payload.data(), login_payload.size());
         return true;
     }
 
@@ -432,12 +438,12 @@ bool ExchangeProtocol::_handleClientPacket(uint8_t type,
         return false;
     }
 
-    const ExchangeEnterOrder order = readEnterOrder(payload);
+    const ExchangeEnterOrder order = readEnterOrder(ouch_frame_raw);
     const auto handled = _handleEnterOrder(order, now);
     if (!handled.is_duplicate) {
         for (std::size_t index = 0; index < handled.outbound_message_count; ++index) {
             const auto& message = handled.outbound_messages[index];
-            _queueSoupFrame(kSoupSequencedDataType, message.bytes.data(), message.size);
+            _queueOutSoupFrame(kSoupSequencedDataType, message.bytes.data(), message.size);
         }
     }
     return true;
@@ -449,7 +455,7 @@ void ExchangeProtocol::_queueOutboundMaintenance(std::chrono::steady_clock::time
         if (fill.due_time > now) {
             break;
         }
-        EncodedPayload payload {};
+        OuchFrameRaw payload {};
         writeOuchExecuted(payload, ExecutedMessage {
             .timestamp_ns = _readTimestampNs(now),
             .user_ref_num = fill.user_ref_num,
@@ -458,12 +464,12 @@ void ExchangeProtocol::_queueOutboundMaintenance(std::chrono::steady_clock::time
             .match_number = fill.match_number,
         });
         ++m_next_sequence;
-        _queueSoupFrame(kSoupSequencedDataType, payload.bytes.data(), payload.size);
+        _queueOutSoupFrame(kSoupSequencedDataType, payload.bytes.data(), payload.size);
         (void)m_pending_fills.eraseFront();
     }
 
     if (m_is_logged_in && (now - m_last_send_time) >= std::chrono::seconds(1)) {
-        _queueSoupFrame(kSoupServerHeartbeatType, nullptr, 0);
+        _queueOutSoupFrame(kSoupServerHeartbeatType, nullptr, 0);
     }
 }
 
@@ -538,7 +544,7 @@ HandledOrderResult ExchangeProtocol::_handleEnterOrder(const ExchangeEnterOrder&
     result.validation = _validateEnterOrder(order);
 
     if (result.validation.kind == ExchangeValidationKind::Rejected) {
-        const EncodedPayload payload = writeOuchRejected(RejectedMessage {
+        const OuchFrameRaw payload = writeOuchRejected(RejectedMessage {
             .timestamp_ns = _readTimestampNs(now),
             .user_ref_num = order.user_ref_num,
             .reason = result.validation.reject_reason,
@@ -546,7 +552,7 @@ HandledOrderResult ExchangeProtocol::_handleEnterOrder(const ExchangeEnterOrder&
         ++m_next_sequence;
         result.outbound_messages[result.outbound_message_count++] = payload;
     } else {
-        const EncodedPayload accepted_payload = writeOuchAccepted(AcceptedMessage {
+        const OuchFrameRaw accepted_payload = writeOuchAccepted(AcceptedMessage {
             .timestamp_ns = _readTimestampNs(now),
             .user_ref_num = order.user_ref_num,
             .stock_locate = order.stock_locate,
@@ -577,14 +583,14 @@ HandledOrderResult ExchangeProtocol::_handleEnterOrder(const ExchangeEnterOrder&
     return result;
 }
 
-void ExchangeProtocol::_queueSoupFrame(uint8_t type,
+void ExchangeProtocol::_queueOutSoupFrame(uint8_t type,
                                                    const uint8_t* payload,
                                                    std::size_t payload_size) {
-    if (payload_size > kMaxSoupPayloadSize) {
+    if (payload_size > kMaxOuchFrameRawSize) {
         throw std::runtime_error("client out queue full");
     }
 
-    SOUPBinFrame packet {};
+    SoupFrameRaw packet {};
     writeSoupPacket(packet.payload.data(), type, payload, payload_size);
     packet.size = kSoupHeaderSize + payload_size;
     if (!m_outbound_queue.pushBack(packet)) {
@@ -597,7 +603,7 @@ bool ExchangeProtocol::_pushOutQueue(const uint8_t* bytes, std::size_t size) {
         return false;
     }
 
-    SOUPBinFrame packet {};
+    SoupFrameRaw packet {};
     if (size > 0) {
         std::copy_n(bytes, static_cast<std::ptrdiff_t>(size), packet.payload.data());
     }
@@ -610,11 +616,11 @@ bool ExchangeProtocol::_isOutFrameEmpty() const {
     return m_outbound_queue.isEmpty();
 }
 
-const SOUPBinFrame& ExchangeProtocol::readFrontFrame() const {
+const SoupFrameRaw& ExchangeProtocol::readFrontFrame() const {
     return m_outbound_queue.readFront();
 }
 
-SOUPBinFrame& ExchangeProtocol::readFrontFrame() {
+SoupFrameRaw& ExchangeProtocol::readFrontFrame() {
     return m_outbound_queue.readFront();
 }
 

@@ -255,7 +255,6 @@ void TxTranslator::restoreOutbound(const TxOutboundRecord& record) {
 
 void TxTranslator::handleTransportConnected() {
     _clearReadyRecords();
-
     TxOutboundRecord login {};
     writeLoginRequestFrame(login,
                            m_config.username,
@@ -340,7 +339,7 @@ void TxTranslator::handleTransportDisconnect() {
     _rebuildBlockedRecords();
 }
 
-void TxTranslator::runTransportMaintenance() {
+void TxTranslator::runHeartBeat() {
     if (!m_session_established) {
         return;
     }

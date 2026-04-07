@@ -10,8 +10,8 @@
 #include <vector>
 
 constexpr std::size_t kOuchExecutedSize     = 36;
-constexpr std::size_t kMaxSoupPayloadSize   = 64;
-constexpr std::size_t kMaxSoupFrameSize     = 3 + kMaxSoupPayloadSize; // 3 is the header of soupbinTCP
+constexpr std::size_t kMaxOuchFrameRawSize   = 64;
+constexpr std::size_t kMaxSoupFrameSize     = 3 + kMaxOuchFrameRawSize; // 3 is the header of soupbinTCP
 constexpr std::size_t kMaxOutboundMsg       = 1;
 constexpr std::size_t kReadBufferSize       = 4096;
 constexpr std::size_t kMaxPendingFills      = 1024;
@@ -46,19 +46,19 @@ struct ProtocolConfig {
     std::size_t replay_capacity             {256};
 };
 
-struct EncodedPayload {
-    std::array<uint8_t, kMaxSoupPayloadSize> bytes {};
+struct OuchFrameRaw {
+    std::array<uint8_t, kMaxOuchFrameRawSize> bytes {};
     std::size_t size {0};
 };
 
 struct HandledOrderResult {
     bool is_duplicate {false};
     ExchangeValidationResult validation {};
-    std::array<EncodedPayload, kMaxOutboundMsg> outbound_messages {};
+    std::array<OuchFrameRaw, kMaxOutboundMsg> outbound_messages {};
     std::size_t outbound_message_count {0};
 };
 
-struct SOUPBinFrame {
+struct SoupFrameRaw {
     std::array<uint8_t, kMaxSoupFrameSize> payload {};
     std::size_t size {0};
     std::size_t offset {0};
@@ -72,8 +72,8 @@ public:
     bool appendReceivedBytes(const uint8_t* bytes, std::size_t size, std::chrono::steady_clock::time_point now);
     void onTimerTick(std::chrono::steady_clock::time_point now);
     bool shouldClose() const;
-    const SOUPBinFrame& readFrontFrame() const;
-    SOUPBinFrame& readFrontFrame();
+    const SoupFrameRaw& readFrontFrame() const;
+    SoupFrameRaw& readFrontFrame();
     void eraseFrontFrame();
     bool hasOutboundFrame() const;
     void writeLastSendTime(std::chrono::steady_clock::time_point now);
@@ -96,12 +96,12 @@ private:
 
     struct SoupPacket {
         uint8_t type {0};
-        EncodedPayload payload {};
+        OuchFrameRaw ouch_frame_raw {};
     };
 
     std::optional<SoupPacket> _tryReadPayload();
-    bool _handleClientPacket(uint8_t type,
-                             const EncodedPayload& payload,
+    bool _handleInOuchFrame(uint8_t type,
+                             const OuchFrameRaw& payload,
                              std::chrono::steady_clock::time_point now);
     void _queueOutboundMaintenance(std::chrono::steady_clock::time_point now);
     bool _insertReplayResult(uint32_t user_ref_num, const HandledOrderResult& result);
@@ -109,12 +109,12 @@ private:
     HandledOrderResult _buildReplayCapacityReject(uint32_t user_ref_num);
     HandledOrderResult _handleEnterOrder(const ExchangeEnterOrder& order,
                                          std::chrono::steady_clock::time_point now);
-    void _queueSoupFrame(uint8_t type, const uint8_t* payload, std::size_t payload_size);
+    void _queueOutSoupFrame(uint8_t type, const uint8_t* payload, std::size_t payload_size);
     ExchangeValidationResult _validateEnterOrder(const ExchangeEnterOrder& order) const;
     bool _pushOutQueue(const uint8_t* bytes, std::size_t size);
     bool _isOutFrameEmpty() const;
     uint64_t _readTimestampNs(std::chrono::steady_clock::time_point now) const;
-
+    const std::size_t _getSoupFrameSize() const;
 private:
     ProtocolConfig  m_config {};
     uint64_t        m_session_id {0};
@@ -123,10 +123,11 @@ private:
     uint64_t        m_next_sequence {1};
     uint64_t        m_next_order_ref_num {1};
     uint64_t        m_next_match_number {1};
+    
     std::chrono::steady_clock::time_point           m_last_send_time {};
     std::chrono::steady_clock::time_point           m_last_receive_time {};
-    RingBuffer<uint8_t, kReadBufferSize>            m_read_buffer {};
-    RingBuffer<SOUPBinFrame, kOutboundQueueSize>    m_outbound_queue {};
+    RingBuffer<uint8_t, kReadBufferSize>            m_soup_packet_bf {};
+    RingBuffer<SoupFrameRaw, kOutboundQueueSize>    m_outbound_queue {};
     RingBuffer<PendingFill, kMaxPendingFills>       m_pending_fills {};
     std::vector<ReplayEntry>                        m_replay_entries {};
     std::size_t m_replay_count {0};

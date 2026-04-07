@@ -34,7 +34,7 @@ public:
     void handleTransportConnected();
     void handleInboundPayload(const std::vector<uint8_t>& payload);
     void handleTransportDisconnect();
-    void runTransportMaintenance();
+    void runHeartBeat();
 
 private:
     struct PendingOrderState {

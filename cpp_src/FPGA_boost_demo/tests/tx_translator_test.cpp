@@ -1,5 +1,5 @@
 #include "../common/shared_types.h"
-#include "../tx/tx_translator.h"
+#include "../tx_engine/tx_translator.h"
 
 #include <gtest/gtest.h>
 

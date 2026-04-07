@@ -103,11 +103,10 @@ void TxEngine::attachLogPrinter(LatencyLogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
-bool TxEngine::pushPayload(const TxOutboundRecord& record) {
+bool TxEngine::takePayload(const TxOutboundRecord& record) {
     if (m_outbound_buffer == nullptr) {
         return false;
     }
-
     return m_outbound_buffer->push(record);
 }
 

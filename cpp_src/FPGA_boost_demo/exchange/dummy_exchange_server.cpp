@@ -311,7 +311,7 @@ bool DummyExchangeServer::_receiveBytes(SessionSlot& slot) {
 bool DummyExchangeServer::_sendFrame(SessionSlot& slot,
                                               std::chrono::steady_clock::time_point now) {
     while (slot.protocol.hasOutboundFrame()) {
-        SOUPBinFrame& frame = slot.protocol.readFrontFrame();
+        SoupFrameRaw& frame = slot.protocol.readFrontFrame();
         while (true) {
             const ssize_t written = ::send(slot.transport.fd,
                                            frame.payload.data() + static_cast<std::ptrdiff_t>(frame.offset),

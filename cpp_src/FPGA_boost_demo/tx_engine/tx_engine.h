@@ -26,7 +26,7 @@ public:
     explicit TxEngine(GatewayClientConfig config);
 
     void attachLogPrinter(LatencyLogPrinter* log_printer);
-    bool pushPayload(const TxOutboundRecord& record);
+    bool takePayload(const TxOutboundRecord& record);
     bool runTransportStep();
     std::vector<std::vector<uint8_t>> drainInboundPayloads();
     bool takeConnectEvent();

@@ -1,6 +1,6 @@
 #include "top_runner.h"
 
-#include "../engine/fpga_rx_engine.h"
+#include "../rx_engine/fpga_rx_engine.h"
 #include "../latency/latency_tracker.h"
 #include "../sync/regression.h"
 #include "../sync/sync_handler.h"
