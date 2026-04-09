@@ -1,5 +1,5 @@
 #include "latency_tracker.h"
-#include "latency_log_printer.h"
+#include "log_printer.h"
 
 #include "../sync/regression.h"
 
@@ -22,7 +22,7 @@ void LatencyTracker::attachRegression(Regression* regression) {
     m_regressions = regression;
 }
 
-void LatencyTracker::attachLogPrinter(LatencyLogPrinter* log_printer) {
+void LatencyTracker::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 

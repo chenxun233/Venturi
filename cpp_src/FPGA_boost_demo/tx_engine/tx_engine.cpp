@@ -1,6 +1,6 @@
 #include "tx_engine.h"
 
-#include "../latency/latency_log_printer.h"
+#include "../latency/log_printer.h"
 
 #include <arpa/inet.h>
 #include <array>
@@ -99,7 +99,7 @@ TxEngine::TxEngine(GatewayClientConfig config)
       m_outbound_buffer(std::make_unique<TraceBuffer<TxOutboundRecord>>(m_config.outbound_buffer_capacity)),
       m_next_connect_attempt_at(std::chrono::steady_clock::now()) {}
 
-void TxEngine::attachLogPrinter(LatencyLogPrinter* log_printer) {
+void TxEngine::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 

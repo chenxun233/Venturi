@@ -12,7 +12,7 @@
 #include <unordered_map>
 
 class Regression;
-class LatencyLogPrinter;
+class LogPrinter;
 class Tuner;
 
 class LatencyTracker {
@@ -21,7 +21,7 @@ public:
     std::size_t     run();
     bool            pushRecord(const TimeRecord& record);
     void            attachRegression(Regression* regression);
-    void            attachLogPrinter(LatencyLogPrinter* log_printer);
+    void            attachLogPrinter(LogPrinter* log_printer);
     
 
 private:
@@ -83,7 +83,7 @@ private:
     uint16_t m_capacity {0};
     uint16_t m_next_buffer_idx {0};
     Regression* m_regressions {nullptr};
-    LatencyLogPrinter* m_log_printer {nullptr};
+    LogPrinter* m_log_printer {nullptr};
     std::mutex m_run_mutex;
     std::unordered_map<EventKey, PendingEventState, EventKeyHash> m_pending_records;
     std::unordered_map<StageKey, LatencyStats, StageKeyHash> m_latency_stats;

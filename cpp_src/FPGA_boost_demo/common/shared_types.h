@@ -40,7 +40,10 @@ enum stage {
     FRAME_START,
     DMA_EMIT,
     DECODE,
-    ANALYSIS
+    STRATEGY,
+    EXECUTOR,
+    TX_ENQUEUE,
+    TX_SEND
 };
 
 struct TimeRecord {
@@ -74,6 +77,15 @@ struct LatencyLogRecord {
     uint64_t    event_ts {0};
     uint64_t    frame_start_to_dma_emit_ns {0};
     int64_t     dma_emit_to_decode_ns {0};
+    int64_t     decode_to_strategy_ns {0};
+    int64_t     strategy_to_executor_ns {0};
+    int64_t     executor_to_tx_enqueue_ns {0};
+    int64_t     tx_enqueue_to_tx_send_ns {0};
+};
+
+struct RegressionStatusLogRecord {
+    bool has_para {false};
+    double a_ns_per_tick {0.0};
 };
 
 enum class OrderIntentAction : uint8_t {
@@ -90,6 +102,8 @@ struct OrderIntentPayload {
 
 struct OrderIntent {
     uint16_t stock_locate {0};
+    uint16_t que_idx {0};
+    uint64_t event_ts {0};
     OrderIntentPayload intent {};
 };
 
@@ -111,6 +125,8 @@ enum class TxEventKind : uint8_t {
 struct TxOutboundRecord {
     uint32_t                user_ref_num    {0};
     uint16_t                stock_locate    {0};
+    uint16_t                que_idx         {0};
+    uint64_t                event_ts        {0};
     uint32_t                price           {0};
     uint32_t                shares          {0};
     std::array<uint8_t, 64> payload         {};
@@ -130,6 +146,7 @@ struct TxLogRecord {
 enum class AsyncLogKind : uint8_t {
     Latency,
     Snapshot,
+    RegressionStatus,
     Execution,
     Tx
 };
@@ -138,6 +155,7 @@ struct AsyncLogRecord {
     AsyncLogKind kind {AsyncLogKind::Latency};
     LatencyLogRecord latency {};
     FpgaSyncSnapshot snapshot {};
+    RegressionStatusLogRecord regression_status {};
     ExecutionLogRecord execution {};
     TxLogRecord tx {};
 };

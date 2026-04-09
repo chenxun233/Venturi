@@ -122,7 +122,7 @@ add_executable(Venturi
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp
     ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
     ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
-    ${FPGA_LATENCY_DIR}/latency_log_printer.cpp
+    ${FPGA_LATENCY_DIR}/log_printer.cpp
     ${FPGA_LATENCY_DIR}/trace_buffer.cpp
     ${FPGA_LATENCY_DIR}/latency_tracker.cpp
     ${FPGA_SYNC_DIR}/regression.cpp
@@ -192,7 +192,7 @@ if(TARGET GTest::gtest_main)
 
     add_executable(tx_translator_test
         ${FPGA_TX_DIR}/tx_translator.cpp
-        ${FPGA_LATENCY_DIR}/latency_log_printer.cpp
+        ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_TEST_DIR}/tx_translator_test.cpp
     )
     target_include_directories(tx_translator_test PRIVATE
@@ -248,7 +248,7 @@ if(TARGET GTest::gtest_main)
 
     add_executable(tx_log_record_test
         ${FPGA_TX_DIR}/tx_engine.cpp
-        ${FPGA_LATENCY_DIR}/latency_log_printer.cpp
+        ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_TEST_DIR}/tx_log_record_test.cpp
     )
     target_include_directories(tx_log_record_test PRIVATE
@@ -258,6 +258,19 @@ if(TARGET GTest::gtest_main)
         ${FPGA_TEST_DIR}
     )
     target_link_libraries(tx_log_record_test PRIVATE
+        GTest::gtest_main
+    )
+
+    add_executable(log_printer_test
+        ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_TEST_DIR}/log_printer_test.cpp
+    )
+    target_include_directories(log_printer_test PRIVATE
+        ${FPGA_LATENCY_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(log_printer_test PRIVATE
         GTest::gtest_main
     )
 
@@ -292,6 +305,7 @@ if(TARGET GTest::gtest_main)
     gtest_discover_tests(tx_translator_test)
     gtest_discover_tests(dummy_exchange_server_test)
     gtest_discover_tests(tx_log_record_test)
+    gtest_discover_tests(log_printer_test)
     gtest_discover_tests(trace_buffer_overwrite_test)
     gtest_discover_tests(fixed_ring_buffer_test)
 endif()

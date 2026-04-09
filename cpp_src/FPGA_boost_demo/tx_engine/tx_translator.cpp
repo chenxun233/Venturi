@@ -1,6 +1,6 @@
 #include "tx_translator.h"
 
-#include "../latency/latency_log_printer.h"
+#include "../latency/log_printer.h"
 
 #include <algorithm>
 #include <array>
@@ -218,7 +218,7 @@ TxTranslator::TxTranslator(TxTranslatorConfig config)
     m_last_send = std::chrono::steady_clock::now();
 }
 
-void TxTranslator::attachLogPrinter(LatencyLogPrinter* log_printer) {
+void TxTranslator::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 

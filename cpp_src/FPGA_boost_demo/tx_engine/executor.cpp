@@ -1,6 +1,6 @@
 #include "executor.h"
 
-#include "../latency/latency_log_printer.h"
+#include "../latency/log_printer.h"
 #include "tx_translator.h"
 
 #include <stdexcept>
@@ -16,7 +16,7 @@ Executor::Executor(uint16_t producer_num, std::size_t buffer_capacity)
     }
 }
 
-void Executor::attachLogPrinter(LatencyLogPrinter* log_printer) {
+void Executor::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 

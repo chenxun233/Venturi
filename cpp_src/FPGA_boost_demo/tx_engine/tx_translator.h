@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-class LatencyLogPrinter;
+class LogPrinter;
 
 struct TxTranslatorConfig {
     std::string username {"client"};
@@ -27,7 +27,7 @@ public:
     explicit TxTranslator(std::size_t pending_capacity = 1024);
     explicit TxTranslator(TxTranslatorConfig config);
 
-    void attachLogPrinter(LatencyLogPrinter* log_printer);
+    void attachLogPrinter(LogPrinter* log_printer);
     bool pushIntent(const OrderIntent& intent);
     bool popOutbound(TxOutboundRecord& record);
     void restoreOutbound(const TxOutboundRecord& record);
@@ -85,5 +85,5 @@ private:
     bool m_login_pending {false};
     bool m_session_established {false};
     std::chrono::steady_clock::time_point m_last_send {};
-    LatencyLogPrinter* m_log_printer {nullptr};
+    LogPrinter* m_log_printer {nullptr};
 };

@@ -1,6 +1,6 @@
 #include "../driver/fpga_dev.h"
 #include "../rx_engine/fpga_rx_engine.h"
-#include "../latency/latency_log_printer.h"
+#include "../latency/log_printer.h"
 #include "../latency/latency_tracker.h"
 #include "../strategy/dummy_strategy.h"
 #include "../sync/regression.h"
@@ -129,7 +129,7 @@ int main() {
         .port = kTxServerPort,
     });
     LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
-    LatencyLogPrinter latency_log_printer(kLatencyLogCapacity);
+    LogPrinter latency_log_printer(kLatencyLogCapacity);
 
     SyncHandler sync_handler(kSnapshotSamplePeriod);
     Regression regression;

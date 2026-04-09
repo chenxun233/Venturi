@@ -9,13 +9,14 @@
 #include <thread>
 #include <vector>
 
-class LatencyLogPrinter {
+class LogPrinter {
 public:
-    explicit LatencyLogPrinter(std::size_t capacity = 1024);
-    ~LatencyLogPrinter();
+    explicit LogPrinter(std::size_t capacity = 1024);
+    ~LogPrinter();
 
     bool pushLatency(const LatencyLogRecord& record);
     bool pushSnapshot(const FpgaSyncSnapshot& snapshot);
+    bool pushRegressionStatus(const RegressionStatusLogRecord& record);
     bool pushExecution(const ExecutionLogRecord& record);
     bool pushTxEvent(const TxLogRecord& record);
     void start();

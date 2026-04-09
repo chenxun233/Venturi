@@ -1,4 +1,4 @@
-#include "latency_log_printer.h"
+#include "log_printer.h"
 
 #include <cstdio>
 #include <stdexcept>
@@ -29,59 +29,74 @@ const char* readSymbolName(uint16_t stock_locate) {
 
 } // namespace
 
-LatencyLogPrinter::LatencyLogPrinter(std::size_t capacity)
+LogPrinter::LogPrinter(std::size_t capacity)
     : m_records(capacity),
       m_capacity_mask(capacity - 1) {
     if (capacity == 0 || (capacity & (capacity - 1)) != 0) {
-        throw std::invalid_argument("LatencyLogPrinter capacity must be a non-zero power of two");
+        throw std::invalid_argument("LogPrinter capacity must be a non-zero power of two");
     }
 }
 
-LatencyLogPrinter::~LatencyLogPrinter() {
+LogPrinter::~LogPrinter() {
     stop();
 }
 
-bool LatencyLogPrinter::pushLatency(const LatencyLogRecord& record) {
+bool LogPrinter::pushLatency(const LatencyLogRecord& record) {
     return _pushRecord(AsyncLogRecord {
         .kind = AsyncLogKind::Latency,
         .latency = record,
         .snapshot = {},
+        .regression_status = {},
         .execution = {},
         .tx = {}
     });
 }
 
-bool LatencyLogPrinter::pushSnapshot(const FpgaSyncSnapshot& snapshot) {
+bool LogPrinter::pushSnapshot(const FpgaSyncSnapshot& snapshot) {
     return _pushRecord(AsyncLogRecord {
         .kind = AsyncLogKind::Snapshot,
         .latency = {},
         .snapshot = snapshot,
+        .regression_status = {},
         .execution = {},
         .tx = {}
     });
 }
 
-bool LatencyLogPrinter::pushExecution(const ExecutionLogRecord& record) {
+bool LogPrinter::pushRegressionStatus(const RegressionStatusLogRecord& record) {
+    return _pushRecord(AsyncLogRecord {
+        .kind = AsyncLogKind::RegressionStatus,
+        .latency = {},
+        .snapshot = {},
+        .regression_status = record,
+        .execution = {},
+        .tx = {}
+    });
+}
+
+bool LogPrinter::pushExecution(const ExecutionLogRecord& record) {
     return _pushRecord(AsyncLogRecord {
         .kind = AsyncLogKind::Execution,
         .latency = {},
         .snapshot = {},
+        .regression_status = {},
         .execution = record,
         .tx = {}
     });
 }
 
-bool LatencyLogPrinter::pushTxEvent(const TxLogRecord& record) {
+bool LogPrinter::pushTxEvent(const TxLogRecord& record) {
     return _pushRecord(AsyncLogRecord {
         .kind = AsyncLogKind::Tx,
         .latency = {},
         .snapshot = {},
+        .regression_status = {},
         .execution = {},
         .tx = record
     });
 }
 
-bool LatencyLogPrinter::_pushRecord(const AsyncLogRecord& record) {
+bool LogPrinter::_pushRecord(const AsyncLogRecord& record) {
     const std::lock_guard<std::mutex> lock(m_push_mutex);
     const std::size_t tail = m_tail.load(std::memory_order_relaxed);
     const std::size_t head = m_head.load(std::memory_order_acquire);
@@ -96,16 +111,16 @@ bool LatencyLogPrinter::_pushRecord(const AsyncLogRecord& record) {
     return true;
 }
 
-void LatencyLogPrinter::start() {
+void LogPrinter::start() {
     bool expected = false;
     if (!m_running.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         return;
     }
 
-    m_thread = std::thread(&LatencyLogPrinter::_run, this);
+    m_thread = std::thread(&LogPrinter::_run, this);
 }
 
-void LatencyLogPrinter::stop() {
+void LogPrinter::stop() {
     const bool was_running = m_running.exchange(false, std::memory_order_acq_rel);
     m_record_cv.notify_all();
     if (m_thread.joinable()) {
@@ -124,11 +139,11 @@ void LatencyLogPrinter::stop() {
     }
 }
 
-uint64_t LatencyLogPrinter::readDropCount() const {
+uint64_t LogPrinter::readDropCount() const {
     return m_drop_count.load(std::memory_order_relaxed);
 }
 
-void LatencyLogPrinter::_run() {
+void LogPrinter::_run() {
     AsyncLogRecord record {};
     std::unique_lock<std::mutex> wait_lock(m_wait_mutex);
     while (true) {
@@ -153,13 +168,20 @@ void LatencyLogPrinter::_run() {
     }
 }
 
-void LatencyLogPrinter::_handleRecord(const AsyncLogRecord& record) {
+void LogPrinter::_handleRecord(const AsyncLogRecord& record) {
     if (record.kind == AsyncLogKind::Snapshot) {
         std::printf("SyncSnapshot fpga_tick=%llu host_time_ns=%llu interval_ns=%llu\n",
                     static_cast<unsigned long long>(record.snapshot.fpga_tick),
                     static_cast<unsigned long long>(record.snapshot.host_time_ns),
                     static_cast<unsigned long long>(record.snapshot.interval_ns));
         std::fflush(stdout);
+        return;
+    }
+    if (record.kind == AsyncLogKind::RegressionStatus) {
+        if (record.regression_status.has_para) {
+            std::printf("Regression a=%.9f\n", record.regression_status.a_ns_per_tick);
+            std::fflush(stdout);
+        }
         return;
     }
     if (record.kind == AsyncLogKind::Execution) {
@@ -210,16 +232,20 @@ void LatencyLogPrinter::_handleRecord(const AsyncLogRecord& record) {
         return;
     }
 
-    std::printf("LatencyNs%s queue=%u event_ts=%llu frame_start_to_dma_emit_ns=%llu dma_emit_to_decode_ns=%lld\n",
+    std::printf("LatencyNs%s queue=%u event_ts=%llu frame_start_to_dma_emit_ns=%llu dma_emit_to_decode_ns=%lld decode_to_strategy_ns=%lld strategy_to_executor_ns=%lld executor_to_tx_enqueue_ns=%lld tx_enqueue_to_tx_send_ns=%lld\n",
                 (record.latency.dma_emit_to_decode_ns < 0) ? "[NEG]" : "",
                 record.latency.que_idx,
                 static_cast<unsigned long long>(record.latency.event_ts),
                 static_cast<unsigned long long>(record.latency.frame_start_to_dma_emit_ns),
-                static_cast<long long>(record.latency.dma_emit_to_decode_ns));
+                static_cast<long long>(record.latency.dma_emit_to_decode_ns),
+                static_cast<long long>(record.latency.decode_to_strategy_ns),
+                static_cast<long long>(record.latency.strategy_to_executor_ns),
+                static_cast<long long>(record.latency.executor_to_tx_enqueue_ns),
+                static_cast<long long>(record.latency.tx_enqueue_to_tx_send_ns));
     std::fflush(stdout);
     return;
 }
 
-std::size_t LatencyLogPrinter::_wrapIndexP1(std::size_t idx) const {
+std::size_t LogPrinter::_wrapIndexP1(std::size_t idx) const {
     return idx & m_capacity_mask;
 }

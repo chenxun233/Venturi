@@ -32,9 +32,13 @@ TEST(TxLogRecordTest, txEventRecordStoresConnectionAndOrderEvents) {
 TEST(TxLogRecordTest, outboundRecordCarriesPrebuiltPayloadAndMetadata) {
     TxOutboundRecord record {};
     record.user_ref_num = 42;
+    record.que_idx = 1;
+    record.event_ts = 123456789ULL;
     record.payload_length = 16;
 
     EXPECT_EQ(record.user_ref_num, 42U);
+    EXPECT_EQ(record.que_idx, 1U);
+    EXPECT_EQ(record.event_ts, 123456789ULL);
     EXPECT_EQ(record.payload_length, 16U);
 }
 

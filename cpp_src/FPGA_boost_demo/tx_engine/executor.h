@@ -9,14 +9,14 @@
 #include <memory>
 #include <vector>
 
-class LatencyLogPrinter;
+class LogPrinter;
 class TxTranslator;
 
 class Executor {
 public:
     explicit Executor(uint16_t producer_num, std::size_t buffer_capacity = 1024);
     ~Executor() = default;
-    void attachLogPrinter(LatencyLogPrinter* log_printer);
+    void attachLogPrinter(LogPrinter* log_printer);
     void attachTranslator(TxTranslator* translator);
     bool pushIntent(uint16_t producer_idx, const OrderIntent& intent);
     void run(const std::atomic<bool>& running);
@@ -28,6 +28,6 @@ private:
     std::vector<std::unique_ptr<TraceBuffer<OrderIntent>>> m_intent_buffers;
     uint16_t m_producer_num {0};
     uint16_t m_next_buffer_idx {0};
-    LatencyLogPrinter* m_log_printer {nullptr};
+    LogPrinter* m_log_printer {nullptr};
     TxTranslator* m_translator {nullptr};
 };
