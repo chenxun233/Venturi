@@ -1,4 +1,4 @@
-#include "../exchange/dummy_exchange_server.h"
+#include "../exchange/dummy_server.h"
 
 #include <gtest/gtest.h>
 
@@ -166,40 +166,16 @@ int connectClient(uint16_t port) {
 }
 
 struct ServerStopGuard {
-    DummyExchangeServer* server {nullptr};
+    DummyServer* server {nullptr};
 
     ~ServerStopGuard() {
         if (server != nullptr) {
-            server->requestStopForTest();
+            server->requestStop();
         }
     }
 };
 
 } // namespace
-
-TEST(DummyExchangeServerTest, createSessionForTestRejectsWhenSessionPoolIsFull) {
-    DummyExchangeConfig config {};
-    config.session_capacity = 1;
-
-    DummyExchangeServer server(config);
-    const auto first = server.createSessionForTest();
-    (void)first;
-
-    EXPECT_THROW(server.createSessionForTest(), std::runtime_error);
-}
-
-TEST(DummyExchangeServerTest, releasedTestSessionHandleBecomesInvalidAfterReuse) {
-    DummyExchangeConfig config {};
-    config.session_capacity = 1;
-
-    DummyExchangeServer server(config);
-    const auto first = server.createSessionForTest();
-    server.releaseSessionForTest(first);
-
-    const auto second = server.createSessionForTest();
-    EXPECT_NE(first.generation, second.generation);
-    EXPECT_THROW(server.releaseSessionForTest(first), std::runtime_error);
-}
 
 TEST(DummyExchangeServerTest, extraClientIsRejectedWhenSessionPoolIsFull) {
     DummyExchangeConfig config {};
@@ -207,7 +183,7 @@ TEST(DummyExchangeServerTest, extraClientIsRejectedWhenSessionPoolIsFull) {
     config.port = 9109;
     config.session_capacity = 1;
 
-    DummyExchangeServer server(config);
+    DummyServer server(config);
     std::jthread server_thread([&server]() {
         EXPECT_EQ(server.run(), 0);
     });
@@ -239,7 +215,7 @@ TEST(DummyExchangeServerTest, closedLiveSlotCanBeReusedByNextClient) {
     config.port = 9110;
     config.session_capacity = 1;
 
-    DummyExchangeServer server(config);
+    DummyServer server(config);
     std::jthread server_thread([&server]() {
         EXPECT_EQ(server.run(), 0);
     });
@@ -273,7 +249,7 @@ TEST(DummyExchangeServerTest, serverCanRestartAfterPreviousRunStops) {
     config.listen_ip = "127.0.0.1";
     config.port = 9111;
 
-    DummyExchangeServer server(config);
+    DummyServer server(config);
 
     {
         std::jthread server_thread([&server]() {
@@ -324,7 +300,7 @@ TEST(DummyExchangeServerTest, oneClientDisconnectDoesNotStopOtherClient) {
     config.port = 9107;
     config.fill_delay = std::chrono::milliseconds(1);
 
-    DummyExchangeServer server(config);
+    DummyServer server(config);
     std::jthread server_thread([&server]() {
         EXPECT_EQ(server.run(), 0);
     });
@@ -362,7 +338,7 @@ TEST(DummyExchangeServerTest, duplicateTagsAreIndependentAcrossConcurrentClients
     config.port = 9108;
     config.fill_delay = std::chrono::milliseconds(1);
 
-    DummyExchangeServer server(config);
+    DummyServer server(config);
     std::jthread server_thread([&server]() {
         EXPECT_EQ(server.run(), 0);
     });

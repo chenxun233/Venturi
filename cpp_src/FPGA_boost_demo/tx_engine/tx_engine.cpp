@@ -199,7 +199,7 @@ bool TxEngine::_connect() {
     return true;
 }
 
-void TxEngine::_closeSocket() {
+void TxEngine::_closeConnection() {
     if (m_socket_fd >= 0) {
         ::close(m_socket_fd);
         m_socket_fd = -1;
@@ -208,7 +208,7 @@ void TxEngine::_closeSocket() {
 
 void TxEngine::_handleDisconnect(const char* reason) {
     const bool had_connection = (m_socket_fd >= 0);
-    _closeSocket();
+    _closeConnection();
     m_next_connect_attempt_at = std::chrono::steady_clock::now() + m_config.reconnect_delay;
     m_disconnect_event_pending = had_connection;
     if (reason != nullptr && reason[0] != '\0') {

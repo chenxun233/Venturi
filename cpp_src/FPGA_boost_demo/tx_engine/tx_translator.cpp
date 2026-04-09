@@ -12,7 +12,7 @@ namespace {
 constexpr uint8_t kSoupLoginAcceptedType = static_cast<uint8_t>('A');
 constexpr uint8_t kSoupLoginRejectedType = static_cast<uint8_t>('J');
 constexpr uint8_t kSoupSequencedDataType = static_cast<uint8_t>('S');
-constexpr uint8_t kSoupServerHeartbeatType = static_cast<uint8_t>('H');
+constexpr uint8_t kSoupHeartbeatType = static_cast<uint8_t>('H');
 constexpr uint8_t kSoupEndOfSessionType = static_cast<uint8_t>('Z');
 constexpr uint8_t kSoupLoginRequestType = static_cast<uint8_t>('L');
 constexpr uint8_t kSoupUnsequencedDataType = static_cast<uint8_t>('U');
@@ -300,7 +300,7 @@ void TxTranslator::handleInboundPayload(const std::vector<uint8_t>& payload) {
             m_login_pending = false;
             m_session_established = false;
             return;
-        case kSoupServerHeartbeatType:
+        case kSoupHeartbeatType:
             return;
         case kSoupEndOfSessionType:
             m_login_pending = false;

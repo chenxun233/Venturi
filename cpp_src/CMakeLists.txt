@@ -152,8 +152,9 @@ target_include_directories(Venturi PRIVATE
 )
 
 add_executable(dummy_server
-    ${FPGA_EXCHANGE_DIR}/dummy_exchange_server.cpp
+    ${FPGA_EXCHANGE_DIR}/dummy_server.cpp
     ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
+    ${FPGA_EXCHANGE_DIR}/exchange_transport.cpp
     ${FPGA_APP_DIR}/dummy_exchange_server_main.cpp
 )
 target_include_directories(dummy_server PRIVATE
@@ -205,8 +206,9 @@ if(TARGET GTest::gtest_main)
     )
 
     add_executable(dummy_exchange_server_test
-        ${FPGA_EXCHANGE_DIR}/dummy_exchange_server.cpp
+        ${FPGA_EXCHANGE_DIR}/dummy_server.cpp
         ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
+        ${FPGA_EXCHANGE_DIR}/exchange_transport.cpp
         ${FPGA_TEST_DIR}/dummy_exchange_server_test.cpp
     )
     target_include_directories(dummy_exchange_server_test PRIVATE
@@ -215,6 +217,32 @@ if(TARGET GTest::gtest_main)
         ${FPGA_TEST_DIR}
     )
     target_link_libraries(dummy_exchange_server_test PRIVATE
+        GTest::gtest_main
+    )
+
+    add_executable(exchange_transport_test
+        ${FPGA_EXCHANGE_DIR}/exchange_transport.cpp
+        ${FPGA_TEST_DIR}/exchange_transport_test.cpp
+    )
+    target_include_directories(exchange_transport_test PRIVATE
+        ${FPGA_EXCHANGE_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(exchange_transport_test PRIVATE
+        GTest::gtest_main
+    )
+
+    add_executable(exchange_protocol_test
+        ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
+        ${FPGA_TEST_DIR}/exchange_protocol_test.cpp
+    )
+    target_include_directories(exchange_protocol_test PRIVATE
+        ${FPGA_EXCHANGE_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(exchange_protocol_test PRIVATE
         GTest::gtest_main
     )
 

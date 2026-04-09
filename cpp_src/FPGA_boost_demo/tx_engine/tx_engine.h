@@ -9,8 +9,8 @@
 #include <vector>
 
 struct GatewayClientConfig {
-    std::string bind_ip                         {"192.168.50.1"};
-    std::string server_ip                       {"192.168.50.2"};
+    std::string bind_ip                         {"192.168.51.1"};
+    std::string server_ip                       {"192.168.51.2"};
     uint16_t port                               {9000};
     std::chrono::milliseconds reconnect_delay   {250};
     std::chrono::microseconds idle_sleep        {100};
@@ -35,7 +35,7 @@ public:
 
 private:
     bool _connect();
-    void _closeSocket();
+    void _closeConnection();
     void _handleDisconnect(const char* reason);
     bool _sendPayload(const TxOutboundRecord& record);
     bool _drainOutboundBuffer();

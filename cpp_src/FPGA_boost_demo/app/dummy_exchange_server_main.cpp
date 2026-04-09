@@ -1,4 +1,4 @@
-#include "../exchange/dummy_exchange_server.h"
+#include "../exchange/dummy_server.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -43,10 +43,10 @@ int main(int argc, char** argv) {
             applyArg(config, argv[i], argv[i + 1]);
         }
 
-        DummyExchangeServer server(config);
+        DummyServer server(config);
         return server.run();
     } catch (const std::exception& ex) {
-        std::cerr << "dummy_exchange_server error: " << ex.what() << '\n';
+        std::cerr << "dummy_server error: " << ex.what() << '\n';
         return 1;
     }
 }

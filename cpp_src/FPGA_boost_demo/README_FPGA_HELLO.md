@@ -157,21 +157,21 @@ make
 # - test_fpga_hello_v2 (infrastructure version)
 # - test_app_loopsend (Intel NIC test)
 # - test_app_pcap (Intel NIC packet capture)
-# - dummy_exchange_server (OUCH/SoupBinTCP demo server)
+# - dummy_server (OUCH/SoupBinTCP demo server)
 ```
 
 ## OUCH-over-SoupBinTCP Demo
 
 The FPGA boost demo directory now also contains a host-only two-process OUCH-over-SoupBinTCP demo:
 
-- `dummy_exchange_server`
+- `dummy_server`
 - `test_fpga_rx_adapter` as the integrated `Venturi.cpp` client
 
 These are intended to run in two terminals on two physically linked NIC ports:
 
 ```bash
 # terminal 1
-./build/dummy_exchange_server --listen-ip 192.168.50.2 --port 9000 --fill-delay-ms 20
+./build/dummy_server --listen-ip 192.168.51.2 --port 9000 --fill-delay-ms 20
 
 # terminal 2
 ./build/test_fpga_rx_adapter

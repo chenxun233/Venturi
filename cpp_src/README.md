@@ -98,7 +98,7 @@ make -j$(nproc)
 | `test_app_pcap` | Packet capture to pcap file | Intel 82599 |
 | `test_fpga_hello` | Standalone FPGA test | FPGA (standalone) |
 | `test_fpga_hello_v2` | Infrastructure-based FPGA test | FPGA (common infra) |
-| `dummy_exchange_server` | SoupBinTCP/OUCH demo exchange server | Host TCP demo |
+| `dummy_server` | SoupBinTCP/OUCH demo exchange server | Host TCP demo |
 
 ## Usage Examples
 
@@ -137,11 +137,11 @@ This demo uses two processes on two directly connected NIC ports. The server lis
 ```bash
 # Build only the demo pieces
 cmake -S cpp_src -B build
-cmake --build build --target dummy_exchange_server test_fpga_rx_adapter
+cmake --build build --target dummy_server test_fpga_rx_adapter
 
 # terminal 1: dummy exchange on enp5s0f0
-./build/dummy_exchange_server \
-  --listen-ip 192.168.50.2 \
+./build/dummy_server \
+  --listen-ip 192.168.51.2 \
   --port 9000 \
   --fill-delay-ms 20
 
@@ -149,7 +149,7 @@ cmake --build build --target dummy_exchange_server test_fpga_rx_adapter
 ./build/test_fpga_rx_adapter
 ```
 
-The client side is now the existing `Venturi.cpp` path: RX -> strategy -> executor -> `TxEngine`. `TxEngine` binds to `192.168.50.1`, retries when disconnected, and pushes immediate plus async TX logs for connection established/lost, order sent, reject, and fill events.
+The client side is now the existing `Venturi.cpp` path: RX -> strategy -> executor -> `TxEngine`. `TxEngine` binds to `192.168.51.1`, retries when disconnected, and pushes immediate plus async TX logs for connection established/lost, order sent, reject, and fill events.
 
 ## Key Features
 

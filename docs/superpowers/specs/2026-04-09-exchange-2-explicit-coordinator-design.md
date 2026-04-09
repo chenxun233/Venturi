@@ -42,19 +42,21 @@ Use `Server` as the only coordinator.
 
 This keeps control flow visible in one place without re-coupling the layers.
 
-## Alternatives Considered
+## Disallowed Structures
+
+The redesign must not use either of the following patterns.
 
 ### Large DataLayer Operations
 
-Expose bigger functions such as `handleReadableSession()` or `handleTimerTick()` from `DataLayer`.
+Do not add bigger `DataLayer` entry points such as `handleReadableSession()` or `handleTimerTick()`.
 
-This reduces code in `Server`, but it moves orchestration into a second layer and quickly recreates long multi-job functions.
+These hide orchestration inside `DataLayer`, recreate long multi-job functions, and make the control flow less explicit.
 
 ### Third Protocol Service Layer
 
-Insert another class between `Server` and `DataLayer`.
+Do not insert another class between `Server` and `DataLayer`.
 
-This is clean in theory but adds another jump in the call path and weakens the explicit flow the redesign is trying to achieve.
+This adds another jump in the call path and weakens the explicit coordinator flow required for `exchange_2`.
 
 ## Architecture
 

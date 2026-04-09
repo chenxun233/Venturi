@@ -88,7 +88,7 @@ Add public methods:
 - if message handling fails, set `m_should_close = true`
 - return whether handling succeeded
 
-The existing private helpers `_tryReadInboundMessage()` and `_handleInboundMessage(...)` remain the implementation core. The new public methods are thin wrappers that preserve ownership while making the orchestration visible at the caller.
+The existing private helpers `tryReadInboundMessage()` and `handleInboundMessage(...)` remain the implementation core. The new public methods are thin wrappers that preserve ownership while making the orchestration visible at the caller.
 
 ### ExchangeProtocol
 
