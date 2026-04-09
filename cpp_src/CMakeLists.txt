@@ -190,6 +190,22 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
+    add_executable(sync_handler_test
+        ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
+        ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
+        ${FPGA_SYNC_DIR}/regression.cpp
+        ${FPGA_SYNC_DIR}/sync_handler.cpp
+        ${FPGA_TEST_DIR}/sync_handler_test.cpp
+    )
+    target_include_directories(sync_handler_test PRIVATE
+        ${FPGA_DRIVER_DIR}
+        ${FPGA_SYNC_DIR}
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(sync_handler_test PRIVATE
+        GTest::gtest_main
+    )
+
     add_executable(tx_translator_test
         ${FPGA_TX_DIR}/tx_translator.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
@@ -302,6 +318,7 @@ if(TARGET GTest::gtest_main)
     include(GoogleTest)
     gtest_discover_tests(fpga_rx_decoder_test)
     gtest_discover_tests(regression_test)
+    gtest_discover_tests(sync_handler_test)
     gtest_discover_tests(tx_translator_test)
     gtest_discover_tests(dummy_exchange_server_test)
     gtest_discover_tests(tx_log_record_test)

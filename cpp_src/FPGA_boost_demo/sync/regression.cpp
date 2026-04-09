@@ -6,7 +6,7 @@ namespace {
 
 constexpr std::size_t kMinFitSamples = 16;
 constexpr std::size_t kRequiredStableUpdates = 4;
-constexpr long double kConvergenceThresholdNsPerTick = 1e-10L;
+constexpr long double kConvergenceThresholdNsPerTick = 1e-7L;
 constexpr long double kQ32Scale = static_cast<long double>(1ULL << 32);
 
 } // namespace
@@ -23,6 +23,15 @@ FpgaSyncSnapshot Regression::readSnapshot() const {
 RegressionPara Regression::returnParaSnapshot() const {
     std::lock_guard<std::mutex> lock(m_regression_mutex);
     return m_regression_para;
+}
+
+RegressionStatusLogRecord Regression::readStatusLogRecord() const {
+    std::lock_guard<std::mutex> lock(m_regression_mutex);
+    RegressionStatusLogRecord record {};
+    record.has_para = m_regression_para.has_para;
+    record.a_ns_per_tick = static_cast<double>(m_regression_para.a_q32) /
+                           static_cast<double>(1ULL << 32);
+    return record;
 }
 
 bool Regression::isFrozen() const {

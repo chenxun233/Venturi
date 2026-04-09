@@ -13,6 +13,7 @@ public:
     void updateSnapshot(const FpgaSyncSnapshot& snapshot);
     FpgaSyncSnapshot readSnapshot() const;
     RegressionPara returnParaSnapshot() const;
+    RegressionStatusLogRecord readStatusLogRecord() const;
     bool isFrozen() const;
     bool convertFpgaToHostTime(uint64_t fpga_tick, uint64_t& host_time_ns) const;
 

@@ -74,3 +74,18 @@ TEST(RegressionTest, keepsFrozenSlopeWhileRefreshingSnapshot) {
     EXPECT_EQ(latest_snapshot.host_time_ns, refreshed_snapshot.host_time_ns);
     EXPECT_EQ(latest_snapshot.interval_ns, refreshed_snapshot.interval_ns);
 }
+
+TEST(RegressionTest, exposesConvertedStatusForLogging) {
+    Regression regression;
+    for (uint64_t idx = 0; idx < 20; ++idx) {
+        regression.updateSnapshot(FpgaSyncSnapshot {
+            .fpga_tick = 1000 + idx * 200,
+            .host_time_ns = 500000 + idx * 1625,
+            .interval_ns = 1000
+        });
+    }
+
+    const RegressionStatusLogRecord status = regression.readStatusLogRecord();
+    EXPECT_TRUE(status.has_para);
+    EXPECT_GT(status.a_ns_per_tick, 0.0);
+}

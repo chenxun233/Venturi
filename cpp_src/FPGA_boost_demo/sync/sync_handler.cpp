@@ -1,7 +1,5 @@
 #include "sync_handler.h"
 
-#include <utility>
-
 SyncHandler::SyncHandler(uint64_t trigger_period):
       m_trigger_period(trigger_period),
       m_trigger_countdown(0){ 

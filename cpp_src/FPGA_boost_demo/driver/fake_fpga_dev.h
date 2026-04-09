@@ -1,6 +1,7 @@
 #pragma once
 
 #include "basic_rx_source.h"
+#include "../common/shared_types.h"
 
 #include <array>
 #include <cstddef>
@@ -22,6 +23,7 @@ public:
                          uint64_t fpga_tick,
                          uint64_t host_time_ns,
                          uint64_t interval_ns);
+    bool readSyncTimestamp(FpgaSyncSnapshot& snapshot) const;
     uint64_t lastWrittenConsPtr(uint16_t que_idx) const;
 
     void _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const override;
@@ -47,5 +49,5 @@ private:
         uint64_t last_written_cons_ptr {0};
     };
 
-    std::vector<QueueState> m_queue_states;
+    mutable std::vector<QueueState> m_queue_states;
 };

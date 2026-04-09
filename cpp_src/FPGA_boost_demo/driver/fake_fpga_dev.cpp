@@ -24,6 +24,22 @@ void FakeFPGADev::setSyncSnapshot(uint16_t que_idx,
     queue_state.interval_ns = interval_ns;
 }
 
+bool FakeFPGADev::readSyncTimestamp(FpgaSyncSnapshot& snapshot) const {
+    if (m_queue_states.empty()) {
+        return false;
+    }
+
+    QueueState& queue_state = m_queue_states.front();
+    snapshot.fpga_tick = queue_state.fpga_tick;
+    snapshot.host_time_ns = queue_state.host_time_ns;
+    snapshot.interval_ns = queue_state.interval_ns;
+    if (queue_state.interval_ns != 0) {
+        queue_state.fpga_tick += queue_state.interval_ns;
+        queue_state.host_time_ns += queue_state.interval_ns;
+    }
+    return true;
+}
+
 uint64_t FakeFPGADev::lastWrittenConsPtr(uint16_t que_idx) const {
     return m_queue_states[que_idx].last_written_cons_ptr;
 }
