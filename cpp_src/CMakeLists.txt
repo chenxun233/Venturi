@@ -183,6 +183,10 @@ if(TARGET GTest::gtest_main)
         ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
         ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
         ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
+        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
+        ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_SYNC_DIR}/regression.cpp
         ${FPGA_TEST_DIR}/fpga_rx_engine_test.cpp
     )
     target_include_directories(fpga_rx_engine_test PRIVATE

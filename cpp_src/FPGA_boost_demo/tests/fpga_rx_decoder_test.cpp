@@ -62,6 +62,8 @@ TEST(FpgaRxDecoderTest, decodesKnownRawBytesIntoExpectedFields) {
     EXPECT_EQ(event.event_tk, 0x000102030405ULL);
     EXPECT_EQ(event.frame_start_tk, 0x00060708090aULL);
     EXPECT_EQ(event.bid_shares, 1234U);
+    EXPECT_EQ(event.bid_price, 5678U);
+    EXPECT_EQ(event.ask_shares, 4321U);
     EXPECT_EQ(event.ask_price, 8765U);
     EXPECT_EQ(event.is_first_event, 1U);
 }

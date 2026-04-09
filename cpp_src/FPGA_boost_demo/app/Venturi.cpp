@@ -146,6 +146,9 @@ int main() {
     strategy0.attachExecutor(executor, 0);
     strategy1.attachExecutor(executor, 1);
     latency_tracker.attachRegression(&regression);
+    engine0.attachLatencyTracker(latency_tracker);
+    engine1.attachLatencyTracker(latency_tracker);
+    engine0.attachRegression(regression);
     std::atomic<bool> running {true};
     CapSignal capture_signal {};
     std::mutex snapshot_mutex;
