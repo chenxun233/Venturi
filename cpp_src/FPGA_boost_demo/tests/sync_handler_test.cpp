@@ -43,3 +43,21 @@ TEST(SyncHandlerTest, initSyncStopsWhenRegressionFreezes) {
     EXPECT_TRUE(regression.isFrozen());
     EXPECT_LT(device.read_count, 64U);
 }
+
+TEST(SyncHandlerTest, initSyncReturnsFalseWhenIntervalsNeverQualify) {
+    SequencedSyncDevice device {};
+    device.snapshots = {
+        FpgaSyncSnapshot {.fpga_tick = 1000, .host_time_ns = 500000, .interval_ns = 4000},
+        FpgaSyncSnapshot {.fpga_tick = 1200, .host_time_ns = 501250, .interval_ns = 4000},
+        FpgaSyncSnapshot {.fpga_tick = 1400, .host_time_ns = 502500, .interval_ns = 4000},
+        FpgaSyncSnapshot {.fpga_tick = 1600, .host_time_ns = 503750, .interval_ns = 4000},
+    };
+
+    Regression regression;
+    SyncHandler sync_handler(64);
+    FpgaSyncSnapshot snapshot {};
+
+    EXPECT_FALSE(sync_handler.initSync(device, regression, snapshot, 4, 2000));
+    EXPECT_FALSE(regression.isFrozen());
+    EXPECT_EQ(device.read_count, 4U);
+}
