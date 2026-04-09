@@ -110,8 +110,10 @@ int main() {
 
     device.setSync(kSyncEnabled);
 
-    FPGARxEngine engine0(device, 0);
-    FPGARxEngine engine1(device, 1);
+    FPGARxDecoder decoder0;
+    FPGARxDecoder decoder1;
+    FPGARxEngine engine0(device, decoder0, 0);
+    FPGARxEngine engine1(device, decoder1, 1);
     DummyStrategy strategy0;
     DummyStrategy strategy1;
     Executor executor(kQueueCount, kExecutorQueueCapacity);
@@ -144,10 +146,6 @@ int main() {
     strategy0.attachExecutor(executor, 0);
     strategy1.attachExecutor(executor, 1);
     latency_tracker.attachRegression(&regression);
-    engine0.attachLatencyTracker(latency_tracker);
-    engine1.attachLatencyTracker(latency_tracker);
-    engine0.attachRegression(regression);
-
     std::atomic<bool> running {true};
     CapSignal capture_signal {};
     std::mutex snapshot_mutex;
@@ -244,9 +242,10 @@ int main() {
         while (running.load(std::memory_order_acquire)) {
             const bool get_time =
                 capture_signal.request.exchange(false, std::memory_order_acq_rel);
+            FirstEventMask mask {};
             FpgaSyncSnapshot snapshot {};
             const std::size_t count =
-                engine0.pollBatchSync(MAX_POLL_RECORDS, get_time, snapshot);
+                engine0.pollDecodedBatchSync(mask, MAX_POLL_RECORDS, get_time, snapshot);
             if (get_time && snapshot.interval_ns != 0) {
                 const std::lock_guard<std::mutex> snapshot_lock(snapshot_mutex);
                 sync_snapshot = regression.readSnapshot();
@@ -262,7 +261,8 @@ int main() {
     });
     rx_threads.emplace_back([&]() {
         while (running.load(std::memory_order_acquire)) {
-            const std::size_t count = engine1.pollBatch(MAX_POLL_RECORDS, false);
+            FirstEventMask mask {};
+            const std::size_t count = engine1.pollDecodedBatch(mask, MAX_POLL_RECORDS);
             if (count > 0) {
                 strategy1.onEvents(engine1.readEventBuffer().data(), count);
             }

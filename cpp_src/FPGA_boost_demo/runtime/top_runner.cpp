@@ -87,7 +87,6 @@ void TopRunner::run() {
             return;
         }
 
-        m_rx_engines[engine_idx].engine->attachLatencyTracker(*m_latency_tracker);
         if (m_rx_engines[engine_idx].use_sync_path) {
             ++sync_path_count;
         }
@@ -105,9 +104,11 @@ void TopRunner::run() {
         if (!m_rx_engines[engine_idx].use_sync_path) {
             continue;
         }
-        (void)m_rx_engines[engine_idx].engine->pollBatchSync(MAX_POLL_RECORDS,
-                                                             true,
-                                                             m_sync_snapshot);
+        FirstEventMask mask {};
+        (void)m_rx_engines[engine_idx].engine->pollDecodedBatchSync(mask,
+                                                                    MAX_POLL_RECORDS,
+                                                                    true,
+                                                                    m_sync_snapshot);
         break;
     }
 
@@ -150,12 +151,14 @@ void TopRunner::run() {
                 const bool get_time = use_sync_path
                     ? m_capture_signal.request.exchange(false, std::memory_order_acq_rel)
                     : false;
+                FirstEventMask mask {};
 
                 const std::size_t count = use_sync_path
-                    ? engine.pollBatchSync(MAX_POLL_RECORDS,
-                                           get_time,
-                                           m_sync_snapshot)
-                    : engine.pollBatch(MAX_POLL_RECORDS, get_time);
+                    ? engine.pollDecodedBatchSync(mask,
+                                                  MAX_POLL_RECORDS,
+                                                  get_time,
+                                                  m_sync_snapshot)
+                    : engine.pollDecodedBatch(mask, MAX_POLL_RECORDS);
 
                 if (count == 0) {
                     std::this_thread::yield();
