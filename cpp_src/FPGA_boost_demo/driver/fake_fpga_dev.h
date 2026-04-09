@@ -49,5 +49,5 @@ private:
         uint64_t last_written_cons_ptr {0};
     };
 
-    mutable std::vector<QueueState> m_queue_states;
+    std::vector<QueueState> m_queue_states;
 };

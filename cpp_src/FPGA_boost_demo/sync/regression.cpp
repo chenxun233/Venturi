@@ -6,7 +6,7 @@ namespace {
 
 constexpr std::size_t kMinFitSamples = 16;
 constexpr std::size_t kRequiredStableUpdates = 4;
-constexpr long double kConvergenceThresholdNsPerTick = 1e-7L;
+constexpr long double kConvergenceThresholdNsPerTick = 1e-10L;
 constexpr long double kQ32Scale = static_cast<long double>(1ULL << 32);
 
 } // namespace

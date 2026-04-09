@@ -29,14 +29,10 @@ bool FakeFPGADev::readSyncTimestamp(FpgaSyncSnapshot& snapshot) const {
         return false;
     }
 
-    QueueState& queue_state = m_queue_states.front();
+    const QueueState& queue_state = m_queue_states.front();
     snapshot.fpga_tick = queue_state.fpga_tick;
     snapshot.host_time_ns = queue_state.host_time_ns;
     snapshot.interval_ns = queue_state.interval_ns;
-    if (queue_state.interval_ns != 0) {
-        queue_state.fpga_tick += queue_state.interval_ns;
-        queue_state.host_time_ns += queue_state.interval_ns;
-    }
     return true;
 }
 

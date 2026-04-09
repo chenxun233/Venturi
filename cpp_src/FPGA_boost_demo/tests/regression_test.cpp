@@ -6,7 +6,7 @@
 namespace {
 
 constexpr uint64_t kOffsetNs = 123456789ULL;
-constexpr long double kSlopeNsPerTick = 6.3998296L;
+constexpr long double kSlopeNsPerTick = 6.25L;
 constexpr uint64_t kFirstTestTick = 1000000ULL;
 constexpr uint64_t kLastTestTick = 12000000ULL;
 constexpr uint64_t kTickStep = 500000ULL;
@@ -85,7 +85,11 @@ TEST(RegressionTest, exposesConvertedStatusForLogging) {
         });
     }
 
+    const RegressionPara para = regression.returnParaSnapshot();
     const RegressionStatusLogRecord status = regression.readStatusLogRecord();
+    const double expected_a_ns_per_tick =
+        static_cast<double>(para.a_q32) / static_cast<double>(1ULL << 32);
+
     EXPECT_TRUE(status.has_para);
-    EXPECT_GT(status.a_ns_per_tick, 0.0);
+    EXPECT_DOUBLE_EQ(status.a_ns_per_tick, expected_a_ns_per_tick);
 }
