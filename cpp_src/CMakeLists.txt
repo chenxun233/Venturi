@@ -344,6 +344,23 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
+    add_executable(latency_tracker_test
+        ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
+        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_SYNC_DIR}/regression.cpp
+        ${FPGA_TEST_DIR}/latency_tracker_test.cpp
+    )
+    target_include_directories(latency_tracker_test PRIVATE
+        ${FPGA_LATENCY_DIR}
+        ${FPGA_SYNC_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(latency_tracker_test PRIVATE
+        GTest::gtest_main
+    )
+
     add_executable(trace_buffer_overwrite_test
         ${FPGA_TEST_DIR}/trace_buffer_overwrite_test.cpp
     )
@@ -379,6 +396,7 @@ if(TARGET GTest::gtest_main)
     gtest_discover_tests(dummy_exchange_server_test)
     gtest_discover_tests(tx_log_record_test)
     gtest_discover_tests(log_printer_test)
+    gtest_discover_tests(latency_tracker_test)
     gtest_discover_tests(trace_buffer_overwrite_test)
     gtest_discover_tests(fixed_ring_buffer_test)
 endif()

@@ -64,8 +64,21 @@ private:
     struct PendingEventState {
         uint64_t frame_start_host_ns {0};
         uint64_t dma_emit_host_ns {0};
+        uint64_t decode_host_ns {0};
+        uint64_t strategy_host_ns {0};
+        uint64_t executor_host_ns {0};
+        uint64_t tx_enqueue_host_ns {0};
         uint64_t frame_start_to_dma_emit_ns {0};
+        int64_t dma_emit_to_decode_ns {0};
+        int64_t decode_to_strategy_ns {0};
+        int64_t strategy_to_executor_ns {0};
+        int64_t executor_to_tx_enqueue_ns {0};
+        int64_t tx_enqueue_to_tx_send_ns {0};
         bool has_dma_emit {false};
+        bool has_decode {false};
+        bool has_strategy {false};
+        bool has_executor {false};
+        bool has_tx_enqueue {false};
     };
 
     void _processRecord(const TimeRecord& record);
@@ -75,6 +88,15 @@ private:
                         std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it);
     void _handleDecode(const TimeRecord& record,
                        std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it);
+    void _handleStrategy(const TimeRecord& record,
+                         std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it);
+    void _handleExecutor(const TimeRecord& record,
+                         std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it);
+    void _handleTxEnqueue(const TimeRecord& record,
+                          std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it);
+    void _handleTxSend(const TimeRecord& record,
+                       std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it);
+    static int64_t _readSignedDelta(uint64_t later_ns, uint64_t earlier_ns);
     void _updateStats(const StageLatency& latency);
     void _incrementDrop(uint16_t que_idx, stage prev_stage, stage curr_stage);
     LatencyStats& _readOrCreateStats(uint16_t que_idx, stage prev_stage, stage curr_stage);

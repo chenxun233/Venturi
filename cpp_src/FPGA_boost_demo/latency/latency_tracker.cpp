@@ -71,16 +71,28 @@ void LatencyTracker::_processRecord(const TimeRecord& record) {
         return;
     }
 
-    if (record.event_stage == stage::DMA_EMIT) {
-        _handleDmaEmit(record, it);
-        return;
+    switch (record.event_stage) {
+        case stage::DMA_EMIT:
+            _handleDmaEmit(record, it);
+            return;
+        case stage::DECODE:
+            _handleDecode(record, it);
+            return;
+        case stage::STRATEGY:
+            _handleStrategy(record, it);
+            return;
+        case stage::EXECUTOR:
+            _handleExecutor(record, it);
+            return;
+        case stage::TX_ENQUEUE:
+            _handleTxEnqueue(record, it);
+            return;
+        case stage::TX_SEND:
+            _handleTxSend(record, it);
+            return;
+        default:
+            return;
     }
-
-    if (record.event_stage != stage::DECODE) {
-        return;
-    }
-
-    _handleDecode(record, it);
 }
 
 void LatencyTracker::_handleFrameStart(const EventKey& event_key, const TimeRecord& record) {
@@ -105,10 +117,27 @@ void LatencyTracker::_handleFrameStart(const EventKey& event_key, const TimeReco
 }
 
 void LatencyTracker::_handleMissingPendingRecord(const TimeRecord& record) {
-    if (record.event_stage == stage::DMA_EMIT) {
-        _incrementDrop(record.que_idx, stage::FRAME_START, stage::DMA_EMIT);
-    } else if (record.event_stage == stage::DECODE) {
-        _incrementDrop(record.que_idx, stage::DMA_EMIT, stage::DECODE);
+    switch (record.event_stage) {
+        case stage::DMA_EMIT:
+            _incrementDrop(record.que_idx, stage::FRAME_START, stage::DMA_EMIT);
+            return;
+        case stage::DECODE:
+            _incrementDrop(record.que_idx, stage::DMA_EMIT, stage::DECODE);
+            return;
+        case stage::STRATEGY:
+            _incrementDrop(record.que_idx, stage::DECODE, stage::STRATEGY);
+            return;
+        case stage::EXECUTOR:
+            _incrementDrop(record.que_idx, stage::STRATEGY, stage::EXECUTOR);
+            return;
+        case stage::TX_ENQUEUE:
+            _incrementDrop(record.que_idx, stage::EXECUTOR, stage::TX_ENQUEUE);
+            return;
+        case stage::TX_SEND:
+            _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND);
+            return;
+        default:
+            return;
     }
 }
 
@@ -153,20 +182,118 @@ void LatencyTracker::_handleDecode(
         return;
     }
 
-    const int64_t dma_emit_to_decode_ns =
-        (record.time_captured >= state.dma_emit_host_ns)
-            ? static_cast<int64_t>(record.time_captured - state.dma_emit_host_ns)
-            : -static_cast<int64_t>(state.dma_emit_host_ns - record.time_captured);
+    state.decode_host_ns = record.time_captured;
+    state.dma_emit_to_decode_ns = _readSignedDelta(record.time_captured, state.dma_emit_host_ns);
 
-    if (dma_emit_to_decode_ns >= 0) {
+    if (state.dma_emit_to_decode_ns >= 0) {
         const StageLatency latency {
             .que_idx = record.que_idx,
             .event_ts = record.event_ts,
             .prev_stage = stage::DMA_EMIT,
             .curr_stage = stage::DECODE,
-            .latency = static_cast<uint64_t>(dma_emit_to_decode_ns)
+            .latency = static_cast<uint64_t>(state.dma_emit_to_decode_ns)
         };
         _updateStats(latency);
+    }
+
+    state.has_decode = true;
+}
+
+void LatencyTracker::_handleStrategy(
+    const TimeRecord& record,
+    std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it) {
+    PendingEventState& state = it->second;
+    if (!state.has_decode) {
+        _incrementDrop(record.que_idx, stage::DECODE, stage::STRATEGY);
+        m_pending_records.erase(it);
+        return;
+    }
+
+    state.strategy_host_ns = record.time_captured;
+    state.decode_to_strategy_ns = _readSignedDelta(record.time_captured, state.decode_host_ns);
+    if (state.decode_to_strategy_ns >= 0) {
+        _updateStats(StageLatency {
+            .que_idx = record.que_idx,
+            .event_ts = record.event_ts,
+            .prev_stage = stage::DECODE,
+            .curr_stage = stage::STRATEGY,
+            .latency = static_cast<uint64_t>(state.decode_to_strategy_ns)
+        });
+    }
+
+    state.has_strategy = true;
+}
+
+void LatencyTracker::_handleExecutor(
+    const TimeRecord& record,
+    std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it) {
+    PendingEventState& state = it->second;
+    if (!state.has_strategy) {
+        _incrementDrop(record.que_idx, stage::STRATEGY, stage::EXECUTOR);
+        m_pending_records.erase(it);
+        return;
+    }
+
+    state.executor_host_ns = record.time_captured;
+    state.strategy_to_executor_ns = _readSignedDelta(record.time_captured, state.strategy_host_ns);
+    if (state.strategy_to_executor_ns >= 0) {
+        _updateStats(StageLatency {
+            .que_idx = record.que_idx,
+            .event_ts = record.event_ts,
+            .prev_stage = stage::STRATEGY,
+            .curr_stage = stage::EXECUTOR,
+            .latency = static_cast<uint64_t>(state.strategy_to_executor_ns)
+        });
+    }
+
+    state.has_executor = true;
+}
+
+void LatencyTracker::_handleTxEnqueue(
+    const TimeRecord& record,
+    std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it) {
+    PendingEventState& state = it->second;
+    if (!state.has_executor) {
+        _incrementDrop(record.que_idx, stage::EXECUTOR, stage::TX_ENQUEUE);
+        m_pending_records.erase(it);
+        return;
+    }
+
+    state.tx_enqueue_host_ns = record.time_captured;
+    state.executor_to_tx_enqueue_ns =
+        _readSignedDelta(record.time_captured, state.executor_host_ns);
+    if (state.executor_to_tx_enqueue_ns >= 0) {
+        _updateStats(StageLatency {
+            .que_idx = record.que_idx,
+            .event_ts = record.event_ts,
+            .prev_stage = stage::EXECUTOR,
+            .curr_stage = stage::TX_ENQUEUE,
+            .latency = static_cast<uint64_t>(state.executor_to_tx_enqueue_ns)
+        });
+    }
+
+    state.has_tx_enqueue = true;
+}
+
+void LatencyTracker::_handleTxSend(
+    const TimeRecord& record,
+    std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator it) {
+    PendingEventState& state = it->second;
+    if (!state.has_tx_enqueue) {
+        _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND);
+        m_pending_records.erase(it);
+        return;
+    }
+
+    state.tx_enqueue_to_tx_send_ns = _readSignedDelta(record.time_captured, state.tx_enqueue_host_ns);
+    if (state.tx_enqueue_to_tx_send_ns >= 0) {
+        _updateStats(StageLatency {
+            .que_idx = record.que_idx,
+            .event_ts = record.event_ts,
+            .prev_stage = stage::TX_ENQUEUE,
+            .curr_stage = stage::TX_SEND,
+            .latency = static_cast<uint64_t>(state.tx_enqueue_to_tx_send_ns)
+        });
     }
 
     if (m_log_printer != nullptr) {
@@ -174,10 +301,20 @@ void LatencyTracker::_handleDecode(
             .que_idx = record.que_idx,
             .event_ts = record.event_ts,
             .frame_start_to_dma_emit_ns = state.frame_start_to_dma_emit_ns,
-            .dma_emit_to_decode_ns = dma_emit_to_decode_ns
+            .dma_emit_to_decode_ns = state.dma_emit_to_decode_ns,
+            .decode_to_strategy_ns = state.decode_to_strategy_ns,
+            .strategy_to_executor_ns = state.strategy_to_executor_ns,
+            .executor_to_tx_enqueue_ns = state.executor_to_tx_enqueue_ns,
+            .tx_enqueue_to_tx_send_ns = state.tx_enqueue_to_tx_send_ns
         });
     }
     m_pending_records.erase(it);
+}
+
+int64_t LatencyTracker::_readSignedDelta(uint64_t later_ns, uint64_t earlier_ns) {
+    return (later_ns >= earlier_ns)
+        ? static_cast<int64_t>(later_ns - earlier_ns)
+        : -static_cast<int64_t>(earlier_ns - later_ns);
 }
 
 void LatencyTracker::_updateStats(const StageLatency& latency) {
