@@ -199,13 +199,26 @@ int main() {
             bool did_work = false;
             OrderIntent intent {};
             while (executor.popReadyIntent(intent)) {
-                pushLatencyStage(latency_tracker,
-                                 intent.que_idx,
-                                 intent.event_ts,
-                                 stage::EXECUTOR,
-                                 readMonotonicRawTimeNs());
+                const bool tracked_latency = (intent.event_ts != 0);
+                const uint64_t executor_time_ns =
+                    tracked_latency ? readMonotonicRawTimeNs() : 0;
+
+                while (running.load(std::memory_order_acquire) &&
+                       !tx_translator.acceptIntent(intent)) {
+                    std::this_thread::yield();
+                }
+                if (!running.load(std::memory_order_acquire)) {
+                    break;
+                }
+
+                if (tracked_latency) {
+                    pushLatencyStage(latency_tracker,
+                                     intent.que_idx,
+                                     intent.event_ts,
+                                     stage::EXECUTOR,
+                                     executor_time_ns);
+                }
                 executor.logExecution(intent);
-                (void)tx_translator.acceptIntent(intent);
                 did_work = true;
             }
             if (!did_work) {
@@ -215,13 +228,20 @@ int main() {
 
         OrderIntent intent {};
         while (executor.popReadyIntent(intent)) {
-            pushLatencyStage(latency_tracker,
-                             intent.que_idx,
-                             intent.event_ts,
-                             stage::EXECUTOR,
-                             readMonotonicRawTimeNs());
+            const bool tracked_latency = (intent.event_ts != 0);
+            const uint64_t executor_time_ns =
+                tracked_latency ? readMonotonicRawTimeNs() : 0;
+            while (!tx_translator.acceptIntent(intent)) {
+                std::this_thread::yield();
+            }
+            if (tracked_latency) {
+                pushLatencyStage(latency_tracker,
+                                 intent.que_idx,
+                                 intent.event_ts,
+                                 stage::EXECUTOR,
+                                 executor_time_ns);
+            }
             executor.logExecution(intent);
-            (void)tx_translator.acceptIntent(intent);
         }
     });
     std::thread tx_thread([&]() {
@@ -294,32 +314,47 @@ int main() {
             if (count > 0) {
                 const FPGAEventDesc* events = engine0.readEventBuffer().data();
                 for (std::size_t idx = 0; idx < count; ++idx) {
-                    if ((mask.first_event_mask & (1U << idx)) != 0U) {
-                        pushLatencyStage(latency_tracker,
-                                         0,
-                                         events[idx].event_tk,
-                                         stage::FRAME_START,
-                                         events[idx].frame_start_tk);
-                        pushLatencyStage(latency_tracker,
-                                         0,
-                                         events[idx].event_tk,
-                                         stage::DMA_EMIT,
-                                         events[idx].event_tk);
-                        pushLatencyStage(latency_tracker,
-                                         0,
-                                         events[idx].event_tk,
-                                         stage::DECODE,
-                                         readMonotonicRawTimeNs());
-                    }
+                    const bool is_first_event =
+                        ((mask.first_event_mask & (1U << idx)) != 0U);
+                    const uint64_t decode_time_ns =
+                        is_first_event ? readMonotonicRawTimeNs() : 0;
                     OrderIntent intent {};
                     if (strategy0.evaluateEvent(events[idx], intent)) {
                         intent.que_idx = 0;
-                        pushLatencyStage(latency_tracker,
-                                         intent.que_idx,
-                                         intent.event_ts,
-                                         stage::STRATEGY,
-                                         readMonotonicRawTimeNs());
-                        (void)executor.acceptIntent(0, intent);
+                        if (!is_first_event) {
+                            intent.event_ts = 0;
+                        }
+                        const uint64_t strategy_time_ns =
+                            is_first_event ? readMonotonicRawTimeNs() : 0;
+                        while (running.load(std::memory_order_acquire) &&
+                               !executor.acceptIntent(0, intent)) {
+                            std::this_thread::yield();
+                        }
+                        if (!running.load(std::memory_order_acquire)) {
+                            break;
+                        }
+                        if (is_first_event) {
+                            pushLatencyStage(latency_tracker,
+                                             0,
+                                             events[idx].event_tk,
+                                             stage::FRAME_START,
+                                             events[idx].frame_start_tk);
+                            pushLatencyStage(latency_tracker,
+                                             0,
+                                             events[idx].event_tk,
+                                             stage::DMA_EMIT,
+                                             events[idx].event_tk);
+                            pushLatencyStage(latency_tracker,
+                                             0,
+                                             events[idx].event_tk,
+                                             stage::DECODE,
+                                             decode_time_ns);
+                            pushLatencyStage(latency_tracker,
+                                             intent.que_idx,
+                                             intent.event_ts,
+                                             stage::STRATEGY,
+                                             strategy_time_ns);
+                        }
                     }
                 }
             }
@@ -335,32 +370,47 @@ int main() {
             if (count > 0) {
                 const FPGAEventDesc* events = engine1.readEventBuffer().data();
                 for (std::size_t idx = 0; idx < count; ++idx) {
-                    if ((mask.first_event_mask & (1U << idx)) != 0U) {
-                        pushLatencyStage(latency_tracker,
-                                         1,
-                                         events[idx].event_tk,
-                                         stage::FRAME_START,
-                                         events[idx].frame_start_tk);
-                        pushLatencyStage(latency_tracker,
-                                         1,
-                                         events[idx].event_tk,
-                                         stage::DMA_EMIT,
-                                         events[idx].event_tk);
-                        pushLatencyStage(latency_tracker,
-                                         1,
-                                         events[idx].event_tk,
-                                         stage::DECODE,
-                                         readMonotonicRawTimeNs());
-                    }
+                    const bool is_first_event =
+                        ((mask.first_event_mask & (1U << idx)) != 0U);
+                    const uint64_t decode_time_ns =
+                        is_first_event ? readMonotonicRawTimeNs() : 0;
                     OrderIntent intent {};
                     if (strategy1.evaluateEvent(events[idx], intent)) {
                         intent.que_idx = 1;
-                        pushLatencyStage(latency_tracker,
-                                         intent.que_idx,
-                                         intent.event_ts,
-                                         stage::STRATEGY,
-                                         readMonotonicRawTimeNs());
-                        (void)executor.acceptIntent(1, intent);
+                        if (!is_first_event) {
+                            intent.event_ts = 0;
+                        }
+                        const uint64_t strategy_time_ns =
+                            is_first_event ? readMonotonicRawTimeNs() : 0;
+                        while (running.load(std::memory_order_acquire) &&
+                               !executor.acceptIntent(1, intent)) {
+                            std::this_thread::yield();
+                        }
+                        if (!running.load(std::memory_order_acquire)) {
+                            break;
+                        }
+                        if (is_first_event) {
+                            pushLatencyStage(latency_tracker,
+                                             1,
+                                             events[idx].event_tk,
+                                             stage::FRAME_START,
+                                             events[idx].frame_start_tk);
+                            pushLatencyStage(latency_tracker,
+                                             1,
+                                             events[idx].event_tk,
+                                             stage::DMA_EMIT,
+                                             events[idx].event_tk);
+                            pushLatencyStage(latency_tracker,
+                                             1,
+                                             events[idx].event_tk,
+                                             stage::DECODE,
+                                             decode_time_ns);
+                            pushLatencyStage(latency_tracker,
+                                             intent.que_idx,
+                                             intent.event_ts,
+                                             stage::STRATEGY,
+                                             strategy_time_ns);
+                        }
                     }
                 }
             }

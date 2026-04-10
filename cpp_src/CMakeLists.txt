@@ -388,6 +388,7 @@ if(TARGET GTest::gtest_main)
 
     include(GoogleTest)
     gtest_discover_tests(fpga_rx_decoder_test)
+    gtest_discover_tests(fpga_rx_engine_test)
     gtest_discover_tests(regression_test)
     gtest_discover_tests(sync_handler_test)
     gtest_discover_tests(tx_translator_test)
