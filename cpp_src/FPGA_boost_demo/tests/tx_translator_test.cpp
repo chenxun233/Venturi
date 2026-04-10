@@ -170,6 +170,29 @@ TEST(TxTranslatorTest, loginAcceptReleasesBufferedOrdersWithIncreasingTags) {
     EXPECT_EQ(second.payload[3], static_cast<uint8_t>('O'));
 }
 
+TEST(TxTranslatorTest, acceptedIntentMetadataIsPreservedInOutboundRecord) {
+    TxTranslator translator(4);
+
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_ts = 0x123456789abcdef0ULL,
+        .intent = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    translator.onTransportConnected();
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
+
+    TxOutboundRecord record {};
+    ASSERT_TRUE(translator.popReadyOutbound(record));
+    EXPECT_EQ(record.que_idx, 1U);
+    EXPECT_EQ(record.event_ts, 0x123456789abcdef0ULL);
+}
+
 TEST(TxTranslatorTest, invalidIntentActionDoesNotProduceOrderFrame) {
     TxTranslator translator(4);
 

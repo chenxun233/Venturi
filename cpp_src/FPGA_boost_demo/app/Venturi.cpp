@@ -14,8 +14,8 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <ctime>
 #include <cstdio>
-#include <limits>
 #include <mutex>
 #include <string_view>
 #include <thread>
@@ -56,7 +56,6 @@ constexpr std::size_t kLatencyQueueCapacity = 1024;
 constexpr std::size_t kLatencyLogCapacity = 4096;
 constexpr std::size_t kExecutorQueueCapacity = 1024;
 constexpr uint64_t    accepted_interval_ns = 2000;
-constexpr auto kLatencyTrackerSleep = std::chrono::microseconds(50);
 constexpr std::string_view kTxBindIp = "192.168.51.1";
 constexpr std::string_view kTxServerIp = "192.168.51.2";
 constexpr uint16_t kTxServerPort = 9000;
@@ -64,22 +63,24 @@ constexpr std::string_view kTxUsername = "client";
 constexpr std::string_view kTxPassword = "secret";
 constexpr std::string_view kTxSession = "SESSION01";
 
-bool initSync(FPGADev& device,
-              Regression& regression,
-              FpgaSyncSnapshot& snapshot) {
-    for (std::size_t attempt = 0; attempt < kInitSyncMaxAttempts; ++attempt) {
-        if (!device.readSyncTimestamp(snapshot)) {
-            continue;
-        }
-        if (snapshot.interval_ns != 0 && snapshot.interval_ns <= accepted_interval_ns) {
-            regression.updateSnapshot(snapshot);
-        }
-        if (regression.isFrozen()) {
-            printf("initSync converged at attempt %zu \n", attempt + 1);
-            return true;
-        }
-    }
-    return false;
+uint64_t readMonotonicRawTimeNs() {
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL) +
+           static_cast<uint64_t>(ts.tv_nsec);
+}
+
+void pushLatencyStage(LatencyTracker& latency_tracker,
+                      uint16_t que_idx,
+                      uint64_t event_ts,
+                      stage event_stage,
+                      uint64_t time_captured) {
+    (void)latency_tracker.pushRecord(TimeRecord {
+        .que_idx = que_idx,
+        .event_ts = event_ts,
+        .event_stage = event_stage,
+        .time_captured = time_captured,
+    });
 }
 
 
@@ -131,29 +132,39 @@ int main() {
         .port = kTxServerPort,
     });
     LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
-    LogPrinter latency_log_printer(kLatencyLogCapacity);
+    LogPrinter log_printer(kLatencyLogCapacity);
 
     SyncHandler sync_handler(kSnapshotSamplePeriod);
     Regression regression;
 
 
-    latency_tracker.attachLogPrinter(&latency_log_printer);
-    latency_log_printer.start();
-    executor.attachLogPrinter(&latency_log_printer);
-    tx_translator.attachLogPrinter(&latency_log_printer);
-    tx_engine.attachLogPrinter(&latency_log_printer);
+    latency_tracker.attachLogPrinter(&log_printer);
+    log_printer.start();
+    executor.attachLogPrinter(&log_printer);
+    tx_translator.attachLogPrinter(&log_printer);
+    tx_engine.attachLogPrinter(&log_printer);
     latency_tracker.attachRegression(&regression);
-    engine0.attachLatencyTracker(latency_tracker);
-    engine1.attachLatencyTracker(latency_tracker);
     engine0.attachRegression(regression);
     std::atomic<bool> running {true};
     CapSignal capture_signal {};
     std::mutex snapshot_mutex;
     FpgaSyncSnapshot sync_snapshot {};
     bool has_latest_snapshot {false};
-    if (!initSync(device, regression, sync_snapshot)) {
+    for (std::size_t warmup_idx = 0; warmup_idx < kInitSyncWarmupAttempts; ++warmup_idx) {
+        if (!device.readSyncTimestamp(sync_snapshot)) {
+            continue;
+        }
+        if (sync_snapshot.interval_ns != 0 && sync_snapshot.interval_ns <= accepted_interval_ns) {
+            regression.updateSnapshot(sync_snapshot);
+        }
+    }
+    if (!sync_handler.initSync(device,
+                               regression,
+                               sync_snapshot,
+                               kInitSyncMaxAttempts,
+                               accepted_interval_ns)) {
         error("initSync failed to converge within %zu attempts", kInitSyncMaxAttempts);
-        latency_log_printer.stop();
+        log_printer.stop();
         return 1;
     }
     {
@@ -161,13 +172,7 @@ int main() {
         sync_snapshot = regression.readSnapshot();
         has_latest_snapshot = true;
     }
-    const RegressionPara regression_para = regression.returnParaSnapshot();
-    if (regression_para.has_para) {
-        const double a_ns_per_tick =
-            static_cast<double>(regression_para.a_q32) / static_cast<double>(1ULL << 32);
-        std::printf("a=%.9f\n", a_ns_per_tick);
-        std::fflush(stdout);
-    }
+    (void)log_printer.pushRegressionStatus(regression.readStatusLogRecord());
 
     std::thread control_thread([&]() {
         uint64_t print_countdown = kSnapshotPrintPeriod;
@@ -187,7 +192,7 @@ int main() {
                     }
                 }
                 if (should_print) {
-                    latency_log_printer.pushSnapshot(snapshot_to_print);
+                    (void)log_printer.pushSnapshot(snapshot_to_print);
                 }
                 print_countdown = kSnapshotPrintPeriod;
             }
@@ -203,6 +208,11 @@ int main() {
             bool did_work = false;
             OrderIntent intent {};
             while (executor.popReadyIntent(intent)) {
+                pushLatencyStage(latency_tracker,
+                                 intent.que_idx,
+                                 intent.event_ts,
+                                 stage::EXECUTOR,
+                                 readMonotonicRawTimeNs());
                 executor.logExecution(intent);
                 (void)tx_translator.acceptIntent(intent);
                 did_work = true;
@@ -214,6 +224,11 @@ int main() {
 
         OrderIntent intent {};
         while (executor.popReadyIntent(intent)) {
+            pushLatencyStage(latency_tracker,
+                             intent.que_idx,
+                             intent.event_ts,
+                             stage::EXECUTOR,
+                             readMonotonicRawTimeNs());
             executor.logExecution(intent);
             (void)tx_translator.acceptIntent(intent);
         }
@@ -232,9 +247,23 @@ int main() {
 
             TxOutboundRecord outbound {};
             while (tx_translator.popReadyOutbound(outbound)) {
+                if (outbound.user_ref_num != 0 && outbound.event_ts != 0) {
+                    pushLatencyStage(latency_tracker,
+                                     outbound.que_idx,
+                                     outbound.event_ts,
+                                     stage::TX_ENQUEUE,
+                                     readMonotonicRawTimeNs());
+                }
                 if (!tx_engine.sendOutboundRecord(outbound)) {
                     tx_translator.restoreReadyOutbound(outbound);
                     break;
+                }
+                if (outbound.user_ref_num != 0 && outbound.event_ts != 0) {
+                    pushLatencyStage(latency_tracker,
+                                     outbound.que_idx,
+                                     outbound.event_ts,
+                                     stage::TX_SEND,
+                                     readMonotonicRawTimeNs());
                 }
                 did_work = true;
             }
@@ -274,9 +303,31 @@ int main() {
             if (count > 0) {
                 const FPGAEventDesc* events = engine0.readEventBuffer().data();
                 for (std::size_t idx = 0; idx < count; ++idx) {
+                    if ((mask.first_event_mask & (1U << idx)) != 0U) {
+                        pushLatencyStage(latency_tracker,
+                                         0,
+                                         events[idx].event_tk,
+                                         stage::FRAME_START,
+                                         events[idx].frame_start_tk);
+                        pushLatencyStage(latency_tracker,
+                                         0,
+                                         events[idx].event_tk,
+                                         stage::DMA_EMIT,
+                                         events[idx].event_tk);
+                        pushLatencyStage(latency_tracker,
+                                         0,
+                                         events[idx].event_tk,
+                                         stage::DECODE,
+                                         readMonotonicRawTimeNs());
+                    }
                     OrderIntent intent {};
                     if (strategy0.evaluateEvent(events[idx], intent)) {
                         intent.que_idx = 0;
+                        pushLatencyStage(latency_tracker,
+                                         intent.que_idx,
+                                         intent.event_ts,
+                                         stage::STRATEGY,
+                                         readMonotonicRawTimeNs());
                         (void)executor.acceptIntent(0, intent);
                     }
                 }
@@ -293,9 +344,31 @@ int main() {
             if (count > 0) {
                 const FPGAEventDesc* events = engine1.readEventBuffer().data();
                 for (std::size_t idx = 0; idx < count; ++idx) {
+                    if ((mask.first_event_mask & (1U << idx)) != 0U) {
+                        pushLatencyStage(latency_tracker,
+                                         1,
+                                         events[idx].event_tk,
+                                         stage::FRAME_START,
+                                         events[idx].frame_start_tk);
+                        pushLatencyStage(latency_tracker,
+                                         1,
+                                         events[idx].event_tk,
+                                         stage::DMA_EMIT,
+                                         events[idx].event_tk);
+                        pushLatencyStage(latency_tracker,
+                                         1,
+                                         events[idx].event_tk,
+                                         stage::DECODE,
+                                         readMonotonicRawTimeNs());
+                    }
                     OrderIntent intent {};
                     if (strategy1.evaluateEvent(events[idx], intent)) {
                         intent.que_idx = 1;
+                        pushLatencyStage(latency_tracker,
+                                         intent.que_idx,
+                                         intent.event_ts,
+                                         stage::STRATEGY,
+                                         readMonotonicRawTimeNs());
                         (void)executor.acceptIntent(1, intent);
                     }
                 }
@@ -320,7 +393,7 @@ int main() {
     if (tx_thread.joinable()) {
         tx_thread.join();
     }
-    latency_log_printer.stop();
+    log_printer.stop();
 
     return 0;
 }

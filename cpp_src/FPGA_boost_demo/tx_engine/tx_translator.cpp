@@ -396,6 +396,8 @@ bool TxTranslator::_buildOrderFrame(const OrderIntent& intent, TxOutboundRecord&
 
     record.user_ref_num = m_next_tag++;
     record.stock_locate = intent.stock_locate;
+    record.que_idx = intent.que_idx;
+    record.event_ts = intent.event_ts;
     record.shares = intent.intent.shares;
     record.price = intent.intent.price;
     writeOrderFrame(record, record.user_ref_num, record.stock_locate, record.shares, record.price, side);
