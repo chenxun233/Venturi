@@ -106,6 +106,7 @@ private:
     uint16_t m_next_buffer_idx {0};
     Regression* m_regressions {nullptr};
     LogPrinter* m_log_printer {nullptr};
+    std::mutex m_push_mutex;
     std::mutex m_run_mutex;
     std::unordered_map<EventKey, PendingEventState, EventKeyHash> m_pending_records;
     std::unordered_map<StageKey, LatencyStats, StageKeyHash> m_latency_stats;

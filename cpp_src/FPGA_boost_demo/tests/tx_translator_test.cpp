@@ -193,6 +193,40 @@ TEST(TxTranslatorTest, acceptedIntentMetadataIsPreservedInOutboundRecord) {
     EXPECT_EQ(record.event_ts, 0x123456789abcdef0ULL);
 }
 
+TEST(TxTranslatorTest, replayedOutboundPreservesMetadataAfterDisconnect) {
+    TxTranslator translator(4);
+
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .que_idx = 1,
+        .event_ts = 0x1122334455667788ULL,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    translator.onTransportConnected();
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
+
+    TxOutboundRecord first_send {};
+    ASSERT_TRUE(translator.popReadyOutbound(first_send));
+    EXPECT_EQ(first_send.que_idx, 1U);
+    EXPECT_EQ(first_send.event_ts, 0x1122334455667788ULL);
+
+    translator.onTransportDisconnected();
+    translator.onTransportConnected();
+
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+
+    TxOutboundRecord replayed {};
+    ASSERT_TRUE(translator.popReadyOutbound(replayed));
+    EXPECT_EQ(replayed.que_idx, 1U);
+    EXPECT_EQ(replayed.event_ts, 0x1122334455667788ULL);
+}
+
 TEST(TxTranslatorTest, invalidIntentActionDoesNotProduceOrderFrame) {
     TxTranslator translator(4);
 

@@ -31,6 +31,7 @@ bool LatencyTracker::pushRecord(const TimeRecord& record) {
         throw std::out_of_range("LatencyTracker producer index out of range");
     }
 
+    const std::lock_guard<std::mutex> lock(m_push_mutex);
     return m_trace_buffer[record.que_idx]->push(record);
 }
 

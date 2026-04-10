@@ -50,7 +50,6 @@ constexpr uint64_t kSnapshotSamplePeriod =
 constexpr uint64_t kSnapshotPrintPeriod =
     static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(kSnapshotPrintInterval).count() /
                           kControlLoopSleep.count());
-constexpr std::size_t kInitSyncWarmupAttempts = 32;
 constexpr std::size_t kInitSyncMaxAttempts = 100000;
 constexpr std::size_t kLatencyQueueCapacity = 1024;
 constexpr std::size_t kLatencyLogCapacity = 4096;
@@ -150,14 +149,6 @@ int main() {
     std::mutex snapshot_mutex;
     FpgaSyncSnapshot sync_snapshot {};
     bool has_latest_snapshot {false};
-    for (std::size_t warmup_idx = 0; warmup_idx < kInitSyncWarmupAttempts; ++warmup_idx) {
-        if (!device.readSyncTimestamp(sync_snapshot)) {
-            continue;
-        }
-        if (sync_snapshot.interval_ns != 0 && sync_snapshot.interval_ns <= accepted_interval_ns) {
-            regression.updateSnapshot(sync_snapshot);
-        }
-    }
     if (!sync_handler.initSync(device,
                                regression,
                                sync_snapshot,
