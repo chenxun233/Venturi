@@ -22,6 +22,7 @@ public:
     void run(const std::atomic<bool>& running);
     void drain();
 
+private:
     std::vector<std::unique_ptr<TraceBuffer<OrderIntent>>> m_intent_buffers;
     uint16_t m_producer_num {0};
     uint16_t m_next_buffer_idx {0};

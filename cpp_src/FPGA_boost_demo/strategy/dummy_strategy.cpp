@@ -50,7 +50,6 @@ bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_i
 
     out_intent = OrderIntent {
         .stock_locate = event.stock_locate,
-        .que_idx = 0,
         .event_ts = event.event_tk,
         .intent = {
             .action = action,
