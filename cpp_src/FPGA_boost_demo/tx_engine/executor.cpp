@@ -1,7 +1,6 @@
 #include "executor.h"
 
 #include "../latency/log_printer.h"
-#include "tx_translator.h"
 
 #include <stdexcept>
 
@@ -20,23 +19,40 @@ void Executor::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
-void Executor::attachTranslator(TxTranslator* translator) {
-    m_translator = translator;
-}
-
-bool Executor::pushIntent(uint16_t producer_idx, const OrderIntent& intent) {
+bool Executor::acceptIntent(uint16_t producer_idx, const OrderIntent& intent) {
     if (producer_idx >= m_intent_buffers.size()) {
         throw std::out_of_range("Executor producer index out of range");
     }
     return m_intent_buffers[producer_idx]->push(intent);
 }
 
+bool Executor::popReadyIntent(OrderIntent& intent) {
+    for (uint16_t offset = 0; offset < m_producer_num; ++offset) {
+        const uint16_t buffer_idx = static_cast<uint16_t>((m_next_buffer_idx + offset) % m_producer_num);
+        if (!m_intent_buffers[buffer_idx]->pop(intent)) {
+            continue;
+        }
+        m_next_buffer_idx = static_cast<uint16_t>((buffer_idx + 1) % m_producer_num);
+        return true;
+    }
+    return false;
+}
+
+void Executor::logExecution(const OrderIntent& intent) {
+    if (m_log_printer == nullptr) {
+        return;
+    }
+
+    m_log_printer->pushExecution(ExecutionLogRecord {
+        .stock_locate = intent.stock_locate,
+        .intent = intent.intent
+    });
+}
+
 void Executor::drain() {
     OrderIntent intent {};
-    for (uint16_t producer_idx = 0; producer_idx < m_producer_num; ++producer_idx) {
-        while (m_intent_buffers[producer_idx]->pop(intent)) {
-            _executeIntent(intent);
-        }
+    while (popReadyIntent(intent)) {
+        logExecution(intent);
     }
 }
 
@@ -45,19 +61,4 @@ void Executor::run(const std::atomic<bool>& running) {
         drain();
     }
     drain();
-}
-
-void Executor::_executeIntent(const OrderIntent& intent) {
-    if (m_log_printer != nullptr) {
-        m_log_printer->pushExecution(ExecutionLogRecord {
-            .stock_locate = intent.stock_locate,
-            .intent = intent.intent
-        });
-    }
-
-    if (m_translator == nullptr) {
-        return;
-    }
-
-    (void)m_translator->pushIntent(intent);
 }

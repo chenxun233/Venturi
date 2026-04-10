@@ -245,6 +245,36 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
+    add_executable(dummy_strategy_test
+        ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
+        ${FPGA_TEST_DIR}/dummy_strategy_test.cpp
+    )
+    target_include_directories(dummy_strategy_test PRIVATE
+        ${FPGA_STRATEGY_DIR}
+        ${FPGA_TX_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(dummy_strategy_test PRIVATE
+        GTest::gtest_main
+    )
+
+    add_executable(executor_test
+        ${FPGA_TX_DIR}/executor.cpp
+        ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_TEST_DIR}/executor_test.cpp
+    )
+    target_include_directories(executor_test PRIVATE
+        ${FPGA_TX_DIR}
+        ${FPGA_LATENCY_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(executor_test PRIVATE
+        GTest::gtest_main
+    )
+
     add_executable(dummy_exchange_server_test
         ${FPGA_EXCHANGE_DIR}/dummy_server.cpp
         ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
@@ -344,6 +374,8 @@ if(TARGET GTest::gtest_main)
     gtest_discover_tests(regression_test)
     gtest_discover_tests(sync_handler_test)
     gtest_discover_tests(tx_translator_test)
+    gtest_discover_tests(dummy_strategy_test)
+    gtest_discover_tests(executor_test)
     gtest_discover_tests(dummy_exchange_server_test)
     gtest_discover_tests(tx_log_record_test)
     gtest_discover_tests(log_printer_test)

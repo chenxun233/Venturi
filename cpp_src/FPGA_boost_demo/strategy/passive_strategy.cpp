@@ -1,7 +1,7 @@
 #include "passive_strategy.h"
 
-void PassiveStrategy::onEvents(const FPGAEventDesc* event,
-                               std::size_t count) {
+bool PassiveStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_intent) {
     (void)event;
-    (void)count;
+    (void)out_intent;
+    return false;
 }

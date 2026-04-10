@@ -142,9 +142,6 @@ int main() {
     executor.attachLogPrinter(&latency_log_printer);
     tx_translator.attachLogPrinter(&latency_log_printer);
     tx_engine.attachLogPrinter(&latency_log_printer);
-    executor.attachTranslator(&tx_translator);
-    strategy0.attachExecutor(executor, 0);
-    strategy1.attachExecutor(executor, 1);
     latency_tracker.attachRegression(&regression);
     engine0.attachLatencyTracker(latency_tracker);
     engine1.attachLatencyTracker(latency_tracker);
@@ -202,7 +199,24 @@ int main() {
         }
     });
     std::thread executor_thread([&]() {
-        executor.run(running);
+        while (running.load(std::memory_order_acquire)) {
+            bool did_work = false;
+            OrderIntent intent {};
+            while (executor.popReadyIntent(intent)) {
+                executor.logExecution(intent);
+                (void)tx_translator.pushIntent(intent);
+                did_work = true;
+            }
+            if (!did_work) {
+                std::this_thread::yield();
+            }
+        }
+
+        OrderIntent intent {};
+        while (executor.popReadyIntent(intent)) {
+            executor.logExecution(intent);
+            (void)tx_translator.pushIntent(intent);
+        }
     });
     std::thread tx_thread([&]() {
         while (running.load(std::memory_order_acquire)) {
@@ -255,7 +269,14 @@ int main() {
                 has_latest_snapshot = true;
             }
             if (count > 0) {
-                strategy0.onEvents(engine0.readEventBuffer().data(), count);
+                const FPGAEventDesc* events = engine0.readEventBuffer().data();
+                for (std::size_t idx = 0; idx < count; ++idx) {
+                    OrderIntent intent {};
+                    if (strategy0.evaluateEvent(events[idx], intent)) {
+                        intent.que_idx = 0;
+                        (void)executor.acceptIntent(0, intent);
+                    }
+                }
             }
             if (count == 0) {
                 std::this_thread::yield();
@@ -267,7 +288,14 @@ int main() {
             FirstEventMask mask {};
             const std::size_t count = engine1.pollDecodedBatch(mask, MAX_POLL_RECORDS);
             if (count > 0) {
-                strategy1.onEvents(engine1.readEventBuffer().data(), count);
+                const FPGAEventDesc* events = engine1.readEventBuffer().data();
+                for (std::size_t idx = 0; idx < count; ++idx) {
+                    OrderIntent intent {};
+                    if (strategy1.evaluateEvent(events[idx], intent)) {
+                        intent.que_idx = 1;
+                        (void)executor.acceptIntent(1, intent);
+                    }
+                }
             }
             if (count == 0) {
                 std::this_thread::yield();

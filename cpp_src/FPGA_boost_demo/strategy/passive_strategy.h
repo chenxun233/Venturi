@@ -7,6 +7,5 @@ public:
     PassiveStrategy() = default;
     ~PassiveStrategy() override = default;
 
-    void onEvents(const FPGAEventDesc* event,
-                  std::size_t count) override;
+    bool evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_intent) override;
 };

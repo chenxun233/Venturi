@@ -42,34 +42,23 @@ OrderIntentAction DummyStrategy::_readAction(const FPGAEventDesc& event) const {
     return OrderIntentAction::None;
 }
 
-void DummyStrategy::onEvents(const FPGAEventDesc* event,
-                             std::size_t count) {
-    for (std::size_t idx = 0; idx < count; ++idx) {
-        const FPGAEventDesc& current = event[idx];
-        const OrderIntentAction action = _readAction(current);
-        if (action == OrderIntentAction::None) {
-            continue;
-        }
-        if (action == OrderIntentAction::Buy) {
-            _pushIntent(OrderIntent {
-                .stock_locate = current.stock_locate,
-                .intent = {
-                    .action = action,
-                    .price = (current.bid_price != 0) ? current.bid_price : current.ask_price,
-                    .shares = kIntentShares
-                }
-            });
-            continue;
-        }
-        if (action == OrderIntentAction::Sell) {
-            _pushIntent(OrderIntent {
-                .stock_locate = current.stock_locate,
-                .intent = {
-                    .action = action,
-                    .price = (current.ask_price != 0) ? current.ask_price : current.bid_price,
-                    .shares = kIntentShares
-                }
-            });
-        }
+bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_intent) {
+    const OrderIntentAction action = _readAction(event);
+    if (action == OrderIntentAction::None) {
+        return false;
     }
+
+    out_intent = OrderIntent {
+        .stock_locate = event.stock_locate,
+        .que_idx = 0,
+        .event_ts = event.event_tk,
+        .intent = {
+            .action = action,
+            .price = (action == OrderIntentAction::Buy)
+                ? ((event.bid_price != 0) ? event.bid_price : event.ask_price)
+                : ((event.ask_price != 0) ? event.ask_price : event.bid_price),
+            .shares = kIntentShares
+        }
+    };
+    return true;
 }
