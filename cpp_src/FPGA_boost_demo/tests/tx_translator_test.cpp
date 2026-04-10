@@ -4,7 +4,17 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <type_traits>
 #include <vector>
+
+static_assert(std::is_member_function_pointer_v<decltype(&TxTranslator::acceptIntent)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxTranslator::popReadyOutbound)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxTranslator::restoreReadyOutbound)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxTranslator::onTransportConnected)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxTranslator::acceptInboundPayload)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxTranslator::onTransportDisconnected)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxTranslator::queueHeartbeatIfDue)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxTranslator::buildReadyOutboundFromAcceptedIntents)>);
 
 namespace {
 
@@ -118,10 +128,10 @@ std::vector<uint8_t> makeSequencedRejectedFrame(uint32_t user_ref_num, uint16_t 
 
 TEST(TxTranslatorTest, transportConnectQueuesLoginRequestFrame) {
     TxTranslator translator(4);
-    translator.handleTransportConnected();
+    translator.onTransportConnected();
 
     TxOutboundRecord record {};
-    ASSERT_TRUE(translator.popOutbound(record));
+    ASSERT_TRUE(translator.popReadyOutbound(record));
     EXPECT_EQ(record.user_ref_num, 0U);
     ASSERT_GE(record.payload_length, 3U);
     EXPECT_EQ(record.payload[2], static_cast<uint8_t>('L'));
@@ -130,27 +140,28 @@ TEST(TxTranslatorTest, transportConnectQueuesLoginRequestFrame) {
 TEST(TxTranslatorTest, loginAcceptReleasesBufferedOrdersWithIncreasingTags) {
     TxTranslator translator(4);
 
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x000d,
         .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
     }));
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x0ee8,
         .intent = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
 
-    translator.handleTransportConnected();
+    translator.onTransportConnected();
 
     TxOutboundRecord login {};
-    ASSERT_TRUE(translator.popOutbound(login));
+    ASSERT_TRUE(translator.popReadyOutbound(login));
     EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
 
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
 
     TxOutboundRecord first {};
     TxOutboundRecord second {};
-    ASSERT_TRUE(translator.popOutbound(first));
-    ASSERT_TRUE(translator.popOutbound(second));
+    ASSERT_TRUE(translator.popReadyOutbound(first));
+    ASSERT_TRUE(translator.popReadyOutbound(second));
 
     EXPECT_LT(first.user_ref_num, second.user_ref_num);
     EXPECT_EQ(first.payload[2], static_cast<uint8_t>('U'));
@@ -162,91 +173,95 @@ TEST(TxTranslatorTest, loginAcceptReleasesBufferedOrdersWithIncreasingTags) {
 TEST(TxTranslatorTest, invalidIntentActionDoesNotProduceOrderFrame) {
     TxTranslator translator(4);
 
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x000d,
         .intent = {.action = OrderIntentAction::None, .price = 123450, .shares = 100},
     }));
 
-    translator.handleTransportConnected();
+    translator.onTransportConnected();
 
     TxOutboundRecord login {};
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    EXPECT_FALSE(translator.buildReadyOutboundFromAcceptedIntents());
 
     TxOutboundRecord record {};
-    EXPECT_FALSE(translator.popOutbound(record));
+    EXPECT_FALSE(translator.popReadyOutbound(record));
 }
 
 TEST(TxTranslatorTest, acceptedOrderStopsBeingReplayCandidateAfterDisconnect) {
     TxTranslator translator(4);
 
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x000d,
         .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
     }));
 
-    translator.handleTransportConnected();
+    translator.onTransportConnected();
     TxOutboundRecord login {};
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
 
     TxOutboundRecord order {};
-    ASSERT_TRUE(translator.popOutbound(order));
-    translator.handleInboundPayload(makeSequencedAcceptedFrame(order.user_ref_num, order.stock_locate, order.shares, order.price));
-    translator.handleTransportDisconnect();
-    translator.handleTransportConnected();
+    ASSERT_TRUE(translator.popReadyOutbound(order));
+    translator.acceptInboundPayload(makeSequencedAcceptedFrame(order.user_ref_num, order.stock_locate, order.shares, order.price));
+    translator.onTransportDisconnected();
+    translator.onTransportConnected();
 
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
-    EXPECT_FALSE(translator.popOutbound(order));
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    EXPECT_FALSE(translator.popReadyOutbound(order));
 }
 
 TEST(TxTranslatorTest, executedOrderStopsBeingReplayCandidateAfterDisconnect) {
     TxTranslator translator(4);
 
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x000d,
         .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
     }));
 
-    translator.handleTransportConnected();
+    translator.onTransportConnected();
     TxOutboundRecord login {};
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
 
     TxOutboundRecord order {};
-    ASSERT_TRUE(translator.popOutbound(order));
-    translator.handleInboundPayload(makeSequencedExecutedFrame(order.user_ref_num, order.shares, order.price, 77U));
-    translator.handleTransportDisconnect();
-    translator.handleTransportConnected();
+    ASSERT_TRUE(translator.popReadyOutbound(order));
+    translator.acceptInboundPayload(makeSequencedExecutedFrame(order.user_ref_num, order.shares, order.price, 77U));
+    translator.onTransportDisconnected();
+    translator.onTransportConnected();
 
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
-    EXPECT_FALSE(translator.popOutbound(order));
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    EXPECT_FALSE(translator.popReadyOutbound(order));
 }
 
 TEST(TxTranslatorTest, rejectedOrderStopsBeingReplayCandidateAfterDisconnect) {
     TxTranslator translator(4);
 
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x000d,
         .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
     }));
 
-    translator.handleTransportConnected();
+    translator.onTransportConnected();
     TxOutboundRecord login {};
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
 
     TxOutboundRecord order {};
-    ASSERT_TRUE(translator.popOutbound(order));
-    translator.handleInboundPayload(makeSequencedRejectedFrame(order.user_ref_num, 0x0015));
-    translator.handleTransportDisconnect();
-    translator.handleTransportConnected();
+    ASSERT_TRUE(translator.popReadyOutbound(order));
+    translator.acceptInboundPayload(makeSequencedRejectedFrame(order.user_ref_num, 0x0015));
+    translator.onTransportDisconnected();
+    translator.onTransportConnected();
 
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
-    EXPECT_FALSE(translator.popOutbound(order));
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    EXPECT_FALSE(translator.popReadyOutbound(order));
 }
 
 TEST(TxTranslatorTest, pendingCapacityDropsOldestRecordOnDisconnectRestore) {
@@ -255,41 +270,63 @@ TEST(TxTranslatorTest, pendingCapacityDropsOldestRecordOnDisconnectRestore) {
         .pending_capacity = 2,
     });
 
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x000d,
         .intent = {.action = OrderIntentAction::Buy, .price = 100000, .shares = 10},
     }));
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x0ee8,
         .intent = {.action = OrderIntentAction::Sell, .price = 100100, .shares = 11},
     }));
-    ASSERT_TRUE(translator.pushIntent(OrderIntent {
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
         .stock_locate = 0x000d,
         .intent = {.action = OrderIntentAction::Buy, .price = 100200, .shares = 12},
     }));
 
-    translator.handleTransportConnected();
+    translator.onTransportConnected();
 
     TxOutboundRecord login {};
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
 
     TxOutboundRecord first {};
     TxOutboundRecord second {};
     TxOutboundRecord third {};
-    ASSERT_TRUE(translator.popOutbound(first));
-    ASSERT_TRUE(translator.popOutbound(second));
-    ASSERT_TRUE(translator.popOutbound(third));
+    ASSERT_TRUE(translator.popReadyOutbound(first));
+    ASSERT_TRUE(translator.popReadyOutbound(second));
+    ASSERT_TRUE(translator.popReadyOutbound(third));
 
-    translator.handleTransportDisconnect();
-    translator.handleTransportConnected();
-    ASSERT_TRUE(translator.popOutbound(login));
-    translator.handleInboundPayload(makeLoginAcceptedFrame());
+    translator.onTransportDisconnected();
+    translator.onTransportConnected();
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
 
     TxOutboundRecord resend_first {};
     TxOutboundRecord resend_second {};
-    ASSERT_TRUE(translator.popOutbound(resend_first));
-    ASSERT_TRUE(translator.popOutbound(resend_second));
+    ASSERT_TRUE(translator.popReadyOutbound(resend_first));
+    ASSERT_TRUE(translator.popReadyOutbound(resend_second));
     EXPECT_EQ(resend_first.user_ref_num, second.user_ref_num);
     EXPECT_EQ(resend_second.user_ref_num, third.user_ref_num);
+    EXPECT_FALSE(translator.popReadyOutbound(resend_second));
+}
+
+TEST(TxTranslatorTest, readyOutboundDoesNotDrainAcceptedIntentsUntilExplicitStepRuns) {
+    TxTranslator translator(4);
+
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    translator.onTransportConnected();
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+
+    TxOutboundRecord record {};
+    EXPECT_FALSE(translator.popReadyOutbound(record));
+    EXPECT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
+    ASSERT_TRUE(translator.popReadyOutbound(record));
 }

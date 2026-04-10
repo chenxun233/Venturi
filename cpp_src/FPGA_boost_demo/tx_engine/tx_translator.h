@@ -28,13 +28,14 @@ public:
     explicit TxTranslator(TxTranslatorConfig config);
 
     void attachLogPrinter(LogPrinter* log_printer);
-    bool pushIntent(const OrderIntent& intent);
-    bool popOutbound(TxOutboundRecord& record);
-    void restoreOutbound(const TxOutboundRecord& record);
-    void handleTransportConnected();
-    void handleInboundPayload(const std::vector<uint8_t>& payload);
-    void handleTransportDisconnect();
-    void runHeartBeat();
+    bool acceptIntent(const OrderIntent& intent);
+    bool popReadyOutbound(TxOutboundRecord& record);
+    void restoreReadyOutbound(const TxOutboundRecord& record);
+    void onTransportConnected();
+    void acceptInboundPayload(const std::vector<uint8_t>& payload);
+    void onTransportDisconnected();
+    bool queueHeartbeatIfDue();
+    bool buildReadyOutboundFromAcceptedIntents();
 
 private:
     struct PendingOrderState {
@@ -43,7 +44,6 @@ private:
         std::vector<uint32_t> ordered_tags {};
     };
 
-    void _drainIntentBuffer();
     bool _buildOrderFrame(const OrderIntent& intent, TxOutboundRecord& record);
     void _queueReadyRecord(const TxOutboundRecord& record);
     void _queueBlockedRecord(const TxOutboundRecord& record);

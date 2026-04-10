@@ -204,7 +204,7 @@ int main() {
             OrderIntent intent {};
             while (executor.popReadyIntent(intent)) {
                 executor.logExecution(intent);
-                (void)tx_translator.pushIntent(intent);
+                (void)tx_translator.acceptIntent(intent);
                 did_work = true;
             }
             if (!did_work) {
@@ -215,35 +215,38 @@ int main() {
         OrderIntent intent {};
         while (executor.popReadyIntent(intent)) {
             executor.logExecution(intent);
-            (void)tx_translator.pushIntent(intent);
+            (void)tx_translator.acceptIntent(intent);
         }
     });
     std::thread tx_thread([&]() {
         while (running.load(std::memory_order_acquire)) {
             bool did_work = false;
-            did_work = tx_engine.runTransportStep() || did_work;
+            did_work = tx_engine.pollConnectStep() || did_work;
             if (tx_engine.takeConnectEvent()) {
-                tx_translator.handleTransportConnected();
+                tx_translator.onTransportConnected();
                 did_work = true;
             }
 
-            tx_translator.runHeartBeat();
+            did_work = tx_translator.buildReadyOutboundFromAcceptedIntents() || did_work;
+            did_work = tx_translator.queueHeartbeatIfDue() || did_work;
 
             TxOutboundRecord outbound {};
-            while (tx_translator.popOutbound(outbound)) {
-                if (!tx_engine.takePayload(outbound)) {
-                    tx_translator.restoreOutbound(outbound);
+            while (tx_translator.popReadyOutbound(outbound)) {
+                if (!tx_engine.sendOutboundRecord(outbound)) {
+                    tx_translator.restoreReadyOutbound(outbound);
                     break;
                 }
                 did_work = true;
             }
 
-            for (const std::vector<uint8_t>& payload : tx_engine.drainInboundPayloads()) {
-                tx_translator.handleInboundPayload(payload);
+            std::vector<uint8_t> payload {};
+            while (tx_engine.pollInboundFrame(payload)) {
+                tx_translator.acceptInboundPayload(payload);
+                payload.clear();
                 did_work = true;
             }
             if (tx_engine.takeDisconnectEvent()) {
-                tx_translator.handleTransportDisconnect();
+                tx_translator.onTransportDisconnected();
                 did_work = true;
             }
 

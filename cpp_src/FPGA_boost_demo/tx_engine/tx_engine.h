@@ -1,11 +1,9 @@
 #pragma once
 
 #include "../common/shared_types.h"
-#include "../latency/trace_buffer.h"
 
 #include <chrono>
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 struct GatewayClientConfig {
@@ -26,9 +24,9 @@ public:
     explicit TxEngine(GatewayClientConfig config);
 
     void attachLogPrinter(LogPrinter* log_printer);
-    bool takePayload(const TxOutboundRecord& record);
-    bool runTransportStep();
-    std::vector<std::vector<uint8_t>> drainInboundPayloads();
+    bool pollConnectStep();
+    bool sendOutboundRecord(const TxOutboundRecord& record);
+    bool pollInboundFrame(std::vector<uint8_t>& frame);
     bool takeConnectEvent();
     bool takeDisconnectEvent();
     bool isConnected() const;
@@ -38,16 +36,12 @@ private:
     void _closeConnection();
     void _handleDisconnect(const char* reason);
     bool _sendPayload(const TxOutboundRecord& record);
-    bool _drainOutboundBuffer();
-    bool _pollInboundPayloads();
     void _logConnectionEstablished();
     void _logConnectionLost();
     void _logOrderSent(const TxOutboundRecord& record);
     void _pushTxEvent(const TxLogRecord& record);
 
     GatewayClientConfig m_config {};
-    std::unique_ptr<TraceBuffer<TxOutboundRecord>> m_outbound_buffer;
-    std::vector<std::vector<uint8_t>> m_inbound_payloads {};
     LogPrinter* m_log_printer {nullptr};
     int m_socket_fd {-1};
     bool m_connect_event_pending {false};

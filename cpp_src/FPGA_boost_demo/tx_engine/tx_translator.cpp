@@ -222,15 +222,14 @@ void TxTranslator::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
-bool TxTranslator::pushIntent(const OrderIntent& intent) {
+bool TxTranslator::acceptIntent(const OrderIntent& intent) {
     if (m_intent_buffer == nullptr) {
         return false;
     }
     return m_intent_buffer->push(intent);
 }
 
-bool TxTranslator::popOutbound(TxOutboundRecord& record) {
-    _drainIntentBuffer();
+bool TxTranslator::popReadyOutbound(TxOutboundRecord& record) {
     _normalizeReadyRecords();
     if (m_ready_head >= m_ready_outbound.size()) {
         return false;
@@ -242,7 +241,7 @@ bool TxTranslator::popOutbound(TxOutboundRecord& record) {
     return true;
 }
 
-void TxTranslator::restoreOutbound(const TxOutboundRecord& record) {
+void TxTranslator::restoreReadyOutbound(const TxOutboundRecord& record) {
     if (m_ready_head > 0) {
         --m_ready_head;
         m_ready_outbound[m_ready_head] = record;
@@ -253,7 +252,7 @@ void TxTranslator::restoreOutbound(const TxOutboundRecord& record) {
     m_ready_outbound.push_back(record);
 }
 
-void TxTranslator::handleTransportConnected() {
+void TxTranslator::onTransportConnected() {
     _clearReadyRecords();
     TxOutboundRecord login {};
     writeLoginRequestFrame(login,
@@ -266,7 +265,7 @@ void TxTranslator::handleTransportConnected() {
     m_session_established = false;
 }
 
-void TxTranslator::handleInboundPayload(const std::vector<uint8_t>& payload) {
+void TxTranslator::acceptInboundPayload(const std::vector<uint8_t>& payload) {
     uint8_t packet_type = 0;
     const uint8_t* frame_payload = nullptr;
     std::size_t frame_payload_size = 0;
@@ -332,34 +331,36 @@ void TxTranslator::handleInboundPayload(const std::vector<uint8_t>& payload) {
     }
 }
 
-void TxTranslator::handleTransportDisconnect() {
+void TxTranslator::onTransportDisconnected() {
     _clearReadyRecords();
     m_login_pending = false;
     m_session_established = false;
     _rebuildBlockedRecords();
 }
 
-void TxTranslator::runHeartBeat() {
+bool TxTranslator::queueHeartbeatIfDue() {
     if (!m_session_established) {
-        return;
+        return false;
     }
 
     const auto now = std::chrono::steady_clock::now();
     if (now - m_last_send < m_config.heartbeat_interval) {
-        return;
+        return false;
     }
 
     TxOutboundRecord heartbeat {};
     writeClientHeartbeatFrame(heartbeat);
     _queueReadyRecord(heartbeat);
     m_last_send = now;
+    return true;
 }
 
-void TxTranslator::_drainIntentBuffer() {
+bool TxTranslator::buildReadyOutboundFromAcceptedIntents() {
     if (m_intent_buffer == nullptr) {
-        return;
+        return false;
     }
 
+    bool did_work = false;
     OrderIntent intent {};
     while (m_intent_buffer->pop(intent)) {
         TxOutboundRecord record {};
@@ -367,6 +368,7 @@ void TxTranslator::_drainIntentBuffer() {
             continue;
         }
 
+        did_work = true;
         _recordPendingOrder(record);
         if (m_session_established && !m_login_pending) {
             _queueReadyRecord(record);
@@ -375,6 +377,8 @@ void TxTranslator::_drainIntentBuffer() {
 
         _queueBlockedRecord(record);
     }
+
+    return did_work;
 }
 
 bool TxTranslator::_buildOrderFrame(const OrderIntent& intent, TxOutboundRecord& record) {

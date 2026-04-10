@@ -8,9 +8,9 @@
 #include <string>
 #include <type_traits>
 
-static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::takePayload)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::runTransportStep)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::drainInboundPayloads)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::pollConnectStep)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::sendOutboundRecord)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::pollInboundFrame)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::takeConnectEvent)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxEngine::isConnected)>);
 

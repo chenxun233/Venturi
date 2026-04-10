@@ -96,44 +96,49 @@ TxEngine::TxEngine()
 
 TxEngine::TxEngine(GatewayClientConfig config)
     : m_config(std::move(config)),
-      m_outbound_buffer(std::make_unique<TraceBuffer<TxOutboundRecord>>(m_config.outbound_buffer_capacity)),
       m_next_connect_attempt_at(std::chrono::steady_clock::now()) {}
 
 void TxEngine::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
-bool TxEngine::takePayload(const TxOutboundRecord& record) {
-    if (m_outbound_buffer == nullptr) {
-        return false;
-    }
-    return m_outbound_buffer->push(record);
-}
-
-bool TxEngine::runTransportStep() {
-    bool did_work = false;
+bool TxEngine::pollConnectStep() {
     const auto now = std::chrono::steady_clock::now();
-
     if (m_socket_fd < 0 && now >= m_next_connect_attempt_at) {
         if (_connect()) {
-            did_work = true;
-        } else {
-            m_next_connect_attempt_at = now + m_config.reconnect_delay;
+            return true;
         }
+        m_next_connect_attempt_at = now + m_config.reconnect_delay;
     }
-
-    if (m_socket_fd >= 0) {
-        did_work = _drainOutboundBuffer() || did_work;
-        did_work = _pollInboundPayloads() || did_work;
-    }
-
-    return did_work;
+    return false;
 }
 
-std::vector<std::vector<uint8_t>> TxEngine::drainInboundPayloads() {
-    std::vector<std::vector<uint8_t>> inbound = std::move(m_inbound_payloads);
-    m_inbound_payloads.clear();
-    return inbound;
+bool TxEngine::sendOutboundRecord(const TxOutboundRecord& record) {
+    if (!_sendPayload(record)) {
+        _handleDisconnect("transport send failed");
+        return false;
+    }
+
+    if (record.user_ref_num != 0) {
+        _logOrderSent(record);
+    }
+    return true;
+}
+
+bool TxEngine::pollInboundFrame(std::vector<uint8_t>& frame) {
+    if (m_socket_fd < 0) {
+        return false;
+    }
+
+    const FrameReadStatus status = readFrameNonBlocking(m_socket_fd, frame);
+    if (status == FrameReadStatus::NoData) {
+        return false;
+    }
+    if (status == FrameReadStatus::Disconnected) {
+        _handleDisconnect("server closed the client");
+        return false;
+    }
+    return true;
 }
 
 bool TxEngine::takeConnectEvent() {
@@ -231,50 +236,6 @@ bool TxEngine::_sendPayload(const TxOutboundRecord& record) {
     return sendAll(m_socket_fd,
                    record.payload.data(),
                    static_cast<std::size_t>(record.payload_length));
-}
-
-bool TxEngine::_drainOutboundBuffer() {
-    if (m_outbound_buffer == nullptr || m_socket_fd < 0) {
-        return false;
-    }
-
-    bool did_work = false;
-    TxOutboundRecord record {};
-    while (m_outbound_buffer->pop(record)) {
-        did_work = true;
-        if (_sendPayload(record)) {
-            if (record.user_ref_num != 0) {
-                _logOrderSent(record);
-            }
-            continue;
-        }
-
-        _handleDisconnect("transport send failed");
-        break;
-    }
-    return did_work;
-}
-
-bool TxEngine::_pollInboundPayloads() {
-    if (m_socket_fd < 0) {
-        return false;
-    }
-
-    bool did_work = false;
-    std::vector<uint8_t> frame {};
-    while (true) {
-        const FrameReadStatus status = readFrameNonBlocking(m_socket_fd, frame);
-        if (status == FrameReadStatus::NoData) {
-            return did_work;
-        }
-        if (status == FrameReadStatus::Disconnected) {
-            _handleDisconnect("server closed the client");
-            return true;
-        }
-
-        did_work = true;
-        m_inbound_payloads.push_back(frame);
-    }
 }
 
 void TxEngine::_logConnectionEstablished() {
