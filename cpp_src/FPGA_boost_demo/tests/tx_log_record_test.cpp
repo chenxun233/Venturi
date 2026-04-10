@@ -5,6 +5,10 @@
 #include "../tx_engine/tx_engine.h"
 #undef private
 
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include <array>
 #include <string>
 #include <type_traits>
 
@@ -68,4 +72,63 @@ TEST(TxLogRecordTest, connectEventDefaultsToFalse) {
     TxEngine engine {};
 
     EXPECT_FALSE(engine.takeConnectEvent());
+}
+
+TEST(TxLogRecordTest, sendOutboundRecordWritesPayloadToSocket) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxEngine engine {};
+    engine.m_socket_fd = sockets[0];
+
+    TxOutboundRecord record {};
+    record.user_ref_num = 42;
+    record.payload[0] = 0x00;
+    record.payload[1] = 0x02;
+    record.payload[2] = static_cast<uint8_t>('U');
+    record.payload[3] = static_cast<uint8_t>('R');
+    record.payload_length = 4;
+
+    ASSERT_TRUE(engine.sendOutboundRecord(record));
+
+    std::array<uint8_t, 4> received {};
+    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0), 4);
+    EXPECT_EQ(received[0], record.payload[0]);
+    EXPECT_EQ(received[1], record.payload[1]);
+    EXPECT_EQ(received[2], record.payload[2]);
+    EXPECT_EQ(received[3], record.payload[3]);
+    EXPECT_FALSE(engine.takeDisconnectEvent());
+
+    ::close(sockets[0]);
+    ::close(sockets[1]);
+    engine.m_socket_fd = -1;
+}
+
+TEST(TxLogRecordTest, pollInboundFrameReadsFrameAndDetectsDisconnect) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxEngine engine {};
+    engine.m_socket_fd = sockets[0];
+
+    const std::array<uint8_t, 3> frame {0x00, 0x01, static_cast<uint8_t>('H')};
+    ASSERT_EQ(::send(sockets[1], frame.data(), frame.size(), 0), 3);
+
+    std::vector<uint8_t> inbound {};
+    ASSERT_TRUE(engine.pollInboundFrame(inbound));
+    ASSERT_EQ(inbound.size(), frame.size());
+    EXPECT_EQ(inbound[0], frame[0]);
+    EXPECT_EQ(inbound[1], frame[1]);
+    EXPECT_EQ(inbound[2], frame[2]);
+    EXPECT_FALSE(engine.takeDisconnectEvent());
+
+    ::close(sockets[1]);
+    sockets[1] = -1;
+
+    inbound.clear();
+    EXPECT_FALSE(engine.pollInboundFrame(inbound));
+    EXPECT_TRUE(engine.takeDisconnectEvent());
+
+    ::close(sockets[0]);
+    engine.m_socket_fd = -1;
 }

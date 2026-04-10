@@ -12,8 +12,6 @@ struct GatewayClientConfig {
     uint16_t port                               {9000};
     std::chrono::milliseconds reconnect_delay   {250};
     std::chrono::microseconds idle_sleep        {100};
-    std::size_t outbound_buffer_capacity        {1024};
-    std::size_t pending_capacity                {1024};
 };
 
 class LogPrinter;
