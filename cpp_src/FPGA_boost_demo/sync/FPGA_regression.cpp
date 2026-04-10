@@ -4,6 +4,7 @@
 
 namespace {
 
+constexpr std::size_t kMinFitSamples = 16;
 constexpr std::size_t kRequiredStableUpdates = 4;
 constexpr long double kConvergenceThresholdNsPerTick = 1e-8L;
 constexpr long double kQ32Scale = static_cast<long double>(1ULL << 32);
@@ -68,32 +69,62 @@ void FPGARegression::_update_a() {
         return;
     }
 
-    const uint64_t tick_delta = m_cur_snapshot.fpga_tick - m_pre_snapshot.fpga_tick;
-    const uint64_t host_time_delta_ns = m_cur_snapshot.host_time_ns - m_pre_snapshot.host_time_ns;
-    if (tick_delta == 0) {
+    const long double fpga_tick = static_cast<long double>(m_cur_snapshot.fpga_tick);
+    const long double host_time_ns = static_cast<long double>(m_cur_snapshot.host_time_ns);
+    m_sum_fpga_tick += fpga_tick;
+    m_sum_host_time_ns += host_time_ns;
+    m_sum_fpga_tick_sq += fpga_tick * fpga_tick;
+    m_sum_fpga_host_product += fpga_tick * host_time_ns;
+    ++m_sample_count;
+
+    if (m_sample_count < 2) {
         return;
     }
 
-    const int64_t delta_a_q32 =
-        static_cast<int64_t>(m_cur_regression_para.a_q32) -
-        static_cast<int64_t>(m_pre_regression_para.a_q32);
-    if (std::abs(delta_a_q32) < kConvergenceThresholdNsPerTick * kQ32Scale &&
-        delta_a_q32 != 0) {
-        m_cur_regression_para.has_para = true;
-        m_is_frozen = true;
-    } else {
-        const uint64_t new_a_q32 = static_cast<uint64_t>(
-            std::llround((static_cast<long double>(host_time_delta_ns) * kQ32Scale) /
-                         static_cast<long double>(tick_delta)));
-        m_pre_regression_para.a_q32 = m_cur_regression_para.a_q32;
-        m_cur_regression_para.a_q32 = (new_a_q32 + m_cur_regression_para.a_q32 * 7) >> 3;
-        m_cur_regression_para.has_para = false;
+    const long double n = static_cast<long double>(m_sample_count);
+    const long double denominator =
+        n * m_sum_fpga_tick_sq - m_sum_fpga_tick * m_sum_fpga_tick;
+    if (denominator <= 0.0L) {
+        return;
     }
 
-    ++m_snapshot_count;
-    if (m_snapshot_count >= kRequiredStableUpdates && m_cur_regression_para.has_para) {
-        m_is_frozen = true;
+    const long double fitted_a_ns_per_tick =
+        (n * m_sum_fpga_host_product - m_sum_fpga_tick * m_sum_host_time_ns) / denominator;
+    const long double fitted_b_ns =
+        (m_sum_host_time_ns - fitted_a_ns_per_tick * m_sum_fpga_tick) / n;
+    if (fitted_a_ns_per_tick <= 0.0L) {
+        return;
     }
+
+    const uint64_t fitted_a_q32 = static_cast<uint64_t>(
+        std::llround(fitted_a_ns_per_tick * kQ32Scale));
+
+    m_cur_regression_para.a_q32 = fitted_a_q32;
+    m_cur_regression_para.has_para = true;
+    m_fitted_b_ns = fitted_b_ns;
+
+    if (m_sample_count >= kMinFitSamples) {
+        if (m_has_prev_fitted_a) {
+            const uint64_t delta_a_q32 =
+                (fitted_a_q32 >= m_prev_fitted_a_q32)
+                    ? (fitted_a_q32 - m_prev_fitted_a_q32)
+                    : (m_prev_fitted_a_q32 - fitted_a_q32);
+
+            if (delta_a_q32 <= static_cast<uint64_t>(
+                                   std::llround(kConvergenceThresholdNsPerTick * kQ32Scale))) {
+                ++m_converge_count;
+            } else {
+                m_converge_count = 0;
+            }
+        }
+
+        if (m_converge_count >= kRequiredStableUpdates) {
+            m_is_frozen = true;
+        }
+    }
+
+    m_prev_fitted_a_q32 = fitted_a_q32;
+    m_has_prev_fitted_a = true;
 }
 
 uint64_t FPGARegression::_scaleTicksToNs(uint64_t tick_delta, uint64_t a_q32) {

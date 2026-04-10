@@ -61,7 +61,7 @@ TEST(RegressionTest, exposesRegressionStatusAfterSnapshotUpdates) {
 
     const RegressionStatusLogRecord status = regression.readStatusLogRecord();
     ASSERT_TRUE(status.has_para);
-    EXPECT_NEAR(status.a_ns_per_tick, static_cast<double>(kSlopeNsPerTick), 0.5);
+    EXPECT_NEAR(status.a_ns_per_tick, static_cast<double>(kSlopeNsPerTick), 5e-4);
 }
 
 TEST(RegressionTest, convertsHostTimeUsingCurrentSnapshotAnchor) {
@@ -76,13 +76,12 @@ TEST(RegressionTest, convertsHostTimeUsingCurrentSnapshotAnchor) {
     ASSERT_TRUE(regression.convertFpgaToHostTime(converted_tick, host_time_ns));
     EXPECT_NEAR(static_cast<double>(host_time_ns),
                 static_cast<double>(readHostNs(converted_tick)),
-                5000.0);
+                10.0);
 }
 
 TEST(RegressionTest, initSyncStopsWhenRegressionFreezes) {
     SequencedSyncDevice device {};
     appendStableSnapshots(device, 256);
-
     FPGARegression regression(64);
 
     EXPECT_TRUE(regression.initSync(device, device.snapshots.size(), kAcceptedIntervalNs));

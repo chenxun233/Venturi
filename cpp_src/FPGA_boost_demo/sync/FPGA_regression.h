@@ -8,7 +8,7 @@
 
 class FPGARegression {
 public:
-    explicit FPGARegression(uint64_t trigger_period = 0);
+    explicit FPGARegression(uint64_t trigger_period = 100);
 
     template <typename Device>
     bool initSync(Device& device,
@@ -40,9 +40,8 @@ private:
     void                    _update_a();
     static uint64_t         _scaleTicksToNs(uint64_t tick_delta, uint64_t a_q32);
     mutable std::mutex      m_regression_mutex {};
-    RegressionPara          m_pre_regression_para {};
     RegressionPara          m_cur_regression_para {};
-    uint32_t                m_snapshot_count {0};
+    uint32_t                m_converge_count {0};
     bool                    m_is_frozen {false};
 
     uint64_t                m_trigger_period {0};
@@ -50,4 +49,13 @@ private:
     FpgaSyncSnapshot        m_candidate_snapshot {};
     FpgaSyncSnapshot        m_pre_snapshot {};
     FpgaSyncSnapshot        m_cur_snapshot {};
+
+    std::size_t             m_sample_count {0};
+    long double             m_sum_fpga_tick {0.0L};
+    long double             m_sum_host_time_ns {0.0L};
+    long double             m_sum_fpga_tick_sq {0.0L};
+    long double             m_sum_fpga_host_product {0.0L};
+    bool                    m_has_prev_fitted_a {false};
+    uint64_t                m_prev_fitted_a_q32 {0};
+    long double             m_fitted_b_ns {0.0L};
 };
