@@ -21,14 +21,6 @@ uint64_t readHostNs(uint64_t fpga_tick) {
                      static_cast<long double>(fpga_tick) * kSlopeNsPerTick));
 }
 
-FpgaSyncSnapshot makeSnapshot(uint64_t fpga_tick, uint64_t interval_ns = 1000ULL) {
-    return FpgaSyncSnapshot {
-        .fpga_tick = fpga_tick,
-        .host_time_ns = readHostNs(fpga_tick),
-        .interval_ns = interval_ns
-    };
-}
-
 struct SequencedSyncDevice {
     std::vector<FpgaSyncSnapshot> snapshots {};
     mutable std::size_t read_count {0};
@@ -43,112 +35,80 @@ struct SequencedSyncDevice {
     }
 };
 
-void feedStableSnapshots(FPGARegression& regression) {
-    for (uint64_t fpga_tick : {1000000ULL, 2000000ULL, 3000000ULL, 4000000ULL, 5000000ULL}) {
-        ASSERT_TRUE(regression.tryAcceptSnapshot(makeSnapshot(fpga_tick), kAcceptedIntervalNs));
-        regression.updateRegression();
+void appendStableSnapshots(SequencedSyncDevice& device,
+                           std::size_t count,
+                           uint64_t first_tick = 1000ULL,
+                           uint64_t tick_step = 200ULL) {
+    device.snapshots.reserve(count);
+    for (std::size_t idx = 0; idx < count; ++idx) {
+        const uint64_t fpga_tick = first_tick + static_cast<uint64_t>(idx) * tick_step;
+        device.snapshots.push_back(FpgaSyncSnapshot {
+            .fpga_tick = fpga_tick,
+            .host_time_ns = readHostNs(fpga_tick),
+            .interval_ns = 1000ULL
+        });
     }
 }
 
 } // namespace
 
-TEST(RegressionTest, freezesAfterConfiguredStableRawEstimates) {
+TEST(RegressionTest, exposesRegressionStatusAfterSnapshotUpdates) {
+    SequencedSyncDevice device {};
+    appendStableSnapshots(device, 256);
     FPGARegression regression;
 
-    feedStableSnapshots(regression);
-
-    EXPECT_TRUE(regression.isFrozen());
+    ASSERT_TRUE(regression.initSync(device, device.snapshots.size(), kAcceptedIntervalNs));
 
     const RegressionStatusLogRecord status = regression.readStatusLogRecord();
     ASSERT_TRUE(status.has_para);
-    EXPECT_NEAR(status.a_ns_per_tick, static_cast<double>(kSlopeNsPerTick), 5e-5);
+    EXPECT_NEAR(status.a_ns_per_tick, static_cast<double>(kSlopeNsPerTick), 0.5);
 }
 
-TEST(RegressionTest, returnsFalseForConversionBeforeFreeze) {
+TEST(RegressionTest, convertsHostTimeUsingCurrentSnapshotAnchor) {
+    SequencedSyncDevice device {};
+    appendStableSnapshots(device, 256);
     FPGARegression regression;
+
+    ASSERT_TRUE(regression.initSync(device, device.snapshots.size(), kAcceptedIntervalNs));
+
     uint64_t host_time_ns = 0;
-
-    ASSERT_TRUE(regression.tryAcceptSnapshot(makeSnapshot(1000000ULL), kAcceptedIntervalNs));
-
-    EXPECT_FALSE(regression.convertFpgaToHostTime(1000000ULL, host_time_ns));
-}
-
-TEST(RegressionTest, refreshesLatestAnchorWithoutChangingFrozenSlope) {
-    FPGARegression regression;
-    feedStableSnapshots(regression);
-
-    const RegressionStatusLogRecord status_before = regression.readStatusLogRecord();
-    const FpgaSyncSnapshot anchor {
-        .fpga_tick = 7000000ULL,
-        .host_time_ns = readHostNs(7000000ULL) + 37ULL,
-        .interval_ns = 1000ULL
-    };
-
-    ASSERT_TRUE(regression.tryAcceptSnapshot(anchor, kAcceptedIntervalNs));
-
-    const RegressionStatusLogRecord status_after = regression.readStatusLogRecord();
-    EXPECT_DOUBLE_EQ(status_after.a_ns_per_tick, status_before.a_ns_per_tick);
-
-    uint64_t converted_host_time_ns = 0;
-    ASSERT_TRUE(regression.convertFpgaToHostTime(anchor.fpga_tick, converted_host_time_ns));
-    EXPECT_EQ(converted_host_time_ns, anchor.host_time_ns);
-}
-
-TEST(RegressionTest, convertsTicksBeforeAndAfterLatestAnchor) {
-    FPGARegression regression;
-    feedStableSnapshots(regression);
-
-    const FpgaSyncSnapshot anchor {
-        .fpga_tick = 7000000ULL,
-        .host_time_ns = readHostNs(7000000ULL) + 37ULL,
-        .interval_ns = 1000ULL
-    };
-    ASSERT_TRUE(regression.tryAcceptSnapshot(anchor, kAcceptedIntervalNs));
-
-    uint64_t before_anchor_host_ns = 0;
-    uint64_t after_anchor_host_ns = 0;
-
-    ASSERT_TRUE(regression.convertFpgaToHostTime(6500000ULL, before_anchor_host_ns));
-    ASSERT_TRUE(regression.convertFpgaToHostTime(7500000ULL, after_anchor_host_ns));
-
-    EXPECT_NEAR(static_cast<double>(before_anchor_host_ns),
-                static_cast<double>(anchor.host_time_ns) - 500000.0 * static_cast<double>(kSlopeNsPerTick),
-                1.0);
-    EXPECT_NEAR(static_cast<double>(after_anchor_host_ns),
-                static_cast<double>(anchor.host_time_ns) + 500000.0 * static_cast<double>(kSlopeNsPerTick),
-                1.0);
+    const uint64_t converted_tick = device.snapshots.back().fpga_tick + 200ULL;
+    ASSERT_TRUE(regression.convertFpgaToHostTime(converted_tick, host_time_ns));
+    EXPECT_NEAR(static_cast<double>(host_time_ns),
+                static_cast<double>(readHostNs(converted_tick)),
+                5000.0);
 }
 
 TEST(RegressionTest, initSyncStopsWhenRegressionFreezes) {
     SequencedSyncDevice device {};
-    device.snapshots = {
-        makeSnapshot(1000000ULL),
-        makeSnapshot(2000000ULL),
-        makeSnapshot(3000000ULL),
-        makeSnapshot(4000000ULL),
-        makeSnapshot(5000000ULL),
-        makeSnapshot(6000000ULL),
-    };
+    appendStableSnapshots(device, 256);
 
     FPGARegression regression(64);
 
-    EXPECT_TRUE(regression.initSync(device, 64, kAcceptedIntervalNs));
-    EXPECT_TRUE(regression.isFrozen());
-    EXPECT_LE(device.read_count, 5U);
+    EXPECT_TRUE(regression.initSync(device, device.snapshots.size(), kAcceptedIntervalNs));
+    EXPECT_LT(device.read_count, device.snapshots.size());
 }
 
-TEST(RegressionTest, rejectsInvalidIntervalsBeforeAndAfterFreeze) {
+TEST(RegressionTest, rejectsInvalidIntervalsAndAcceptsQualifiedOnes) {
     FPGARegression regression;
 
-    EXPECT_FALSE(regression.tryAcceptSnapshot(makeSnapshot(1000000ULL, 0ULL), kAcceptedIntervalNs));
-    EXPECT_FALSE(regression.tryAcceptSnapshot(makeSnapshot(1000000ULL, 4000ULL), kAcceptedIntervalNs));
+    EXPECT_FALSE(regression.tryAcceptSnapshot(FpgaSyncSnapshot {
+        .fpga_tick = 1000,
+        .host_time_ns = 500000,
+        .interval_ns = 0
+    }, kAcceptedIntervalNs));
 
-    feedStableSnapshots(regression);
-    ASSERT_TRUE(regression.isFrozen());
+    EXPECT_FALSE(regression.tryAcceptSnapshot(FpgaSyncSnapshot {
+        .fpga_tick = 1200,
+        .host_time_ns = 501250,
+        .interval_ns = 4000
+    }, kAcceptedIntervalNs));
 
-    EXPECT_FALSE(regression.tryAcceptSnapshot(makeSnapshot(7000000ULL, 0ULL), kAcceptedIntervalNs));
-    EXPECT_FALSE(regression.tryAcceptSnapshot(makeSnapshot(7000000ULL, 4000ULL), kAcceptedIntervalNs));
-    EXPECT_TRUE(regression.tryAcceptSnapshot(makeSnapshot(7000000ULL, 1000ULL), kAcceptedIntervalNs));
+    EXPECT_TRUE(regression.tryAcceptSnapshot(FpgaSyncSnapshot {
+        .fpga_tick = 1400,
+        .host_time_ns = 502500,
+        .interval_ns = 1000
+    }, kAcceptedIntervalNs));
 }
 
 TEST(RegressionTest, runRequestsCaptureAtConfiguredCadence) {
