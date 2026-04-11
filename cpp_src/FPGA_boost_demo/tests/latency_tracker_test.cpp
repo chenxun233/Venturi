@@ -54,7 +54,7 @@ void appendStableSnapshots(SequencedSyncDevice& device,
         device.snapshots.push_back(FpgaSyncSnapshot {
             .fpga_tick = fpga_tick,
             .host_time_ns = readHostNs(fpga_tick),
-            .interval_ns = 1000ULL
+            .interval_ns = static_cast<uint64_t>(tick_step * kSlopeNsPerTick)
         });
     }
 }
@@ -72,6 +72,7 @@ TEST(LatencyTrackerTest, emitsCompleteChainOnlyAfterTxSend) {
     tracker.attachRegression(&regression);
 
     LogPrinter printer(8);
+    testing::internal::CaptureStdout();
     printer.start();
     tracker.attachLogPrinter(&printer);
 
@@ -86,8 +87,6 @@ TEST(LatencyTrackerTest, emitsCompleteChainOnlyAfterTxSend) {
     const uint64_t executor_host_ns = base_host + 1540ULL;
     const uint64_t tx_enqueue_host_ns = base_host + 1550ULL;
     const uint64_t tx_send_host_ns = base_host + 1560ULL;
-
-    testing::internal::CaptureStdout();
 
     tracker.pushRecord(makeRecord(que_idx, event_ts, stage::FRAME_START, frame_start_tick));
     EXPECT_EQ(tracker.run(), 1U);

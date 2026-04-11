@@ -219,14 +219,6 @@ int main() {
                 std::this_thread::yield();
             }
         }
-
-        OrderIntent intent {};
-        while (executor.popReadyIntent(intent)) {
-            while (!tx_translator.acceptIntent(intent)) {
-                std::this_thread::yield();
-            }
-            executor.logExecution(intent);
-        }
     });
     std::thread tx_thread([&]() {
         while (true) {
