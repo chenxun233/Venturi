@@ -1,5 +1,7 @@
 #include "tx_translator.h"
 
+#include "../common/time_utils.h"
+#include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
 
 #include <algorithm>
@@ -222,6 +224,10 @@ void TxTranslator::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
+void TxTranslator::attachLatenyTracker(LatencyTracker* latency_tracker) {
+    m_latency_tracker = latency_tracker;
+}
+
 bool TxTranslator::acceptIntent(const OrderIntent& intent) {
     if (m_intent_buffer == nullptr) {
         return false;
@@ -407,6 +413,14 @@ bool TxTranslator::_buildOrderFrame(const OrderIntent& intent, TxOutboundRecord&
 void TxTranslator::_queueReadyRecord(const TxOutboundRecord& record) {
     _normalizeReadyRecords();
     m_ready_outbound.push_back(record);
+    if (record.event_ts != 0 && m_latency_tracker != nullptr) {
+        m_latency_tracker->pushRecord(TimeRecord {
+            .que_idx = record.que_idx,
+            .event_ts = record.event_ts,
+            .event_stage = stage::TX_ENQUEUE,
+            .time_captured = readMonotonicRawNs(),
+        });
+    }
 }
 
 void TxTranslator::_queueBlockedRecord(const TxOutboundRecord& record) {

@@ -1,5 +1,7 @@
 #include "tx_engine.h"
 
+#include "../common/time_utils.h"
+#include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
 
 #include <arpa/inet.h>
@@ -102,6 +104,10 @@ void TxEngine::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
+void TxEngine::attachLatenyTracker(LatencyTracker* latency_tracker) {
+    m_latency_tracker = latency_tracker;
+}
+
 bool TxEngine::pollConnectStep() {
     const auto now = std::chrono::steady_clock::now();
     if (m_socket_fd < 0 && now >= m_next_connect_attempt_at) {
@@ -121,6 +127,14 @@ bool TxEngine::sendOutboundRecord(const TxOutboundRecord& record) {
 
     if (record.user_ref_num != 0) {
         _logOrderSent(record);
+    }
+    if (record.event_ts != 0 && m_latency_tracker != nullptr) {
+        m_latency_tracker->pushRecord(TimeRecord {
+            .que_idx = record.que_idx,
+            .event_ts = record.event_ts,
+            .event_stage = stage::TX_SEND,
+            .time_captured = readMonotonicRawNs(),
+        });
     }
     return true;
 }

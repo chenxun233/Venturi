@@ -15,6 +15,7 @@ struct GatewayClientConfig {
 };
 
 class LogPrinter;
+class LatencyTracker;
 
 class TxEngine {
 public:
@@ -22,6 +23,7 @@ public:
     explicit TxEngine(GatewayClientConfig config);
 
     void attachLogPrinter(LogPrinter* log_printer);
+    void attachLatenyTracker(LatencyTracker* latency_tracker);
     bool pollConnectStep();
     bool sendOutboundRecord(const TxOutboundRecord& record);
     bool pollInboundFrame(std::vector<uint8_t>& frame);
@@ -41,6 +43,7 @@ private:
 
     GatewayClientConfig m_config {};
     LogPrinter* m_log_printer {nullptr};
+    LatencyTracker* m_latency_tracker {nullptr};
     int m_socket_fd {-1};
     bool m_connect_event_pending {false};
     bool m_disconnect_event_pending {false};

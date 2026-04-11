@@ -1,6 +1,10 @@
 #include "../common/shared_types.h"
 #include "../tx_engine/tx_translator.h"
 
+#define private public
+#include "../latency/latency_tracker.h"
+#undef private
+
 #include <gtest/gtest.h>
 
 #include <array>
@@ -191,6 +195,31 @@ TEST(TxTranslatorTest, acceptedIntentMetadataIsPreservedInOutboundRecord) {
     ASSERT_TRUE(translator.popReadyOutbound(record));
     EXPECT_EQ(record.que_idx, 1U);
     EXPECT_EQ(record.event_ts, 0x123456789abcdef0ULL);
+}
+
+TEST(TxTranslatorTest, trackedReadyOutboundPushesTxEnqueueRecord) {
+    TxTranslator translator(4);
+    LatencyTracker tracker(2, 8);
+    translator.attachLatenyTracker(&tracker);
+
+    ASSERT_TRUE(translator.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_ts = 0x12345678ULL,
+        .intent = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    translator.onTransportConnected();
+    TxOutboundRecord login {};
+    ASSERT_TRUE(translator.popReadyOutbound(login));
+    translator.acceptInboundPayload(makeLoginAcceptedFrame());
+    ASSERT_TRUE(translator.buildReadyOutboundFromAcceptedIntents());
+
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_trace_buffer[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_ENQUEUE);
+    EXPECT_EQ(record.event_ts, 0x12345678ULL);
+    EXPECT_GT(record.time_captured, 0U);
 }
 
 TEST(TxTranslatorTest, replayedOutboundPreservesMetadataAfterDisconnect) {

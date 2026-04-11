@@ -12,6 +12,7 @@
 #include <vector>
 
 class LogPrinter;
+class LatencyTracker;
 
 struct TxTranslatorConfig {
     std::string username {"client"};
@@ -28,6 +29,7 @@ public:
     explicit TxTranslator(TxTranslatorConfig config);
 
     void attachLogPrinter(LogPrinter* log_printer);
+    void attachLatenyTracker(LatencyTracker* latency_tracker);
     bool acceptIntent(const OrderIntent& intent);
     bool popReadyOutbound(TxOutboundRecord& record);
     void restoreReadyOutbound(const TxOutboundRecord& record);
@@ -86,4 +88,5 @@ private:
     bool m_session_established {false};
     std::chrono::steady_clock::time_point m_last_send {};
     LogPrinter* m_log_printer {nullptr};
+    LatencyTracker* m_latency_tracker {nullptr};
 };
