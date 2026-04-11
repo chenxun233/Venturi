@@ -74,6 +74,7 @@ bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_i
                 .time_captured = readMonotonicRawNs(),
             });
         } catch (...) {
+            // Latency tracking is best-effort and must not change strategy output.
         }
     }
     return true;

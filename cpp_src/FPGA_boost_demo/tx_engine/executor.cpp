@@ -29,6 +29,8 @@ bool Executor::acceptIntent(uint16_t producer_idx, const OrderIntent& intent) {
     if (producer_idx >= m_intent_buffers.size()) {
         throw std::out_of_range("Executor producer index out of range");
     }
+    // For tracked intents, que_idx is part of the contract and must identify the
+    // same producer queue that accepted the intent.
     if (intent.event_ts != 0 && m_latency_tracker != nullptr && producer_idx != intent.que_idx) {
         throw std::invalid_argument("Executor producer index does not match intent queue index");
     }
@@ -42,6 +44,7 @@ bool Executor::acceptIntent(uint16_t producer_idx, const OrderIntent& intent) {
                 .time_captured = readMonotonicRawNs(),
             });
         } catch (...) {
+            // Latency tracking is best-effort and must not change enqueue success.
         }
     }
     return pushed;
