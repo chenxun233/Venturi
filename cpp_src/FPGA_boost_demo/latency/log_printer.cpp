@@ -179,7 +179,7 @@ void LogPrinter::_handleRecord(const AsyncLogRecord& record) {
     }
     if (record.kind == AsyncLogKind::RegressionStatus) {
         if (record.regression_status.has_para) {
-            std::printf("Regression a=%.9f\n", record.regression_status.a_ns_per_tick);
+            std::printf("FPGARegression a=%.9f\n", record.regression_status.a_ns_per_tick);
             std::fflush(stdout);
         }
         return;

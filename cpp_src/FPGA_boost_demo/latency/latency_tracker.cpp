@@ -1,7 +1,7 @@
 #include "latency_tracker.h"
 #include "log_printer.h"
 
-#include "../sync/regression.h"
+#include "../sync/FPGA_regression.h"
 
 #include <cstdio>
 #include <limits>
@@ -18,7 +18,7 @@ m_capacity(producer_num) {
     }
 }
 
-void LatencyTracker::attachRegression(Regression* regression) {
+void LatencyTracker::attachRegression(FPGARegression* regression) {
     m_regressions = regression;
 }
 
@@ -26,13 +26,13 @@ void LatencyTracker::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
-bool LatencyTracker::pushRecord(const TimeRecord& record) {
+void LatencyTracker::pushRecord(const TimeRecord& record) {
+
     if (record.que_idx >= m_trace_buffer.size()) {
         throw std::out_of_range("LatencyTracker producer index out of range");
     }
-
-    const std::lock_guard<std::mutex> lock(m_push_mutex);
-    return m_trace_buffer[record.que_idx]->push(record);
+    m_trace_buffer[record.que_idx]->push(record);
+    return;
 }
 
 // void LatencyTracker::attachTuner(Tuner* tuner) {
@@ -40,7 +40,6 @@ bool LatencyTracker::pushRecord(const TimeRecord& record) {
 // }
 
 std::size_t LatencyTracker::run() {
-    const std::lock_guard<std::mutex> lock(m_run_mutex);
     std::size_t processed_count = 0;
     TimeRecord record {};
     for (uint16_t offset = 0; offset < m_capacity; ++offset) {

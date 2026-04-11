@@ -254,9 +254,9 @@ void FPGADev::_readProdPtrSnapshot(uint16_t que_idx,
                                   uint64_t& fpga_tick,
                                   uint64_t& host_time_ns,
                                   uint64_t& interval,
-                                bool get_time) {
+                                bool get_snapshot) {
 
-    if (get_time) {
+    if (get_snapshot) {
         clock_gettime(CLOCK_MONOTONIC_RAW, &m_ts_before);
         _readReg128(_getRegAddr(que_idx, REG_RX_QUE_PROD_OFFSET), prod_ptr, fpga_tick);
         clock_gettime(CLOCK_MONOTONIC_RAW, &m_ts_after);
@@ -277,7 +277,7 @@ void FPGADev::_readProdPtrSnapshot(uint16_t que_idx,
 
 
 
-const uint8_t* FPGADev::_pollOneRaw(uint16_t que_idx,
+const uint8_t* FPGADev::_pollDataRaw(uint16_t que_idx,
                                     uint64_t cons_ptr) const {
 
         const uint8_t* dma_base = static_cast<const uint8_t*>(m_rx_queues[que_idx].dma_memory.virt());

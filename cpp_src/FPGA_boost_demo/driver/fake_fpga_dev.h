@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <vector>
 
-class FakeFPGADev : public BasicRxSource {
+class FakeFPGADev : public BasicRxDev {
 public:
     static constexpr std::size_t kSlotSizeBytes = 32;
     using RawSlot = std::array<uint8_t, kSlotSizeBytes>;
@@ -33,8 +33,8 @@ public:
                             uint64_t& fpga_tick,
                             uint64_t& host_time_ns,
                             uint64_t& interval,
-                            bool get_time) override;
-    const uint8_t* _pollOneRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
+                            bool get_snapshot) override;
+    const uint8_t* _pollDataRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
     void _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) override;
     bool isValid() const override { return true; }
 

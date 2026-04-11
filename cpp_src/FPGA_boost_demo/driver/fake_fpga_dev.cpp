@@ -53,17 +53,17 @@ void FakeFPGADev::_readProdPtrSnapshot(uint16_t que_idx,
                                      uint64_t& fpga_tick,
                                      uint64_t& host_time_ns,
                                      uint64_t& interval,
-                                     bool get_time) {
+                                     bool get_snapshot) {
     const QueueState& queue_state = m_queue_states[que_idx];
     prod_ptr = queue_state.prod_ptr;
-    if (get_time) {
+    if (get_snapshot) {
         fpga_tick = queue_state.fpga_tick;
         host_time_ns = queue_state.host_time_ns;
         interval = queue_state.interval_ns;
     }
 }
 
-const uint8_t* FakeFPGADev::_pollOneRaw(uint16_t que_idx, uint64_t cons_ptr) const {
+const uint8_t* FakeFPGADev::_pollDataRaw(uint16_t que_idx, uint64_t cons_ptr) const {
     const QueueState& queue_state = m_queue_states[que_idx];
     const std::size_t slot_count = queue_state.slots.size();
     if (slot_count == 0) {

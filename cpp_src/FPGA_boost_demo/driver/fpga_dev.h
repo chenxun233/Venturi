@@ -9,14 +9,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include "log.h"
 #include <ctime>
 
 #define SLOT_SIZE_BYTES 32 // 32 bytes, 256 bits.
 
 class FPGARxDecoder;
 
-class FPGADev : public BasicDev, public BasicRxSource {
+class FPGADev : public BasicDev, public BasicRxDev {
 public:
     FPGADev(std::string pci_addr);
     ~FPGADev() override;
@@ -66,7 +65,7 @@ private:
     // This should only be called by friend classes (adaptors)
     // this function works with __readProdPtr() or __readProdPtrAndTick()
 
-    const uint8_t*  _pollOneRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
+    const uint8_t*  _pollDataRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
     void            _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) override;
     void            _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const override;
     uint64_t        _readDropCount(uint16_t que_idx) const override;
@@ -75,7 +74,7 @@ private:
                                         uint64_t& fpga_tick,
                                         uint64_t& host_time_ns,
                                         uint64_t& interval,
-                                        bool get_time ) override;
+                                        bool get_snapshot ) override;
 private:
     void        _initStatus(DevStatus* stats) override;
     uint32_t    _getRegAddr(uint16_t que_idx, uint32_t reg_offset) const;

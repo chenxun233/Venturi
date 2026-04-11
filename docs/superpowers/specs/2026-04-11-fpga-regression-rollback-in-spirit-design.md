@@ -118,7 +118,7 @@ Private members should revert to the older style:
 
 - `m_pre_regression_para`
 - `m_cur_regression_para`
-- `m_snapshot_count`
+- `m_converge_count`
 - `m_is_frozen`
 - `m_pre_snapshot`
 - `m_cur_snapshot`

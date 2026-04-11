@@ -98,7 +98,6 @@ public:
     OutboundFrameRaw& readFrontOutboundFrame();
     void eraseFrontOutboundFrame();
     void writeLastSendTime(std::chrono::steady_clock::time_point now);
-    std::optional<InboundMessage> tryReadInboundMessage();
 
 private:
     struct PendingFill {

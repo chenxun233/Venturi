@@ -11,7 +11,7 @@
 #include <thread>
 #include <unordered_map>
 
-class Regression;
+class FPGARegression;
 class LogPrinter;
 class Tuner;
 
@@ -19,8 +19,8 @@ class LatencyTracker {
 public:
     explicit        LatencyTracker(uint16_t producer_num, std::size_t buffer_capacity = 1024);
     std::size_t     run();
-    bool            pushRecord(const TimeRecord& record);
-    void            attachRegression(Regression* regression);
+    void            pushRecord(const TimeRecord& record);
+    void            attachRegression(FPGARegression* regression);
     void            attachLogPrinter(LogPrinter* log_printer);
     
 
@@ -104,10 +104,8 @@ private:
     std::vector<std::unique_ptr<TraceBuffer<TimeRecord>>> m_trace_buffer;
     uint16_t m_capacity {0};
     uint16_t m_next_buffer_idx {0};
-    Regression* m_regressions {nullptr};
+    FPGARegression* m_regressions {nullptr};
     LogPrinter* m_log_printer {nullptr};
-    std::mutex m_push_mutex;
-    std::mutex m_run_mutex;
     std::unordered_map<EventKey, PendingEventState, EventKeyHash> m_pending_records;
     std::unordered_map<StageKey, LatencyStats, StageKeyHash> m_latency_stats;
     // Tuner* m_tuner {nullptr};
