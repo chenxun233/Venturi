@@ -87,6 +87,8 @@ TEST(LatencyTrackerTest, emitsCompleteChainOnlyAfterTxSend) {
     const uint64_t tx_enqueue_host_ns = base_host + 1550ULL;
     const uint64_t tx_send_host_ns = base_host + 1560ULL;
 
+    testing::internal::CaptureStdout();
+
     tracker.pushRecord(makeRecord(que_idx, event_ts, stage::FRAME_START, frame_start_tick));
     EXPECT_EQ(tracker.run(), 1U);
 
@@ -105,7 +107,6 @@ TEST(LatencyTrackerTest, emitsCompleteChainOnlyAfterTxSend) {
     tracker.pushRecord(makeRecord(que_idx, event_ts, stage::TX_ENQUEUE, tx_enqueue_host_ns));
     EXPECT_EQ(tracker.run(), 1U);
 
-    testing::internal::CaptureStdout();
     printer.stop();
     const std::string pre_tx_send_output = testing::internal::GetCapturedStdout();
     EXPECT_TRUE(pre_tx_send_output.empty());

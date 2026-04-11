@@ -209,12 +209,8 @@ int main() {
             bool did_work = false;
             OrderIntent intent {};
             while (executor.popReadyIntent(intent)) {
-                while (true &&
-                       !tx_translator.acceptIntent(intent)) {
+                while (!tx_translator.acceptIntent(intent)) {
                     std::this_thread::yield();
-                }
-                if (!true) {
-                    break;
                 }
                 executor.logExecution(intent);
                 did_work = true;
