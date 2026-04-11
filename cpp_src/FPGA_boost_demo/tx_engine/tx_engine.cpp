@@ -125,9 +125,6 @@ bool TxEngine::sendOutboundRecord(const TxOutboundRecord& record) {
         return false;
     }
 
-    if (record.user_ref_num != 0) {
-        _logOrderSent(record);
-    }
     if (record.event_ts != 0 && m_latency_tracker != nullptr) {
         m_latency_tracker->pushRecord(TimeRecord {
             .que_idx = record.que_idx,
@@ -135,6 +132,9 @@ bool TxEngine::sendOutboundRecord(const TxOutboundRecord& record) {
             .event_stage = stage::TX_SEND,
             .time_captured = readMonotonicRawNs(),
         });
+    }
+    if (record.user_ref_num != 0) {
+        _logOrderSent(record);
     }
     return true;
 }

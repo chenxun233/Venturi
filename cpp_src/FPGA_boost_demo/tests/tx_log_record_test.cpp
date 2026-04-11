@@ -113,12 +113,12 @@ TEST(TxLogRecordTest, successfulTrackedSendPushesTxSendRecord) {
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
     TxEngine engine {};
-    LatencyTracker tracker(1, 8);
+    LatencyTracker tracker(2, 8);
     engine.attachLatenyTracker(&tracker);
     engine.m_socket_fd = sockets[0];
 
     TxOutboundRecord record {};
-    record.que_idx = 0;
+    record.que_idx = 1;
     record.event_ts = 0x55ULL;
     record.payload[0] = 0x00;
     record.payload[1] = 0x02;
@@ -129,10 +129,11 @@ TEST(TxLogRecordTest, successfulTrackedSendPushesTxSendRecord) {
     ASSERT_TRUE(engine.sendOutboundRecord(record));
 
     TimeRecord pushed {};
-    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(pushed));
+    ASSERT_TRUE(tracker.m_trace_buffer[1]->pop(pushed));
     EXPECT_EQ(pushed.event_stage, stage::TX_SEND);
     EXPECT_EQ(pushed.event_ts, 0x55ULL);
     EXPECT_GT(pushed.time_captured, 0U);
+    EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(pushed));
 
     ::close(sockets[0]);
     ::close(sockets[1]);
