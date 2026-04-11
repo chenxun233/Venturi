@@ -44,7 +44,7 @@ FakeFPGADev::RawSlot makeRawSlot(uint16_t stock_locate,
 
 } // namespace
 
-TEST(FpgaRxEngineTest, pollDecodedBatchSyncCapturesTimePerFirstEventItem) {
+TEST(FpgaRxEngineTest, pollDecodedBatchSyncDecodesFirstEventFlagAndSnapshot) {
     FakeFPGADev dev(1);
     dev.setSyncSnapshot(0, 2U, 12345U, 67890U, 222U);
     dev.setRawSlots(0, {
@@ -54,23 +54,21 @@ TEST(FpgaRxEngineTest, pollDecodedBatchSyncCapturesTimePerFirstEventItem) {
 
     FPGARxDecoder decoder {};
     FPGARxEngine engine(dev, decoder, 0);
-    FirstEventMask mask {};
-    DecodedEvent out[2] {};
+    FPGAEventDesc out[2] {};
     FpgaSyncSnapshot snapshot {};
 
-    const std::size_t count = engine.pollDecodedBatchSync(mask, 2, true, &snapshot, out);
+    const std::size_t count = engine.pollDecodedBatchSync(2, true, &snapshot, out);
 
     ASSERT_EQ(count, 2U);
-    EXPECT_EQ(mask.first_event_mask, 0b10U);
     EXPECT_EQ(snapshot.fpga_tick, 12345U);
     EXPECT_EQ(snapshot.host_time_ns, 67890U);
     EXPECT_EQ(snapshot.interval_ns, 222U);
-    EXPECT_EQ(out[0].captured_time_ns, 0U);
-    EXPECT_GT(out[1].captured_time_ns, 0U);
-    EXPECT_EQ(out[1].event.event_tk, 1001U);
+    EXPECT_EQ(out[0].is_first_event, 0U);
+    EXPECT_EQ(out[1].is_first_event, 1U);
+    EXPECT_EQ(out[1].event_tk, 1001U);
 }
 
-TEST(FpgaRxEngineTest, pollDecodedBatchLeavesCapturedTimeZeroForNonFirstEvents) {
+TEST(FpgaRxEngineTest, pollDecodedBatchReturnsPlainEventsWithoutDecodedWrapper) {
     FakeFPGADev dev(1);
     dev.setRawSlots(0, {
         makeRawSlot(0x000d, 2000ULL, 1900ULL, 12U, 102U, 22U, 107U, 1U),
@@ -81,14 +79,12 @@ TEST(FpgaRxEngineTest, pollDecodedBatchLeavesCapturedTimeZeroForNonFirstEvents) 
 
     FPGARxDecoder decoder {};
     FPGARxEngine engine(dev, decoder, 0);
-    FirstEventMask mask {};
-    DecodedEvent out[3] {};
+    FPGAEventDesc out[3] {};
 
-    const std::size_t count = engine.pollDecodedBatch(mask, 3, out);
+    const std::size_t count = engine.pollDecodedBatch(3, out);
 
     ASSERT_EQ(count, 3U);
-    EXPECT_EQ(mask.first_event_mask, 0b001U);
-    EXPECT_GT(out[0].captured_time_ns, 0U);
-    EXPECT_EQ(out[1].captured_time_ns, 0U);
-    EXPECT_EQ(out[2].captured_time_ns, 0U);
+    EXPECT_EQ(out[0].is_first_event, 1U);
+    EXPECT_EQ(out[1].is_first_event, 0U);
+    EXPECT_EQ(out[2].is_first_event, 0U);
 }

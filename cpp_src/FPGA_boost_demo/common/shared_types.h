@@ -36,11 +36,6 @@ struct FPGAEventDesc {
     uint16_t stock_locate   {0};
 };
 
-struct DecodedEvent {
-    FPGAEventDesc event {};
-    uint64_t captured_time_ns {0};
-};
-
 enum stage {
     FRAME_START,
     DMA_EMIT,
@@ -163,10 +158,4 @@ struct AsyncLogRecord {
     RegressionStatusLogRecord regression_status {};
     ExecutionLogRecord execution {};
     TxLogRecord tx {};
-};
-
-
-struct FirstEventMask {
-    std::size_t count {0};
-    uint32_t first_event_mask {0}; // bit i => out[i] is first-in-frame
 };
