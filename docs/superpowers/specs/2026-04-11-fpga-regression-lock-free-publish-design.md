@@ -2,12 +2,13 @@
 
 ## Goal
 
-Remove the reader-side mutex from `FPGARegression` by introducing a lock-free publish path for reader-visible regression state.
+Remove the reader-side mutex from `FPGARegression` by introducing a reusable lock-free publish utility for reader-visible state.
 
 The new design should:
 
 - keep regression fitting as a single-writer workflow
 - publish a self-consistent immutable reader snapshot
+- extract the one-writer/multiple-reader publish mechanism into a reusable `Publisher<T>` class
 - remove `std::mutex` and `std::lock_guard` from reader-facing paths
 - preserve current public APIs and external behavior
 - keep the full-fit startup regression model and freeze logic
@@ -18,24 +19,39 @@ The new design should:
 - the mutex protects correctness, but it couples fast read paths to writer-side fitting internals
 - readers only need a compact published view, not the full mutable regression state
 - separate lock-based reads make it easy to accidentally expand the critical section as the class evolves
+- the one-writer/multiple-reader publish pattern is useful beyond `FPGARegression` and should not stay coupled to regression-specific code
 
 ## Chosen Direction
 
-Split `FPGARegression` into:
+Introduce a reusable `Publisher<T>` utility that implements an RCU-style immutable snapshot publish pattern:
 
-- a writer-only internal fit state
-- an immutable published state loaded atomically by readers
+- one writer constructs a fresh immutable `T`
+- the writer publishes it through an atomic pointer swap
+- readers load a stable immutable snapshot with no lock and no retry loop
 
-The writer path remains the only code that mutates regression internals. After each accepted update that changes externally visible state, it constructs a new immutable published snapshot and atomically publishes it through:
+`FPGARegression` then becomes one consumer of that utility:
 
-- `std::atomic<std::shared_ptr<const PublishedState>>`
+- writer-only internal fit state remains inside `FPGARegression`
+- regression-specific reader state is stored in a `RegressionPublishedState`
+- `FPGARegression` publishes that state through `Publisher<RegressionPublishedState>`
 
-Readers perform one atomic load and operate only on that published object.
+The underlying implementation uses:
+
+- `std::atomic<std::shared_ptr<const T>>`
+
+This is intentionally not:
+
+- a version-guard or seqlock design
+- a double-buffer slot-flip design
+- a `shared_mutex` design
+
+The reason is consistency and simplicity: each reader gets one coherent immutable object and does not need retry logic or slot-lifetime coordination.
 
 ## Scope
 
 ### Files In Scope
 
+- `cpp_src/FPGA_boost_demo/common/publisher.h`
 - `cpp_src/FPGA_boost_demo/sync/FPGA_regression.h`
 - `cpp_src/FPGA_boost_demo/sync/FPGA_regression.cpp`
 - `cpp_src/FPGA_boost_demo/tests/regression_test.cpp`
@@ -47,9 +63,29 @@ Readers perform one atomic load and operate only on that published object.
 - changing regression acceptance criteria or cadence policy beyond what is needed for publication
 - making the writer-side fit itself multi-writer or wait-free
 
-## Published State
+## Publisher Utility
 
-Add a compact immutable structure that contains only the state readers need:
+Add a reusable template utility:
+
+- `template <typename T> class Publisher`
+
+Responsibilities:
+
+- hold the currently published immutable snapshot
+- expose a writer API to publish a fresh value
+- expose a reader API to load the current immutable snapshot
+
+Expected interface shape:
+
+- constructor taking an initial `T`
+- `void publish(T value)`
+- `std::shared_ptr<const T> load() const`
+
+The implementation should use acquire/release semantics around the atomic shared-pointer load/store.
+
+## Regression Published State
+
+`FPGARegression` should define a compact immutable payload that contains only the state readers need:
 
 - `RegressionPara regression_para`
 - `bool is_frozen`
@@ -84,10 +120,10 @@ The publish flow should work as follows:
 3. If accepted, the writer updates its private working state.
 4. If the model is still unfrozen, the writer updates the full-fit regression and may update `a_q32`.
 5. If the model is frozen, the writer does not change the fitted parameter but may refresh the latest accepted anchor snapshot.
-6. The writer constructs a new `PublishedState` from the current externally visible state.
-7. The writer stores it with release semantics.
+6. The writer constructs a new `RegressionPublishedState` from the current externally visible state.
+7. The writer publishes it through `Publisher<RegressionPublishedState>`.
 
-Readers load the published pointer with acquire semantics and use only that loaded object for the entire read operation.
+Readers load once from `Publisher<RegressionPublishedState>` and use only that loaded object for the entire read operation.
 
 ## API Behavior
 
@@ -114,7 +150,7 @@ This avoids mixed reads such as:
 - a new anchor snapshot paired with an older `a_q32`
 - `has_para == false` paired with a non-default fitted parameter
 
-Using one atomically loaded immutable object is the chosen mechanism for that consistency.
+Using one atomically loaded immutable object from `Publisher<T>` is the chosen mechanism for that consistency.
 
 ## Freeze Semantics
 
@@ -158,6 +194,12 @@ Update regression tests to cover the publish model:
 - `convertFpgaToHostTime()` succeeds from published state only
 - repeated reads during successive publishes do not observe impossible combinations
 
+Add direct utility tests for `Publisher<T>` as well:
+
+- initial value is immediately readable
+- published replacement becomes visible to later readers
+- loaded snapshots remain valid after newer publishes
+
 Tests can stay single-process and deterministic; they do not need to prove lock-freedom formally.
 
 ## Risks
@@ -165,11 +207,13 @@ Tests can stay single-process and deterministic; they do not need to prove lock-
 - `std::shared_ptr` publication introduces allocation on each publish, which is acceptable here because snapshot publish frequency is low relative to packet processing
 - if future code adds multiple writer threads, this design becomes invalid without further synchronization
 - reader consistency depends on strictly avoiding direct reads of writer-owned mutable state after the refactor
+- `Publisher<T>` should stay narrowly scoped; if it starts absorbing writer logic, it will lose its reusability
 
 ## Verification
 
 After implementation:
 
+- build any tests that cover `Publisher<T>`
 - build `regression_test`
 - run the regression test binary
 - run `ctest --test-dir build/cpp --output-on-failure -R RegressionTest`
@@ -179,3 +223,4 @@ After implementation:
 - removing all dynamic allocation from regression publication
 - changing regression math or convergence thresholds in this design
 - redesigning surrounding thread ownership outside `FPGARegression`
+- implementing a generalized RCU framework beyond this one-writer/multiple-reader immutable publish helper
