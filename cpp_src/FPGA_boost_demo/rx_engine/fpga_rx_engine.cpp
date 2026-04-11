@@ -1,12 +1,9 @@
 #include "fpga_rx_engine.h"
 
 #include "../common/time_utils.h"
-#define private public
 #include "../latency/latency_tracker.h"
 #include "../sync/FPGA_regression.h"
-#undef private
 
-#include <ctime>
 #include <stdexcept>
 
 namespace {
@@ -16,7 +13,6 @@ void pushTraceRecords(LatencyTracker* latency_tracker,
                       uint16_t que_idx,
                       uint32_t first_event_mask,
                       std::size_t count) {
-    timespec ts {};
     for (std::size_t record_idx = 0; record_idx < count; ++record_idx) {
         if ((first_event_mask & (1u << record_idx)) == 0U) {
             continue;
@@ -36,44 +32,12 @@ void pushTraceRecords(LatencyTracker* latency_tracker,
         latency_tracker->pushRecord(record);
 
         record.event_stage = stage::DECODE;
-        clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-        record.time_captured =
-            static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL +
-            static_cast<uint64_t>(ts.tv_nsec);
+        record.time_captured = event_buffer[record_idx].captured_time_ns;
         latency_tracker->pushRecord(record);
     }
 }
 
 } // namespace
-
-void __attribute__((weak)) LatencyTracker::pushRecord(const TimeRecord& record) {
-    if (record.que_idx >= m_trace_buffer.size()) {
-        throw std::out_of_range("LatencyTracker producer index out of range");
-    }
-    m_trace_buffer[record.que_idx]->push(record);
-}
-
-bool __attribute__((weak)) FPGARegression::tryAcceptSnapshot(const FpgaSyncSnapshot& snapshot,
-                                                             uint64_t accepted_interval_ns) {
-    if (snapshot.interval_ns == 0 || snapshot.interval_ns > accepted_interval_ns) {
-        return false;
-    }
-    m_pre_snapshot = m_cur_snapshot;
-    m_cur_snapshot = snapshot;
-    if (m_is_frozen) {
-        _publishState();
-    }
-    return true;
-}
-
-void __attribute__((weak)) FPGARegression::_publishState() {
-    m_published_state.publish(RegressionPublishedState {
-        .regression_para = m_regression_para,
-        .is_frozen = m_is_frozen,
-        .anchor_snapshot = m_cur_snapshot
-    });
-}
-
 
 FPGARxEngine::FPGARxEngine(BasicRxDev& source,
                            const FPGARxDecoder& decoder,
