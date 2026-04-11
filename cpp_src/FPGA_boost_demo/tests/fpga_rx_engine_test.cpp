@@ -139,6 +139,8 @@ TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitAndDecodeRecords) {
     EXPECT_GT(third.time_captured, 0U);
     EXPECT_NE(third.time_captured, 1900U);
     EXPECT_NE(third.time_captured, 2000U);
+    TimeRecord extra {};
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(extra));
 }
 
 TEST(FpgaRxEngineTest, nonFirstEventDoesNotPushLatencyRecords) {

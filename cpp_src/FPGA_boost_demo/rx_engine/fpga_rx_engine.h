@@ -31,5 +31,6 @@ private:
     const FPGARxDecoder& m_decoder;
     uint16_t m_que_idx {0};
     uint64_t m_cons_ptr {0};
+    // Attach before polling; tracker must outlive engine and not be swapped concurrently.
     LatencyTracker* m_latency_tracker {nullptr};
 };
