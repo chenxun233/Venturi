@@ -1,10 +1,16 @@
 #pragma once
 
+#include "../common/publisher.h"
 #include "../common/shared_types.h"
 #include "../driver/fpga_dev.h"
 #include <cstddef>
 #include <cstdint>
-#include <mutex>
+
+struct RegressionPublishedState {
+    RegressionPara      regression_para {};
+    bool                is_frozen {false};
+    FpgaSyncSnapshot    anchor_snapshot {};
+};
 
 class FPGARegression {
 public:
@@ -38,9 +44,11 @@ public:
 
 private:
     void                    _update_a();
+    void                    _publishState();
     static uint64_t         _scaleTicksToNs(uint64_t tick_delta, uint64_t a_q32);
-    mutable std::mutex      m_regression_mutex {};
-    RegressionPara          m_cur_regression_para {};
+    Publisher<RegressionPublishedState>
+                            m_published_state {RegressionPublishedState {}};
+    RegressionPara          m_regression_para {};
     uint32_t                m_converge_count {0};
     bool                    m_is_frozen {false};
 
