@@ -125,12 +125,20 @@ TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitAndDecodeRecords) {
     ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(first));
     ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(second));
     ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(third));
+    EXPECT_EQ(first.que_idx, 0U);
+    EXPECT_EQ(first.event_ts, 2000U);
     EXPECT_EQ(first.event_stage, stage::FRAME_START);
     EXPECT_EQ(first.time_captured, 1900U);
+    EXPECT_EQ(second.que_idx, 0U);
+    EXPECT_EQ(second.event_ts, 2000U);
     EXPECT_EQ(second.event_stage, stage::DMA_EMIT);
     EXPECT_EQ(second.time_captured, 2000U);
+    EXPECT_EQ(third.que_idx, 0U);
+    EXPECT_EQ(third.event_ts, 2000U);
     EXPECT_EQ(third.event_stage, stage::DECODE);
     EXPECT_GT(third.time_captured, 0U);
+    EXPECT_NE(third.time_captured, 1900U);
+    EXPECT_NE(third.time_captured, 2000U);
 }
 
 TEST(FpgaRxEngineTest, nonFirstEventDoesNotPushLatencyRecords) {
