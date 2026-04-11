@@ -125,10 +125,8 @@ add_executable(Venturi
     ${FPGA_LATENCY_DIR}/log_printer.cpp
     ${FPGA_LATENCY_DIR}/trace_buffer.cpp
     ${FPGA_LATENCY_DIR}/latency_tracker.cpp
-    ${FPGA_SYNC_DIR}/regression.cpp
-    ${FPGA_SYNC_DIR}/sync_handler.cpp
+    ${FPGA_SYNC_DIR}/FPGA_regression.cpp
     ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
-    ${FPGA_STRATEGY_DIR}/passive_strategy.cpp
     ${FPGA_TUNER_DIR}/tuner.cpp
     ${FPGA_TX_DIR}/tx_translator.cpp
     ${FPGA_TX_DIR}/executor.cpp
@@ -178,32 +176,11 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
-    add_executable(fpga_rx_engine_test
-        ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
-        ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
-        ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
-        ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
-        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
-        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
-        ${FPGA_LATENCY_DIR}/log_printer.cpp
-        ${FPGA_SYNC_DIR}/regression.cpp
-        ${FPGA_TEST_DIR}/fpga_rx_engine_test.cpp
-    )
-    target_include_directories(fpga_rx_engine_test PRIVATE
-        ${COMMON_INCLUDES}
-        ${FPGA_DRIVER_DIR}
-        ${FPGA_ADAPTER_DIR}
-        ${FPGA_ENGINE_DIR}
-        ${FPGA_LATENCY_DIR}
-        ${FPGA_SYNC_DIR}
-        ${FPGA_TEST_DIR}
-    )
-    target_link_libraries(fpga_rx_engine_test PRIVATE
-        GTest::gtest_main
-    )
+
+
 
     add_executable(regression_test
-        ${FPGA_SYNC_DIR}/regression.cpp
+        ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/regression_test.cpp
     )
     target_include_directories(regression_test PRIVATE
@@ -214,19 +191,14 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
-    add_executable(sync_handler_test
-        ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
-        ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
-        ${FPGA_SYNC_DIR}/regression.cpp
-        ${FPGA_SYNC_DIR}/sync_handler.cpp
-        ${FPGA_TEST_DIR}/sync_handler_test.cpp
+    add_executable(publisher_test
+        ${FPGA_TEST_DIR}/publisher_test.cpp
     )
-    target_include_directories(sync_handler_test PRIVATE
-        ${FPGA_DRIVER_DIR}
-        ${FPGA_SYNC_DIR}
+    target_include_directories(publisher_test PRIVATE
+        ${FPGA_ROOT}/common
         ${FPGA_TEST_DIR}
     )
-    target_link_libraries(sync_handler_test PRIVATE
+    target_link_libraries(publisher_test PRIVATE
         GTest::gtest_main
     )
 
@@ -348,7 +320,7 @@ if(TARGET GTest::gtest_main)
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_LATENCY_DIR}/trace_buffer.cpp
-        ${FPGA_SYNC_DIR}/regression.cpp
+        ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/latency_tracker_test.cpp
     )
     target_include_directories(latency_tracker_test PRIVATE
@@ -388,9 +360,8 @@ if(TARGET GTest::gtest_main)
 
     include(GoogleTest)
     gtest_discover_tests(fpga_rx_decoder_test)
-    gtest_discover_tests(fpga_rx_engine_test)
     gtest_discover_tests(regression_test)
-    gtest_discover_tests(sync_handler_test)
+    gtest_discover_tests(publisher_test)
     gtest_discover_tests(tx_translator_test)
     gtest_discover_tests(dummy_strategy_test)
     gtest_discover_tests(executor_test)
