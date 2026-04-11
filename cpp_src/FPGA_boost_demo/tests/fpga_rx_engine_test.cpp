@@ -46,21 +46,25 @@ FakeFPGADev::RawSlot makeRawSlot(uint16_t stock_locate,
 
 TEST(FpgaRxEngineTest, pollDecodedBatchSyncCapturesTimePerFirstEventItem) {
     FakeFPGADev dev(1);
+    dev.setSyncSnapshot(0, 2U, 12345U, 67890U, 222U);
     dev.setRawSlots(0, {
         makeRawSlot(0x000d, 1000ULL, 900ULL, 10U, 100U, 20U, 105U, 0U),
         makeRawSlot(0x000d, 1001ULL, 900ULL, 11U, 101U, 21U, 106U, 1U),
     });
-    dev.setProdPtr(0, 2U);
 
     FPGARxDecoder decoder {};
     FPGARxEngine engine(dev, decoder, 0);
     FirstEventMask mask {};
     DecodedEvent out[2] {};
+    FpgaSyncSnapshot snapshot {};
 
-    const std::size_t count = engine.pollDecodedBatchSync(mask, 2, false, nullptr, out);
+    const std::size_t count = engine.pollDecodedBatchSync(mask, 2, true, &snapshot, out);
 
     ASSERT_EQ(count, 2U);
     EXPECT_EQ(mask.first_event_mask, 0b10U);
+    EXPECT_EQ(snapshot.fpga_tick, 12345U);
+    EXPECT_EQ(snapshot.host_time_ns, 67890U);
+    EXPECT_EQ(snapshot.interval_ns, 222U);
     EXPECT_EQ(out[0].captured_time_ns, 0U);
     EXPECT_GT(out[1].captured_time_ns, 0U);
     EXPECT_EQ(out[1].event.event_tk, 1001U);

@@ -181,10 +181,6 @@ if(TARGET GTest::gtest_main)
         ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
         ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
         ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
-        ${FPGA_LATENCY_DIR}/log_printer.cpp
-        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
-        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
-        ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/fpga_rx_engine_test.cpp
     )
     target_include_directories(fpga_rx_engine_test PRIVATE
@@ -192,8 +188,6 @@ if(TARGET GTest::gtest_main)
         ${FPGA_DRIVER_DIR}
         ${FPGA_ADAPTER_DIR}
         ${FPGA_ENGINE_DIR}
-        ${FPGA_LATENCY_DIR}
-        ${FPGA_SYNC_DIR}
         ${FPGA_TEST_DIR}
     )
     target_link_libraries(fpga_rx_engine_test PRIVATE

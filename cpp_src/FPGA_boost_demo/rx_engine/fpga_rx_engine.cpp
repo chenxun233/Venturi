@@ -1,43 +1,8 @@
 #include "fpga_rx_engine.h"
 
 #include "../common/time_utils.h"
-#include "../latency/latency_tracker.h"
-#include "../sync/FPGA_regression.h"
 
 #include <stdexcept>
-
-namespace {
-
-void pushTraceRecords(LatencyTracker* latency_tracker,
-                      const DecodedEvent* event_buffer,
-                      uint16_t que_idx,
-                      uint32_t first_event_mask,
-                      std::size_t count) {
-    for (std::size_t record_idx = 0; record_idx < count; ++record_idx) {
-        if ((first_event_mask & (1u << record_idx)) == 0U) {
-            continue;
-        }
-
-        const FPGAEventDesc& event = event_buffer[record_idx].event;
-        TimeRecord record {
-            .que_idx = que_idx,
-            .event_ts = event.event_tk,
-            .event_stage = stage::FRAME_START,
-            .time_captured = event.frame_start_tk
-        };
-        latency_tracker->pushRecord(record);
-
-        record.event_stage = stage::DMA_EMIT;
-        record.time_captured = event.event_tk;
-        latency_tracker->pushRecord(record);
-
-        record.event_stage = stage::DECODE;
-        record.time_captured = event_buffer[record_idx].captured_time_ns;
-        latency_tracker->pushRecord(record);
-    }
-}
-
-} // namespace
 
 FPGARxEngine::FPGARxEngine(BasicRxDev& source,
                            const FPGARxDecoder& decoder,
@@ -98,18 +63,6 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(FirstEventMask& mask,
 
     m_cons_ptr = cons_ptr;
     m_source._writeConsPtr(m_que_idx, cons_ptr);
-
-    if (get_snapshot && snapshot != nullptr && m_regression != nullptr) {
-        m_regression->tryAcceptSnapshot(*snapshot, snapshot->interval_ns);
-    }
-
-    if (record_count > 0 && m_latency_tracker != nullptr) {
-        pushTraceRecords(m_latency_tracker,
-                         out,
-                         m_que_idx,
-                         mask.first_event_mask,
-                         record_count);
-    }
 
     return record_count;
 }
