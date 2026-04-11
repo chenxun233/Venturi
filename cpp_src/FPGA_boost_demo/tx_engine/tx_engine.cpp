@@ -133,7 +133,8 @@ bool TxEngine::sendOutboundRecord(const TxOutboundRecord& record) {
                 .event_stage = stage::TX_SEND,
                 .time_captured = readMonotonicRawNs(),
             });
-        } catch (const std::exception&) {
+        } catch (...) {
+            // Latency tracking failure must not affect send success.
         }
     }
     if (record.user_ref_num != 0) {

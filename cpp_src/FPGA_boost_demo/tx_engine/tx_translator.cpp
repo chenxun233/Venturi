@@ -421,7 +421,8 @@ void TxTranslator::_queueReadyRecord(const TxOutboundRecord& record) {
                 .event_stage = stage::TX_ENQUEUE,
                 .time_captured = readMonotonicRawNs(),
             });
-        } catch (const std::exception&) {
+        } catch (...) {
+            // Latency tracking failure must not affect enqueue success.
         }
     }
 }
