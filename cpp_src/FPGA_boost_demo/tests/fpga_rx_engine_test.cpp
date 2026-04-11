@@ -65,3 +65,26 @@ TEST(FpgaRxEngineTest, pollDecodedBatchSyncCapturesTimePerFirstEventItem) {
     EXPECT_GT(out[1].captured_time_ns, 0U);
     EXPECT_EQ(out[1].event.event_tk, 1001U);
 }
+
+TEST(FpgaRxEngineTest, pollDecodedBatchLeavesCapturedTimeZeroForNonFirstEvents) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 2000ULL, 1900ULL, 12U, 102U, 22U, 107U, 1U),
+        makeRawSlot(0x000d, 2001ULL, 1900ULL, 13U, 103U, 23U, 108U, 0U),
+        makeRawSlot(0x000d, 2002ULL, 1900ULL, 14U, 104U, 24U, 109U, 0U),
+    });
+    dev.setProdPtr(0, 3U);
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    FirstEventMask mask {};
+    DecodedEvent out[3] {};
+
+    const std::size_t count = engine.pollDecodedBatch(mask, 3, out);
+
+    ASSERT_EQ(count, 3U);
+    EXPECT_EQ(mask.first_event_mask, 0b001U);
+    EXPECT_GT(out[0].captured_time_ns, 0U);
+    EXPECT_EQ(out[1].captured_time_ns, 0U);
+    EXPECT_EQ(out[2].captured_time_ns, 0U);
+}
