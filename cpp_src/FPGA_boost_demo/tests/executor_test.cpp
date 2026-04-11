@@ -5,6 +5,7 @@
 #undef private
 
 #include <gtest/gtest.h>
+#include <stdexcept>
 
 TEST(ExecutorTest, acceptsIntentAndEmitsExecutionStageOutput) {
     Executor executor(1, 8);
@@ -53,9 +54,11 @@ TEST(ExecutorTest, successfulTrackedAcceptPushesExecutorRecord) {
 
     TimeRecord record {};
     ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_EQ(record.que_idx, 0U);
     EXPECT_EQ(record.event_stage, stage::EXECUTOR);
     EXPECT_EQ(record.event_ts, 77U);
     EXPECT_GT(record.time_captured, 0U);
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
 }
 
 TEST(ExecutorTest, trackedIntentMismatchProducerIndexThrows) {

@@ -30,6 +30,7 @@ TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyRecord) {
 
     TimeRecord record {};
     ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_EQ(record.que_idx, 0U);
     EXPECT_EQ(record.event_stage, stage::STRATEGY);
     EXPECT_EQ(record.event_ts, 12345U);
     EXPECT_GT(record.time_captured, 0U);
