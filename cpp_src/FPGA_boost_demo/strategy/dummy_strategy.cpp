@@ -1,5 +1,8 @@
 #include "dummy_strategy.h"
 
+#include "../common/time_utils.h"
+#include "../latency/latency_tracker.h"
+
 bool DummyStrategy::_shouldBuy(const FPGAEventDesc& event) const {
     if (event.bid_price == 0 && event.bid_shares == 0 && event.ask_price != 0 && event.ask_shares != 0) {
         return true;
@@ -42,7 +45,7 @@ OrderIntentAction DummyStrategy::_readAction(const FPGAEventDesc& event) const {
     return OrderIntentAction::None;
 }
 
-bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_intent) {
+bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_intent, uint16_t que_idx) {
     const OrderIntentAction action = _readAction(event);
     if (action == OrderIntentAction::None) {
         return false;
@@ -50,6 +53,7 @@ bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_i
 
     out_intent = OrderIntent {
         .stock_locate = event.stock_locate,
+        .que_idx = que_idx,
         .event_ts = event.event_tk,
         .intent = {
             .action = action,
@@ -59,5 +63,13 @@ bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_i
             .shares = kIntentShares
         }
     };
+    if (event.is_first_event != 0 && m_latency_tracker != nullptr) {
+        m_latency_tracker->pushRecord(TimeRecord {
+            .que_idx = que_idx,
+            .event_ts = event.event_tk,
+            .event_stage = stage::STRATEGY,
+            .time_captured = readMonotonicRawNs(),
+        });
+    }
     return true;
 }

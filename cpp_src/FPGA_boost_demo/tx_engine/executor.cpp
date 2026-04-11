@@ -1,5 +1,7 @@
 #include "executor.h"
 
+#include "../common/time_utils.h"
+#include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
 
 #include <stdexcept>
@@ -19,11 +21,24 @@ void Executor::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
+void Executor::attachLatenyTracker(LatencyTracker* latency_tracker) {
+    m_latency_tracker = latency_tracker;
+}
+
 bool Executor::acceptIntent(uint16_t producer_idx, const OrderIntent& intent) {
     if (producer_idx >= m_intent_buffers.size()) {
         throw std::out_of_range("Executor producer index out of range");
     }
-    return m_intent_buffers[producer_idx]->push(intent);
+    const bool pushed = m_intent_buffers[producer_idx]->push(intent);
+    if (pushed && intent.event_ts != 0 && m_latency_tracker != nullptr) {
+        m_latency_tracker->pushRecord(TimeRecord {
+            .que_idx = intent.que_idx,
+            .event_ts = intent.event_ts,
+            .event_stage = stage::EXECUTOR,
+            .time_captured = readMonotonicRawNs(),
+        });
+    }
+    return pushed;
 }
 
 bool Executor::popReadyIntent(OrderIntent& intent) {

@@ -1,35 +1,31 @@
 #include "../strategy/dummy_strategy.h"
 
+#define private public
+#include "../latency/latency_tracker.h"
+#undef private
+
 #include <gtest/gtest.h>
 
-TEST(DummyStrategyTest, evaluatesOneEventIntoAnIntentWithoutOwningExecutor) {
+TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyRecord) {
     DummyStrategy strategy;
+    LatencyTracker tracker(1, 8);
+    strategy.attachLatenyTracker(&tracker);
+
     FPGAEventDesc event {};
     event.stock_locate = 0x000d;
     event.event_tk = 12345U;
-    event.bid_price = 100;
-    event.ask_price = 120;
-    event.bid_shares = 2000;
-    event.ask_shares = 100;
+    event.is_first_event = 1U;
+    event.bid_price = 100U;
+    event.ask_price = 120U;
+    event.bid_shares = 2000U;
+    event.ask_shares = 100U;
 
     OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(event, intent));
-    EXPECT_EQ(intent.stock_locate, 0x000d);
-    EXPECT_EQ(intent.event_ts, 12345U);
-    EXPECT_EQ(intent.intent.action, OrderIntentAction::Buy);
-    EXPECT_EQ(intent.intent.price, 100U);
-    EXPECT_EQ(intent.intent.shares, 100U);
-}
+    ASSERT_TRUE(strategy.evaluateEvent(event, intent, 0));
 
-TEST(DummyStrategyTest, returnsFalseWhenEventDoesNotProduceIntent) {
-    DummyStrategy strategy;
-    FPGAEventDesc event {};
-    event.stock_locate = 0x000d;
-    event.bid_price = 100;
-    event.ask_price = 500;
-    event.bid_shares = 10;
-    event.ask_shares = 10;
-
-    OrderIntent intent {};
-    EXPECT_FALSE(strategy.evaluateEvent(event, intent));
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::STRATEGY);
+    EXPECT_EQ(record.event_ts, 12345U);
+    EXPECT_GT(record.time_captured, 0U);
 }

@@ -10,12 +10,14 @@
 #include <vector>
 
 class LogPrinter;
+class LatencyTracker;
 
 class Executor {
 public:
     explicit Executor(uint16_t producer_num, std::size_t buffer_capacity = 1024);
     ~Executor() = default;
     void attachLogPrinter(LogPrinter* log_printer);
+    void attachLatenyTracker(LatencyTracker* latency_tracker);
     bool acceptIntent(uint16_t producer_idx, const OrderIntent& intent);
     bool popReadyIntent(OrderIntent& intent);
     void logExecution(const OrderIntent& intent);
@@ -27,4 +29,5 @@ private:
     uint16_t m_producer_num {0};
     uint16_t m_next_buffer_idx {0};
     LogPrinter* m_log_printer {nullptr};
+    LatencyTracker* m_latency_tracker {nullptr};
 };

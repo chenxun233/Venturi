@@ -1,5 +1,9 @@
 #include "../tx_engine/executor.h"
 
+#define private public
+#include "../latency/latency_tracker.h"
+#undef private
+
 #include <gtest/gtest.h>
 
 TEST(ExecutorTest, acceptsIntentAndEmitsExecutionStageOutput) {
@@ -34,4 +38,22 @@ TEST(ExecutorTest, popsReadyIntentsAcrossProducersInRoundRobinOrder) {
     ASSERT_TRUE(executor.popReadyIntent(ready));
     EXPECT_EQ(ready.stock_locate, 0x0ee8);
     EXPECT_FALSE(executor.popReadyIntent(ready));
+}
+
+TEST(ExecutorTest, successfulTrackedAcceptPushesExecutorRecord) {
+    Executor executor(1, 8);
+    LatencyTracker tracker(1, 8);
+    executor.attachLatenyTracker(&tracker);
+
+    OrderIntent intent {};
+    intent.que_idx = 0;
+    intent.event_ts = 77U;
+
+    ASSERT_TRUE(executor.acceptIntent(0, intent));
+
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::EXECUTOR);
+    EXPECT_EQ(record.event_ts, 77U);
+    EXPECT_GT(record.time_captured, 0U);
 }
