@@ -64,6 +64,14 @@ TEST(RegressionTest, exposesRegressionStatusAfterSnapshotUpdates) {
     EXPECT_NEAR(status.a_ns_per_tick, static_cast<double>(kSlopeNsPerTick), 5e-4);
 }
 
+TEST(RegressionTest, readStatusIsUnpublishedBeforeEnoughSamples) {
+    FPGARegression regression;
+
+    const RegressionStatusLogRecord status = regression.readStatusLogRecord();
+    EXPECT_FALSE(status.has_para);
+    EXPECT_DOUBLE_EQ(status.a_ns_per_tick, 1.0);
+}
+
 TEST(RegressionTest, convertsHostTimeUsingCurrentSnapshotAnchor) {
     SequencedSyncDevice device {};
     appendStableSnapshots(device, 256);
@@ -86,6 +94,33 @@ TEST(RegressionTest, initSyncStopsWhenRegressionFreezes) {
 
     EXPECT_TRUE(regression.initSync(device, device.snapshots.size(), kAcceptedIntervalNs));
     EXPECT_LT(device.read_count, device.snapshots.size());
+}
+
+TEST(RegressionTest, frozenSlopeStaysFixedWhileAnchorRefreshes) {
+    SequencedSyncDevice device {};
+    appendStableSnapshots(device, 256);
+    FPGARegression regression;
+
+    ASSERT_TRUE(regression.initSync(device, device.snapshots.size(), kAcceptedIntervalNs));
+    const RegressionStatusLogRecord frozen_status = regression.readStatusLogRecord();
+
+    const uint64_t later_tick = device.snapshots.back().fpga_tick + 400ULL;
+    const FpgaSyncSnapshot later_snapshot {
+        .fpga_tick = later_tick,
+        .host_time_ns = readHostNs(later_tick),
+        .interval_ns = 1000ULL
+    };
+    ASSERT_TRUE(regression.tryAcceptSnapshot(later_snapshot, kAcceptedIntervalNs));
+
+    const RegressionStatusLogRecord refreshed_status = regression.readStatusLogRecord();
+    EXPECT_TRUE(regression.isFrozen());
+    EXPECT_DOUBLE_EQ(refreshed_status.a_ns_per_tick, frozen_status.a_ns_per_tick);
+
+    uint64_t host_time_ns = 0;
+    ASSERT_TRUE(regression.convertFpgaToHostTime(later_tick + 200ULL, host_time_ns));
+    EXPECT_NEAR(static_cast<double>(host_time_ns),
+                static_cast<double>(readHostNs(later_tick + 200ULL)),
+                10.0);
 }
 
 TEST(RegressionTest, rejectsInvalidIntervalsAndAcceptsQualifiedOnes) {
