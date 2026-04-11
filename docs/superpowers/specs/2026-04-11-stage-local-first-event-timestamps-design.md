@@ -32,8 +32,8 @@ The minimal-change rule is:
 This yields:
 
 - RX batch output becomes a small wrapper around `FPGAEventDesc` so each decoded event can carry its own decode-time metadata
-- `OrderIntent` carries strategy and executor timing only for tracked first events
-- `TxOutboundRecord` carries enqueue and send timing only for tracked first events
+- `OrderIntent` carries a generic `captured_time_ns` field only for tracked first events, with the stage boundary deciding what it means
+- `TxOutboundRecord` carries a generic `captured_time_ns` field only for tracked first events, updated as the outbound record crosses later stage boundaries
 
 `Venturi.cpp` remains responsible for:
 
@@ -77,6 +77,10 @@ Use:
 - a small wrapper where one API call can emit multiple payloads
 - inline metadata fields on existing payloads where one payload already crosses the stage boundary
 
+Standardize on one generic metadata field name:
+
+- `captured_time_ns`
+
 Do not add wrapper types everywhere. The point is to preserve attribution with the least change needed.
 
 ## RxEngine Boundary
@@ -85,14 +89,14 @@ Do not add wrapper types everywhere. The point is to preserve attribution with t
 
 Replace raw batch output with a small decoded-event wrapper, for example:
 
-- `DecodedEvent { FPGAEventDesc event; uint64_t decode_time_ns; }`
+- `DecodedEvent { FPGAEventDesc event; uint64_t captured_time_ns; }`
 
 Behavior:
 
 - decode records as today
 - when a decoded record has `is_first_event`, capture the host time immediately after `decodeRawRecord(...)`
 - store that value in the wrapper for that record only
-- non-first-event wrappers keep `decode_time_ns == 0`
+- non-first-event wrappers keep `captured_time_ns == 0`
 
 This preserves correct attribution across multi-event batches with minimal redesign.
 
@@ -104,7 +108,7 @@ Behavior:
 
 - if the strategy rejects the event, return `false` and leave timing metadata at `0`
 - if the strategy accepts a tracked first event, capture the timestamp immediately before returning `true`
-- store it inside the produced `OrderIntent`
+- store it inside the produced `OrderIntent::captured_time_ns`
 
 This keeps the timestamp attached to the intent that moves into the next stage without adding a separate side channel.
 
@@ -117,7 +121,7 @@ The executor stage boundary for latency purposes is when the intent is accepted 
 Behavior:
 
 - when the push into the executor buffer succeeds for a tracked first-event intent, capture the timestamp immediately after the successful accept
-- store it on the intent before it is queued
+- store it on `OrderIntent::captured_time_ns` before it is queued
 - on failure, do not invent timing metadata
 
 This keeps the stage meaning aligned with the queue acceptance point rather than the later polling point in the executor thread.
@@ -130,7 +134,7 @@ This design makes that boundary explicit:
 
 - `TX_ENQUEUE` means the tracked order has entered the ready-to-send outbound queue, not merely the translator’s internal intent buffer
 
-Therefore the timestamp should be produced in the code path that builds and queues the ready outbound record, and stored on the produced `TxOutboundRecord`.
+Therefore the timestamp should be produced in the code path that builds and queues the ready outbound record, and stored on `TxOutboundRecord::captured_time_ns`.
 
 `TxTranslator::acceptIntent(...)` remains an input-buffer push only. The enqueue timing belongs on the outbound record created later, not on the accepted input call.
 
@@ -141,7 +145,7 @@ Therefore the timestamp should be produced in the code path that builds and queu
 Behavior:
 
 - if the payload send succeeds for a tracked outbound record, capture the timestamp immediately after the successful socket send path returns
-- store it on the `TxOutboundRecord`
+- store it on `TxOutboundRecord::captured_time_ns`
 - if send fails, do not report a send timestamp
 
 This keeps `TX_SEND` close to the actual outbound transport boundary.
@@ -160,6 +164,8 @@ Instead:
 
 - consume stage-local timing metadata attached to decoded events, intents, and outbound records
 - push `TimeRecord`s only when the corresponding timing metadata is nonzero
+
+The stage itself provides the meaning of `captured_time_ns`; the field name stays generic.
 
 For `FRAME_START` and `DMA_EMIT`:
 
