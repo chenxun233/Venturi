@@ -173,9 +173,9 @@ int main() {
 
                     if (strategy0.evaluateEvent(event, intent, 0)) {
                        const uint64_t strategy_time_ns = readSystemTimeNs(is_first_event);
-                        // if (!is_first_event) {
-                        //     intent.event_ts = 0;
-                        // }
+                        if (!is_first_event) {
+                            intent.event_ts = 0;
+                        }
                         while (!executor.acceptIntent(0, intent)) {
                             std::this_thread::yield();
                         }
@@ -228,9 +228,9 @@ int main() {
                     const uint64_t decode_time_ns = decoded.captured_time_ns;
 
                     if (strategy1.evaluateEvent(event, intent, 1)) {
-                        // if (!is_first_event) {
-                        //     intent.event_ts = 0;
-                        // }
+                        if (!is_first_event) {
+                            intent.event_ts = 0;
+                        }
                         const uint64_t strategy_time_ns =readSystemTimeNs(is_first_event);
                         while (!executor.acceptIntent(1, intent)) {
                             std::this_thread::yield();
