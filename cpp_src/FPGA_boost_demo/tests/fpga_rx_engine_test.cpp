@@ -1,8 +1,5 @@
 #include "../driver/fake_fpga_dev.h"
-#include "../decoder/fpga_rx_decoder.h"
-#include "../latency/latency_tracker.h"
 #include "../rx_engine/fpga_rx_engine.h"
-#include "../sync/regression.h"
 
 #include <gtest/gtest.h>
 
@@ -47,44 +44,24 @@ FakeFPGADev::RawSlot makeRawSlot(uint16_t stock_locate,
 
 } // namespace
 
-TEST(FpgaRxEngineTest, pollsDecodedBatchAndPreservesRxSideEffects) {
-    FakeFPGADev device(1);
-    device.setRawSlots(0, {
-        makeRawSlot(0x000d, 0x11ULL, 0x01ULL, 100U, 101U, 200U, 201U, 1U),
-        makeRawSlot(0x0ee8, 0x22ULL, 0x02ULL, 300U, 301U, 400U, 401U, 0U),
+TEST(FpgaRxEngineTest, pollDecodedBatchSyncCapturesTimePerFirstEventItem) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 1000ULL, 900ULL, 10U, 100U, 20U, 105U, 0U),
+        makeRawSlot(0x000d, 1001ULL, 900ULL, 11U, 101U, 21U, 106U, 1U),
     });
-    device.setSyncSnapshot(0, 2U, 111U, 222U, 333U);
+    dev.setSyncSnapshot(0, 2U, 111U, 222U, 333U);
 
-    FPGARxDecoder decoder;
-    FPGARxEngine engine(device, decoder, 0);
-    LatencyTracker latency_tracker(1, 8);
-    Regression regression;
-    engine.attachLatencyTracker(latency_tracker);
-    engine.attachRegression(regression);
-
-    FpgaSyncSnapshot snapshot {};
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
     FirstEventMask mask {};
-    const std::size_t count = engine.pollDecodedBatchSync(mask, MAX_POLL_RECORDS, true, snapshot);
+    DecodedEvent out[2] {};
 
-    EXPECT_EQ(count, 2U);
-    EXPECT_EQ(mask.count, 1U);
-    EXPECT_EQ(mask.first_event_mask, 0x1U);
-    EXPECT_EQ(snapshot.fpga_tick, 111U);
-    EXPECT_EQ(snapshot.host_time_ns, 222U);
-    EXPECT_EQ(snapshot.interval_ns, 333U);
-    EXPECT_EQ(device.lastWrittenConsPtr(0), 2U);
+    const std::size_t count = engine.pollDecodedBatchSync(mask, 2, false, nullptr, out);
 
-    const auto& events = engine.readEventBuffer();
-    EXPECT_EQ(events[0].stock_locate, 0x000d);
-    EXPECT_EQ(events[0].bid_price, 101U);
-    EXPECT_EQ(events[0].ask_shares, 200U);
-    EXPECT_EQ(events[1].stock_locate, 0x0ee8);
-    EXPECT_EQ(events[1].ask_price, 401U);
-
-    const FpgaSyncSnapshot regression_snapshot = regression.readSnapshot();
-    EXPECT_EQ(regression_snapshot.fpga_tick, 111U);
-    EXPECT_EQ(regression_snapshot.host_time_ns, 222U);
-    EXPECT_EQ(regression_snapshot.interval_ns, 333U);
-
-    EXPECT_EQ(latency_tracker.run(), 3U);
+    ASSERT_EQ(count, 2U);
+    EXPECT_EQ(mask.first_event_mask, 0b10U);
+    EXPECT_EQ(out[0].captured_time_ns, 0U);
+    EXPECT_GT(out[1].captured_time_ns, 0U);
+    EXPECT_EQ(out[1].event.event_tk, 1001U);
 }

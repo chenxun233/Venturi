@@ -176,6 +176,24 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
+    add_executable(fpga_rx_engine_test
+        ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
+        ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
+        ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
+        ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
+        ${FPGA_TEST_DIR}/fpga_rx_engine_test.cpp
+    )
+    target_include_directories(fpga_rx_engine_test PRIVATE
+        ${COMMON_INCLUDES}
+        ${FPGA_DRIVER_DIR}
+        ${FPGA_ADAPTER_DIR}
+        ${FPGA_ENGINE_DIR}
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(fpga_rx_engine_test PRIVATE
+        GTest::gtest_main
+    )
+
 
 
 
@@ -360,6 +378,7 @@ if(TARGET GTest::gtest_main)
 
     include(GoogleTest)
     gtest_discover_tests(fpga_rx_decoder_test)
+    gtest_discover_tests(fpga_rx_engine_test)
     gtest_discover_tests(regression_test)
     gtest_discover_tests(publisher_test)
     gtest_discover_tests(tx_translator_test)
