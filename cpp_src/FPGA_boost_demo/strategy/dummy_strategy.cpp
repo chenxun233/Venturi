@@ -66,12 +66,15 @@ bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_i
     if (event.is_first_event != 0 &&
         m_latency_tracker != nullptr &&
         out_intent.event_ts != 0) {
-        m_latency_tracker->pushRecord(TimeRecord {
-            .que_idx = out_intent.que_idx,
-            .event_ts = out_intent.event_ts,
-            .event_stage = stage::STRATEGY,
-            .time_captured = readMonotonicRawNs(),
-        });
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = out_intent.que_idx,
+                .event_ts = out_intent.event_ts,
+                .event_stage = stage::STRATEGY,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (...) {
+        }
     }
     return true;
 }

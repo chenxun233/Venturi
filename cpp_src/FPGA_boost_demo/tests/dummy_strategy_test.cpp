@@ -62,6 +62,7 @@ TEST(DummyStrategyTest, acceptedFirstEventRoutesStrategyRecordToNonZeroQueue) {
     EXPECT_EQ(record.que_idx, 1U);
     EXPECT_EQ(record.event_ts, 54321U);
     EXPECT_EQ(record.event_stage, stage::STRATEGY);
+    EXPECT_GT(record.time_captured, 0U);
     EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(record));
 }
 
@@ -81,6 +82,33 @@ TEST(DummyStrategyTest, acceptedNonFirstEventDoesNotPushStrategyRecord) {
 
     OrderIntent intent {};
     ASSERT_TRUE(strategy.evaluateEvent(event, intent, 0));
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+}
+
+TEST(DummyStrategyTest, acceptedFirstEventReturnsIntentWhenLatencyEmissionThrows) {
+    DummyStrategy strategy;
+    LatencyTracker tracker(1, 8);
+    strategy.attachLatenyTracker(&tracker);
+
+    FPGAEventDesc event {};
+    event.stock_locate = 0x000d;
+    event.event_tk = 12345U;
+    event.is_first_event = 1U;
+    event.bid_price = 100U;
+    event.ask_price = 120U;
+    event.bid_shares = 2000U;
+    event.ask_shares = 100U;
+
+    OrderIntent intent {};
+    ASSERT_TRUE(strategy.evaluateEvent(event, intent, 1));
+    EXPECT_EQ(intent.stock_locate, 0x000d);
+    EXPECT_EQ(intent.que_idx, 1U);
+    EXPECT_EQ(intent.event_ts, 12345U);
+    EXPECT_EQ(intent.intent.action, OrderIntentAction::Buy);
+    EXPECT_EQ(intent.intent.price, 100U);
+    EXPECT_EQ(intent.intent.shares, 100U);
 
     TimeRecord record {};
     EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));

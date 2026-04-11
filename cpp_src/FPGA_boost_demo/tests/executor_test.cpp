@@ -24,9 +24,11 @@ TEST(ExecutorTest, popsReadyIntentsAcrossProducersInRoundRobinOrder) {
     Executor executor(2, 8);
 
     OrderIntent first {};
+    first.que_idx = 0;
     first.stock_locate = 0x000d;
     first.event_ts = 11U;
     OrderIntent second {};
+    second.que_idx = 1;
     second.stock_locate = 0x0ee8;
     second.event_ts = 22U;
 
@@ -80,6 +82,30 @@ TEST(ExecutorTest, successfulTrackedAcceptRoutesExecutorRecordToNonZeroQueue) {
     EXPECT_EQ(record.event_ts, 88U);
     EXPECT_GT(record.time_captured, 0U);
     EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(record));
+}
+
+TEST(ExecutorTest, trackedAcceptReturnsTrueWhenLatencyEmissionThrows) {
+    Executor executor(2, 8);
+    LatencyTracker tracker(1, 8);
+    executor.attachLatenyTracker(&tracker);
+
+    OrderIntent intent {};
+    intent.que_idx = 1;
+    intent.event_ts = 66U;
+    intent.stock_locate = 0x000d;
+    intent.intent.action = OrderIntentAction::Buy;
+
+    ASSERT_TRUE(executor.acceptIntent(1, intent));
+
+    OrderIntent ready {};
+    ASSERT_TRUE(executor.popReadyIntent(ready));
+    EXPECT_EQ(ready.que_idx, 1U);
+    EXPECT_EQ(ready.event_ts, 66U);
+    EXPECT_EQ(ready.stock_locate, 0x000d);
+    EXPECT_EQ(ready.intent.action, OrderIntentAction::Buy);
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
 }
 
 TEST(ExecutorTest, trackedIntentMismatchProducerIndexThrows) {

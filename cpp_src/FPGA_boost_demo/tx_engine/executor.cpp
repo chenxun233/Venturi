@@ -34,12 +34,15 @@ bool Executor::acceptIntent(uint16_t producer_idx, const OrderIntent& intent) {
     }
     const bool pushed = m_intent_buffers[producer_idx]->push(intent);
     if (pushed && intent.event_ts != 0 && m_latency_tracker != nullptr) {
-        m_latency_tracker->pushRecord(TimeRecord {
-            .que_idx = intent.que_idx,
-            .event_ts = intent.event_ts,
-            .event_stage = stage::EXECUTOR,
-            .time_captured = readMonotonicRawNs(),
-        });
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = intent.que_idx,
+                .event_ts = intent.event_ts,
+                .event_stage = stage::EXECUTOR,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (...) {
+        }
     }
     return pushed;
 }
