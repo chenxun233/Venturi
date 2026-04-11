@@ -50,7 +50,7 @@ TEST(FpgaRxEngineTest, pollDecodedBatchSyncCapturesTimePerFirstEventItem) {
         makeRawSlot(0x000d, 1000ULL, 900ULL, 10U, 100U, 20U, 105U, 0U),
         makeRawSlot(0x000d, 1001ULL, 900ULL, 11U, 101U, 21U, 106U, 1U),
     });
-    dev.setSyncSnapshot(0, 2U, 111U, 222U, 333U);
+    dev.setProdPtr(0, 2U);
 
     FPGARxDecoder decoder {};
     FPGARxEngine engine(dev, decoder, 0);
