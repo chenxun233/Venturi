@@ -181,6 +181,10 @@ if(TARGET GTest::gtest_main)
         ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
         ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
         ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
+        ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
+        ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/fpga_rx_engine_test.cpp
     )
     target_include_directories(fpga_rx_engine_test PRIVATE
@@ -223,6 +227,9 @@ if(TARGET GTest::gtest_main)
     add_executable(tx_translator_test
         ${FPGA_TX_DIR}/tx_translator.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
+        ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/tx_translator_test.cpp
     )
     target_include_directories(tx_translator_test PRIVATE
@@ -237,6 +244,10 @@ if(TARGET GTest::gtest_main)
 
     add_executable(dummy_strategy_test
         ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
+        ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
+        ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/dummy_strategy_test.cpp
     )
     target_include_directories(dummy_strategy_test PRIVATE
@@ -253,6 +264,8 @@ if(TARGET GTest::gtest_main)
         ${FPGA_TX_DIR}/executor.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
+        ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/executor_test.cpp
     )
     target_include_directories(executor_test PRIVATE
@@ -309,6 +322,9 @@ if(TARGET GTest::gtest_main)
     add_executable(tx_log_record_test
         ${FPGA_TX_DIR}/tx_engine.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_LATENCY_DIR}/latency_tracker.cpp
+        ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/tx_log_record_test.cpp
     )
     target_include_directories(tx_log_record_test PRIVATE
