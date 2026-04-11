@@ -55,19 +55,6 @@ constexpr std::string_view kTxUsername = "client";
 constexpr std::string_view kTxPassword = "secret";
 constexpr std::string_view kTxSession = "SESSION01";
 
-uint64_t readSystemTimeNs(bool is_first) {
-    if (!is_first) {
-        return 0;
-    }
-    timespec ts {};
-    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return (static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL) +
-           static_cast<uint64_t>(ts.tv_nsec);
-}
-
-
-
-
 } // namespace
 
 int main() {
@@ -119,6 +106,14 @@ int main() {
     });
     LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
     LogPrinter log_printer(kLatencyLogCapacity);
+
+    rx_engine0.attachLatenyTracker(&latency_tracker);
+    rx_engine1.attachLatenyTracker(&latency_tracker);
+    strategy0.attachLatenyTracker(&latency_tracker);
+    strategy1.attachLatenyTracker(&latency_tracker);
+    executor.attachLatenyTracker(&latency_tracker);
+    tx_translator.attachLatenyTracker(&latency_tracker);
+    tx_engine.attachLatenyTracker(&latency_tracker);
     
     latency_tracker.attachLogPrinter(&log_printer);
     latency_tracker.attachRegression(&FPGA_regression);
@@ -151,59 +146,28 @@ int main() {
 
     std::vector<std::thread> rx_threads; //rx_engine0
     rx_threads.emplace_back([&]() {
-        FirstEventMask mask {};
         FpgaSyncSnapshot snapshot {};
-        DecodedEvent FPGA_events[MAX_POLL_RECORDS] {};
+        FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
         while (true) {
             const bool get_snapshot =
                 capture_signal.request.exchange(false, std::memory_order_acq_rel);
             const std::size_t count =
-                rx_engine0.pollDecodedBatchSync(mask, MAX_POLL_RECORDS, get_snapshot, &snapshot, FPGA_events);
+                rx_engine0.pollDecodedBatchSync(MAX_POLL_RECORDS, get_snapshot, &snapshot, events);
             if (get_snapshot) {
                 (void)FPGA_regression.tryAcceptSnapshot(snapshot, kMaxAcceptInterval);
             }
             if (count > 0) {
                 for (std::size_t idx = 0; idx < count; ++idx) {
-                    DecodedEvent& decoded = FPGA_events[idx];
-                    FPGAEventDesc& event = decoded.event;
-                    const bool is_first_event =
-                        ((mask.first_event_mask & (1U << idx)) != 0U);
-                    const uint64_t decode_time_ns = decoded.captured_time_ns;
+                    FPGAEventDesc& event = events[idx];
+                    const bool is_first_event = (event.is_first_event != 0);
 
                     if (strategy0.evaluateEvent(event, intent, 0)) {
-                       const uint64_t strategy_time_ns = readSystemTimeNs(is_first_event);
                         if (!is_first_event) {
                             intent.event_ts = 0;
                         }
                         while (!executor.acceptIntent(0, intent)) {
                             std::this_thread::yield();
-                        }
-                        if (is_first_event) {
-                            latency_tracker.pushRecord(TimeRecord {
-                                .que_idx = 0,
-                                .event_ts = event.event_tk,
-                                .event_stage = stage::FRAME_START,
-                                .time_captured = event.frame_start_tk,
-                            });
-                            latency_tracker.pushRecord(TimeRecord {
-                                .que_idx = 0,
-                                .event_ts = event.event_tk,
-                                .event_stage = stage::DMA_EMIT,
-                                .time_captured = event.event_tk,
-                            });
-                            latency_tracker.pushRecord(TimeRecord {
-                                .que_idx = 0,
-                                .event_ts = event.event_tk,
-                                .event_stage = stage::DECODE,
-                                .time_captured = decode_time_ns,
-                            });
-                            latency_tracker.pushRecord(TimeRecord {
-                                .que_idx = 0,
-                                .event_ts = event.event_tk,
-                                .event_stage = stage::STRATEGY,
-                                .time_captured = strategy_time_ns,
-                            });
                         }
                     }
                 }
@@ -214,52 +178,21 @@ int main() {
         }
     });
     rx_threads.emplace_back([&]() {//rx_engine1
-        FirstEventMask mask {};
-        DecodedEvent FPGA_events[MAX_POLL_RECORDS] {};
+        FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
         while (true) {
-            const std::size_t count = rx_engine1.pollDecodedBatch(mask, MAX_POLL_RECORDS, FPGA_events);
+            const std::size_t count = rx_engine1.pollDecodedBatch(MAX_POLL_RECORDS, events);
             if (count > 0) {
                 for (std::size_t idx = 0; idx < count; ++idx) {
-                    DecodedEvent& decoded = FPGA_events[idx];
-                    FPGAEventDesc& event = decoded.event;
-                    const bool is_first_event =
-                        ((mask.first_event_mask & (1U << idx)) != 0U);
-                    const uint64_t decode_time_ns = decoded.captured_time_ns;
+                    FPGAEventDesc& event = events[idx];
+                    const bool is_first_event =(event.is_first_event != 0);
 
                     if (strategy1.evaluateEvent(event, intent, 1)) {
                         if (!is_first_event) {
                             intent.event_ts = 0;
                         }
-                        const uint64_t strategy_time_ns =readSystemTimeNs(is_first_event);
                         while (!executor.acceptIntent(1, intent)) {
                             std::this_thread::yield();
-                        }
-                        if (is_first_event) {
-                            latency_tracker.pushRecord(TimeRecord {
-                                .que_idx = 1,
-                                .event_ts = event.event_tk,
-                                .event_stage = stage::FRAME_START,
-                                .time_captured = event.frame_start_tk,
-                            });
-                            latency_tracker.pushRecord(TimeRecord {
-                                .que_idx = 1,
-                                .event_ts = event.event_tk,
-                                .event_stage = stage::DMA_EMIT,
-                                .time_captured = event.event_tk,
-                            });
-                            latency_tracker.pushRecord(TimeRecord {
-                                .que_idx = 1,
-                                .event_ts = event.event_tk,
-                                .event_stage = stage::DECODE,
-                                .time_captured = decode_time_ns,
-                            });
-                            latency_tracker.pushRecord(TimeRecord {
-                                .que_idx = 1,
-                                .event_ts = event.event_tk,
-                                .event_stage = stage::STRATEGY,
-                                .time_captured = strategy_time_ns,
-                            });
                         }
                     }
                 }
@@ -276,23 +209,12 @@ int main() {
             bool did_work = false;
             OrderIntent intent {};
             while (executor.popReadyIntent(intent)) {
-                const bool tracked_latency = (intent.event_ts != 0);
-                const uint64_t executor_time_ns =readSystemTimeNs(true);
-
                 while (true &&
                        !tx_translator.acceptIntent(intent)) {
                     std::this_thread::yield();
                 }
                 if (!true) {
                     break;
-                }
-                if (tracked_latency) {
-                latency_tracker.pushRecord(TimeRecord {
-                    .que_idx = intent.que_idx,
-                    .event_ts = intent.event_ts,
-                    .event_stage = stage::EXECUTOR,
-                    .time_captured = executor_time_ns,
-                });
                 }
                 executor.logExecution(intent);
                 did_work = true;
@@ -304,18 +226,8 @@ int main() {
 
         OrderIntent intent {};
         while (executor.popReadyIntent(intent)) {
-            const bool tracked_latency = (intent.event_ts != 0);
-            const uint64_t executor_time_ns =readSystemTimeNs(true);
             while (!tx_translator.acceptIntent(intent)) {
                 std::this_thread::yield();
-            }
-            if (tracked_latency) {
-                latency_tracker.pushRecord(TimeRecord {
-                    .que_idx = intent.que_idx,
-                    .event_ts = intent.event_ts,
-                    .event_stage = stage::EXECUTOR,
-                    .time_captured = executor_time_ns,
-                });
             }
             executor.logExecution(intent);
         }
@@ -334,25 +246,9 @@ int main() {
 
             TxOutboundRecord outbound {};
             while (tx_translator.popReadyOutbound(outbound)) {
-                if (outbound.user_ref_num != 0 && outbound.event_ts != 0) {
-                    latency_tracker.pushRecord(TimeRecord {
-                        .que_idx = outbound.que_idx,
-                        .event_ts = outbound.event_ts,
-                        .event_stage = stage::TX_ENQUEUE,
-                        .time_captured = readSystemTimeNs(true),
-                    });
-                }
                 if (!tx_engine.sendOutboundRecord(outbound)) {
                     tx_translator.restoreReadyOutbound(outbound);
                     break;
-                }
-                if (outbound.user_ref_num != 0 && outbound.event_ts != 0) {
-                    latency_tracker.pushRecord(TimeRecord {
-                        .que_idx = outbound.que_idx,
-                        .event_ts = outbound.event_ts,
-                        .event_stage = stage::TX_SEND,
-                        .time_captured = readSystemTimeNs(true),
-                    });
                 }
                 did_work = true;
             }
