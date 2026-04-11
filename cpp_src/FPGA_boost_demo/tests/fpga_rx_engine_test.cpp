@@ -1,6 +1,10 @@
 #include "../driver/fake_fpga_dev.h"
 #include "../rx_engine/fpga_rx_engine.h"
 
+#define private public
+#include "../latency/latency_tracker.h"
+#undef private
+
 #include <gtest/gtest.h>
 
 namespace {
@@ -98,4 +102,51 @@ TEST(FpgaRxEngineTest, pollDecodedBatchReturnsPlainEventsWithoutDecodedWrapper) 
     EXPECT_EQ(out[1].ask_price, 108U);
     EXPECT_EQ(out[2].bid_shares, 14U);
     EXPECT_EQ(out[2].ask_shares, 24U);
+}
+
+TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitAndDecodeRecords) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 2000ULL, 1900ULL, 12U, 102U, 22U, 107U, 1U),
+    });
+    dev.setProdPtr(0, 1U);
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    LatencyTracker tracker(1, 8);
+    engine.attachLatenyTracker(&tracker);
+    FPGAEventDesc out[1] {};
+
+    ASSERT_EQ(engine.pollDecodedBatch(1, out), 1U);
+
+    TimeRecord first {};
+    TimeRecord second {};
+    TimeRecord third {};
+    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(first));
+    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(second));
+    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(third));
+    EXPECT_EQ(first.event_stage, stage::FRAME_START);
+    EXPECT_EQ(first.time_captured, 1900U);
+    EXPECT_EQ(second.event_stage, stage::DMA_EMIT);
+    EXPECT_EQ(second.time_captured, 2000U);
+    EXPECT_EQ(third.event_stage, stage::DECODE);
+    EXPECT_GT(third.time_captured, 0U);
+}
+
+TEST(FpgaRxEngineTest, nonFirstEventDoesNotPushLatencyRecords) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 2001ULL, 1900ULL, 13U, 103U, 23U, 108U, 0U),
+    });
+    dev.setProdPtr(0, 1U);
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    LatencyTracker tracker(1, 8);
+    engine.attachLatenyTracker(&tracker);
+    FPGAEventDesc out[1] {};
+
+    ASSERT_EQ(engine.pollDecodedBatch(1, out), 1U);
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
 }

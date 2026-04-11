@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstdint>
 
+class LatencyTracker;
+
 class FPGARxEngine {
 
 public:
@@ -16,6 +18,7 @@ public:
                                      bool get_snapshot,
                                      FpgaSyncSnapshot* snapshot,
                                      FPGAEventDesc* out);
+    void attachLatenyTracker(LatencyTracker* latency_tracker);
 
 
 private:
@@ -28,4 +31,5 @@ private:
     const FPGARxDecoder& m_decoder;
     uint16_t m_que_idx {0};
     uint64_t m_cons_ptr {0};
+    LatencyTracker* m_latency_tracker {nullptr};
 };
