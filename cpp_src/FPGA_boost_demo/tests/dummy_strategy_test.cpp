@@ -22,10 +22,29 @@ TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyRecord) {
 
     OrderIntent intent {};
     ASSERT_TRUE(strategy.evaluateEvent(event, intent, 0));
+    EXPECT_EQ(intent.stock_locate, 0x000d);
+    EXPECT_EQ(intent.event_ts, 12345U);
+    EXPECT_EQ(intent.intent.action, OrderIntentAction::Buy);
+    EXPECT_EQ(intent.intent.price, 100U);
+    EXPECT_EQ(intent.intent.shares, 100U);
 
     TimeRecord record {};
     ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(record));
     EXPECT_EQ(record.event_stage, stage::STRATEGY);
     EXPECT_EQ(record.event_ts, 12345U);
     EXPECT_GT(record.time_captured, 0U);
+}
+
+TEST(DummyStrategyTest, rejectsEventWhenNoActionIsSuggested) {
+    DummyStrategy strategy;
+    FPGAEventDesc event {};
+    event.stock_locate = 0x000d;
+    event.event_tk = 12345U;
+    event.bid_price = 100U;
+    event.ask_price = 100U;
+    event.bid_shares = 100U;
+    event.ask_shares = 100U;
+
+    OrderIntent intent {};
+    EXPECT_FALSE(strategy.evaluateEvent(event, intent, 0));
 }
