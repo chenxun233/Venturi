@@ -18,6 +18,7 @@ public:
                                      bool get_snapshot,
                                      FpgaSyncSnapshot* snapshot,
                                      FPGAEventDesc* out);
+    // Non-owning; attach before polling; tracker must outlive engine; do not swap concurrently.
     void attachLatenyTracker(LatencyTracker* latency_tracker);
 
 

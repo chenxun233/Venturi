@@ -5,6 +5,8 @@
 #include "../latency/latency_tracker.h"
 #undef private
 
+#include "../common/time_utils.h"
+
 #include <gtest/gtest.h>
 
 namespace {
@@ -117,7 +119,9 @@ TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitAndDecodeRecords) {
     engine.attachLatenyTracker(&tracker);
     FPGAEventDesc out[1] {};
 
+    const uint64_t before_ns = readMonotonicRawNs();
     ASSERT_EQ(engine.pollDecodedBatch(1, out), 1U);
+    const uint64_t after_ns = readMonotonicRawNs();
 
     TimeRecord first {};
     TimeRecord second {};
@@ -137,10 +141,27 @@ TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitAndDecodeRecords) {
     EXPECT_EQ(third.event_ts, 2000U);
     EXPECT_EQ(third.event_stage, stage::DECODE);
     EXPECT_GT(third.time_captured, 0U);
-    EXPECT_NE(third.time_captured, 1900U);
-    EXPECT_NE(third.time_captured, 2000U);
+    EXPECT_GE(third.time_captured, before_ns);
+    EXPECT_LE(third.time_captured, after_ns);
     TimeRecord extra {};
     EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(extra));
+}
+
+TEST(FpgaRxEngineTest, firstEventWithoutTrackerDoesNotEmitLatencyRecords) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 3000ULL, 2900ULL, 15U, 110U, 25U, 115U, 1U),
+    });
+    dev.setProdPtr(0, 1U);
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    LatencyTracker tracker(1, 8);
+    FPGAEventDesc out[1] {};
+
+    ASSERT_EQ(engine.pollDecodedBatch(1, out), 1U);
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
 }
 
 TEST(FpgaRxEngineTest, nonFirstEventDoesNotPushLatencyRecords) {
