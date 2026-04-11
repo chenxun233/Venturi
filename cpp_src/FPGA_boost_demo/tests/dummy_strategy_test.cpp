@@ -38,6 +38,33 @@ TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyRecord) {
     EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
 }
 
+TEST(DummyStrategyTest, acceptedFirstEventRoutesStrategyRecordToNonZeroQueue) {
+    DummyStrategy strategy;
+    LatencyTracker tracker(2, 8);
+    strategy.attachLatenyTracker(&tracker);
+
+    FPGAEventDesc event {};
+    event.stock_locate = 0x000d;
+    event.event_tk = 54321U;
+    event.is_first_event = 1U;
+    event.bid_price = 100U;
+    event.ask_price = 120U;
+    event.bid_shares = 2000U;
+    event.ask_shares = 100U;
+
+    OrderIntent intent {};
+    ASSERT_TRUE(strategy.evaluateEvent(event, intent, 1));
+    EXPECT_EQ(intent.que_idx, 1U);
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    ASSERT_TRUE(tracker.m_trace_buffer[1]->pop(record));
+    EXPECT_EQ(record.que_idx, 1U);
+    EXPECT_EQ(record.event_ts, 54321U);
+    EXPECT_EQ(record.event_stage, stage::STRATEGY);
+    EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(record));
+}
+
 TEST(DummyStrategyTest, acceptedNonFirstEventDoesNotPushStrategyRecord) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);

@@ -61,6 +61,27 @@ TEST(ExecutorTest, successfulTrackedAcceptPushesExecutorRecord) {
     EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
 }
 
+TEST(ExecutorTest, successfulTrackedAcceptRoutesExecutorRecordToNonZeroQueue) {
+    Executor executor(2, 8);
+    LatencyTracker tracker(2, 8);
+    executor.attachLatenyTracker(&tracker);
+
+    OrderIntent intent {};
+    intent.que_idx = 1;
+    intent.event_ts = 88U;
+
+    ASSERT_TRUE(executor.acceptIntent(1, intent));
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    ASSERT_TRUE(tracker.m_trace_buffer[1]->pop(record));
+    EXPECT_EQ(record.que_idx, 1U);
+    EXPECT_EQ(record.event_stage, stage::EXECUTOR);
+    EXPECT_EQ(record.event_ts, 88U);
+    EXPECT_GT(record.time_captured, 0U);
+    EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(record));
+}
+
 TEST(ExecutorTest, trackedIntentMismatchProducerIndexThrows) {
     Executor executor(2, 8);
     LatencyTracker tracker(2, 8);
