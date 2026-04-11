@@ -50,6 +50,7 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
             break;
         }
         m_decoder.decodeRawRecord(raw, out[record_count]);
+        const uint64_t decode_time_ns = readMonotonicRawNs();
         if (out[record_count].is_first_event != 0 && m_latency_tracker != nullptr) {
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = m_que_idx,
@@ -67,7 +68,7 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
                 .que_idx = m_que_idx,
                 .event_ts = out[record_count].event_tk,
                 .event_stage = stage::DECODE,
-                .time_captured = readMonotonicRawNs(),
+                .time_captured = decode_time_ns,
             });
         }
         ++record_count;
