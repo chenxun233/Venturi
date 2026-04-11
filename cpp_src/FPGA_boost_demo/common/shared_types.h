@@ -22,6 +22,7 @@ typedef struct{
 typedef struct  {
     bool has_para {false};
     uint64_t a_q32 {1ULL << 32};
+    int64_t b_ns {0};
 }   RegressionPara;
 
 struct FPGAEventDesc {
@@ -105,10 +106,10 @@ struct OrderIntentPayload {
 };
 
 struct OrderIntent {
-    uint16_t            stock_locate {0};
-    uint16_t            que_idx {0};
-    uint64_t            event_ts {0}; // event timestamp
-    OrderIntentPayload  intent {};
+    uint16_t stock_locate {0};
+    uint16_t que_idx {0};
+    uint64_t event_ts {0};
+    OrderIntentPayload intent {};
 };
 
 struct ExecutionLogRecord {
