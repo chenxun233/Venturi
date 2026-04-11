@@ -414,12 +414,15 @@ void TxTranslator::_queueReadyRecord(const TxOutboundRecord& record) {
     _normalizeReadyRecords();
     m_ready_outbound.push_back(record);
     if (record.event_ts != 0 && m_latency_tracker != nullptr) {
-        m_latency_tracker->pushRecord(TimeRecord {
-            .que_idx = record.que_idx,
-            .event_ts = record.event_ts,
-            .event_stage = stage::TX_ENQUEUE,
-            .time_captured = readMonotonicRawNs(),
-        });
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = record.que_idx,
+                .event_ts = record.event_ts,
+                .event_stage = stage::TX_ENQUEUE,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (const std::exception&) {
+        }
     }
 }
 

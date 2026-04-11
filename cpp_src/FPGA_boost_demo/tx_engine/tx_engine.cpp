@@ -126,12 +126,15 @@ bool TxEngine::sendOutboundRecord(const TxOutboundRecord& record) {
     }
 
     if (record.event_ts != 0 && m_latency_tracker != nullptr) {
-        m_latency_tracker->pushRecord(TimeRecord {
-            .que_idx = record.que_idx,
-            .event_ts = record.event_ts,
-            .event_stage = stage::TX_SEND,
-            .time_captured = readMonotonicRawNs(),
-        });
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = record.que_idx,
+                .event_ts = record.event_ts,
+                .event_stage = stage::TX_SEND,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (const std::exception&) {
+        }
     }
     if (record.user_ref_num != 0) {
         _logOrderSent(record);
