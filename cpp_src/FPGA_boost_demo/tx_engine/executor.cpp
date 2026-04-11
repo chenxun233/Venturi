@@ -29,6 +29,9 @@ bool Executor::acceptIntent(uint16_t producer_idx, const OrderIntent& intent) {
     if (producer_idx >= m_intent_buffers.size()) {
         throw std::out_of_range("Executor producer index out of range");
     }
+    if (intent.event_ts != 0 && m_latency_tracker != nullptr && producer_idx != intent.que_idx) {
+        throw std::invalid_argument("Executor producer index does not match intent queue index");
+    }
     const bool pushed = m_intent_buffers[producer_idx]->push(intent);
     if (pushed && intent.event_ts != 0 && m_latency_tracker != nullptr) {
         m_latency_tracker->pushRecord(TimeRecord {

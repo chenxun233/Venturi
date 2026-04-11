@@ -57,3 +57,15 @@ TEST(ExecutorTest, successfulTrackedAcceptPushesExecutorRecord) {
     EXPECT_EQ(record.event_ts, 77U);
     EXPECT_GT(record.time_captured, 0U);
 }
+
+TEST(ExecutorTest, trackedIntentMismatchProducerIndexThrows) {
+    Executor executor(2, 8);
+    LatencyTracker tracker(2, 8);
+    executor.attachLatenyTracker(&tracker);
+
+    OrderIntent intent {};
+    intent.que_idx = 1;
+    intent.event_ts = 55U;
+
+    EXPECT_THROW(executor.acceptIntent(0, intent), std::invalid_argument);
+}

@@ -33,6 +33,7 @@ TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyRecord) {
     EXPECT_EQ(record.event_stage, stage::STRATEGY);
     EXPECT_EQ(record.event_ts, 12345U);
     EXPECT_GT(record.time_captured, 0U);
+    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
 }
 
 TEST(DummyStrategyTest, rejectsEventWhenNoActionIsSuggested) {
