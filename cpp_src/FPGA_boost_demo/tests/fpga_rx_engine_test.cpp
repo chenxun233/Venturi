@@ -66,6 +66,12 @@ TEST(FpgaRxEngineTest, pollDecodedBatchSyncDecodesFirstEventFlagAndSnapshot) {
     EXPECT_EQ(out[0].is_first_event, 0U);
     EXPECT_EQ(out[1].is_first_event, 1U);
     EXPECT_EQ(out[1].event_tk, 1001U);
+    EXPECT_EQ(out[0].stock_locate, 0x000d);
+    EXPECT_EQ(out[0].frame_start_tk, 900U);
+    EXPECT_EQ(out[0].bid_price, 100U);
+    EXPECT_EQ(out[0].ask_price, 105U);
+    EXPECT_EQ(out[1].bid_shares, 11U);
+    EXPECT_EQ(out[1].ask_shares, 21U);
 }
 
 TEST(FpgaRxEngineTest, pollDecodedBatchReturnsPlainEventsWithoutDecodedWrapper) {
@@ -87,4 +93,9 @@ TEST(FpgaRxEngineTest, pollDecodedBatchReturnsPlainEventsWithoutDecodedWrapper) 
     EXPECT_EQ(out[0].is_first_event, 1U);
     EXPECT_EQ(out[1].is_first_event, 0U);
     EXPECT_EQ(out[2].is_first_event, 0U);
+    EXPECT_EQ(out[0].frame_start_tk, 1900U);
+    EXPECT_EQ(out[0].bid_price, 102U);
+    EXPECT_EQ(out[1].ask_price, 108U);
+    EXPECT_EQ(out[2].bid_shares, 14U);
+    EXPECT_EQ(out[2].ask_shares, 24U);
 }
