@@ -78,7 +78,7 @@ public:
             if (written < 0 && errno == EINTR) {
                 continue;
             }
-            _closeLocalFd();
+            _closeLocalFd(false);
             return false;
         }
 
@@ -100,13 +100,14 @@ public:
     }
 
 private:
-    void _closeLocalFd() {
-        if (m_send_fd < 0) {
-            return;
+    void _closeLocalFd(bool clear_generation = true) {
+        if (m_send_fd >= 0) {
+            ::close(m_send_fd);
+            m_send_fd = -1;
         }
-        ::close(m_send_fd);
-        m_send_fd = -1;
-        m_generation = 0;
+        if (clear_generation) {
+            m_generation = 0;
+        }
     }
 
     void _logOrderSent(const TxOutboundRecord& record) {

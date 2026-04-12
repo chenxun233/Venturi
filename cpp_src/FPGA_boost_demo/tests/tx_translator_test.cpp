@@ -300,6 +300,65 @@ TEST(TxTranslatorTest, activeGenerationDisconnectRebuildsReplayAndSessionState) 
     EXPECT_EQ(replayed.event_tag, 0x1122334455667788ULL);
 }
 
+TEST(TxTranslatorTest, sendFailureThenMatchingDisconnectStillRebuildsReplayOnReconnect) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(8);
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .que_idx = 1,
+        .event_tag = 0x1122334455667788ULL,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 7,
+        .tx_fd = sockets[0],
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord first_send {};
+    ASSERT_TRUE(sender.popReadyOutbound(first_send));
+    EXPECT_EQ(first_send.que_idx, 1U);
+    EXPECT_EQ(first_send.event_tag, 0x1122334455667788ULL);
+
+    ::close(sockets[1]);
+    sockets[1] = -1;
+    EXPECT_FALSE(sender.trySendOutbound(first_send));
+    sender.restoreReadyOutbound(first_send);
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Disconnected,
+        .generation = 7,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 8,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord replayed {};
+    ASSERT_TRUE(sender.popReadyOutbound(replayed));
+    EXPECT_EQ(replayed.que_idx, 1U);
+    EXPECT_EQ(replayed.event_tag, 0x1122334455667788ULL);
+}
+
 TEST(TxTranslatorTest, trySendOutboundSucceedsAfterConnectedControlInstallsSendFd) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
@@ -393,6 +452,18 @@ TEST(TxTranslatorTest, inboundFrameAndDisconnectAreAppliedInArrivalOrder) {
     EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
 
     ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord ready {};
+    EXPECT_FALSE(sender.popReadyOutbound(ready));
+    EXPECT_FALSE(sender.queueHeartbeatIfDue());
+}
+
+TEST(TxTranslatorTest, queuedLegacyConnectThenDisconnectBeforeSingleDrainLeavesNoLogin) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
     ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
     ASSERT_TRUE(sender.processInboundQueues());
 

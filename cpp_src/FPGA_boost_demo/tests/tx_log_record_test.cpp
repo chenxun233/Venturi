@@ -228,7 +228,8 @@ TEST(TxLogRecordTest, txReceiverRetriesRetainedInboundFrameWhenSenderQueueHasSpa
     ASSERT_TRUE(sender.m_inbound_records.pop(ingress));
     EXPECT_EQ(ingress.kind, TxSenderInboundKind::TransportEvent);
     EXPECT_EQ(ingress.transport_event.kind, TxTransportControlKind::Connected);
-    EXPECT_EQ(ingress.transport_event.generation, 1U);
+    EXPECT_EQ(ingress.transport_event.generation, 0U);
+    EXPECT_LT(ingress.transport_event.tx_fd, 0);
 
     ASSERT_TRUE(receiver.pollOnce());
     bool found_frame = false;
@@ -277,7 +278,8 @@ TEST(TxLogRecordTest, txReceiverPollOnceReportsWorkPendingUnderRetainedBackpress
     ASSERT_TRUE(sender.m_inbound_records.pop(ingress));
     EXPECT_EQ(ingress.kind, TxSenderInboundKind::TransportEvent);
     EXPECT_EQ(ingress.transport_event.kind, TxTransportControlKind::Connected);
-    EXPECT_EQ(ingress.transport_event.generation, 1U);
+    EXPECT_EQ(ingress.transport_event.generation, 0U);
+    EXPECT_LT(ingress.transport_event.tx_fd, 0);
 
     ASSERT_TRUE(receiver.pollOnce());
     bool found_frame = false;
@@ -382,6 +384,7 @@ TEST(TxLogRecordTest, txSendSocketClosesLocalFdWhenSendFails) {
 
     EXPECT_FALSE(send_socket.sendPayload(record));
     EXPECT_FALSE(send_socket.hasActiveFd());
+    EXPECT_EQ(send_socket.activeGeneration(), 4U);
 }
 
 TEST(TxLogRecordTest, txSendSocketStaleRetireDoesNotCloseNewGeneration) {

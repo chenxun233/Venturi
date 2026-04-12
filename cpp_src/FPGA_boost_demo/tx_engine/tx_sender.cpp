@@ -38,6 +38,7 @@ constexpr std::size_t kOuchEnterOrderSize = 16;
 constexpr std::size_t kOuchAcceptedSize = 64;
 constexpr std::size_t kOuchExecutedSize = 36;
 constexpr std::size_t kOuchRejectedSize = 31;
+constexpr int kLegacyTransportFdSentinel = -2;
 
 uint16_t readBigEndian16(const uint8_t* bytes) {
     return static_cast<uint16_t>((static_cast<uint16_t>(bytes[0]) << 8) |
@@ -292,16 +293,12 @@ bool TxSender::acceptInboundFrame(const TxInboundFrame& frame) {
 }
 
 bool TxSender::acceptTransportEvent(TxTransportEvent event) {
-    uint64_t generation = m_send_socket.activeGeneration();
-    if (event == TxTransportEvent::Connected && generation < std::numeric_limits<uint64_t>::max()) {
-        ++generation;
-    }
     const TxTransportControl control {
         .kind = event == TxTransportEvent::Connected
             ? TxTransportControlKind::Connected
             : TxTransportControlKind::Disconnected,
-        .generation = generation,
-        .tx_fd = -1,
+        .generation = 0,
+        .tx_fd = kLegacyTransportFdSentinel,
     };
     return acceptTransportControl(control);
 }
@@ -316,6 +313,26 @@ bool TxSender::acceptTransportControl(const TxTransportControl& control) {
 
 bool TxSender::processInboundQueues() {
     bool did_work = false;
+    const auto handle_transport_control = [this](const TxTransportControl& control) {
+        switch (control.kind) {
+            case TxTransportControlKind::Connected:
+                m_send_socket.install(control);
+                login();
+                break;
+            case TxTransportControlKind::Disconnected: {
+                const uint64_t active_generation = m_send_socket.activeGeneration();
+                if (control.generation < active_generation) {
+                    break;
+                }
+                if (control.generation != active_generation) {
+                    break;
+                }
+                m_send_socket.retireGeneration(control.generation);
+                onTransportDisconnected();
+                break;
+            }
+        }
+    };
 
     TxSenderInboundRecord inbound {};
     while (m_inbound_records.pop(inbound)) {
@@ -324,26 +341,19 @@ bool TxSender::processInboundQueues() {
             case TxSenderInboundKind::Frame:
                 _acceptInboundFramePayload(inbound.frame);
                 break;
-            case TxSenderInboundKind::TransportEvent:
-                switch (inbound.transport_event.kind) {
-                    case TxTransportControlKind::Connected:
-                        m_send_socket.install(inbound.transport_event);
-                        login();
-                        break;
-                    case TxTransportControlKind::Disconnected: {
-                        const uint64_t active_generation = m_send_socket.activeGeneration();
-                        if (inbound.transport_event.generation < active_generation) {
-                            break;
-                        }
-                        if (inbound.transport_event.generation != active_generation) {
-                            break;
-                        }
-                        m_send_socket.retireGeneration(inbound.transport_event.generation);
-                        onTransportDisconnected();
-                        break;
+            case TxSenderInboundKind::TransportEvent: {
+                TxTransportControl control = inbound.transport_event;
+                if (control.tx_fd == kLegacyTransportFdSentinel) {
+                    control.generation = m_send_socket.activeGeneration();
+                    if (control.kind == TxTransportControlKind::Connected &&
+                        control.generation < std::numeric_limits<uint64_t>::max()) {
+                        ++control.generation;
                     }
+                    control.tx_fd = -1;
                 }
+                handle_transport_control(control);
                 break;
+            }
         }
     }
 
