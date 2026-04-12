@@ -166,7 +166,11 @@ TEST(TxLogRecordTest, txReceiverRetriesRetainedInboundFrameWhenSenderQueueHasSpa
     });
     TxReceiver receiver(connection, sender);
 
-    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    std::size_t queued_transport_events = 0;
+    while (sender.acceptTransportEvent(TxTransportEvent::Connected)) {
+        ++queued_transport_events;
+    }
+    ASSERT_GT(queued_transport_events, 0U);
 
     const std::array<uint8_t, 3> frame {0x00, 0x01, static_cast<uint8_t>('H')};
     ASSERT_EQ(::send(sockets[1], frame.data(), frame.size(), 0), 3);
@@ -176,14 +180,70 @@ TEST(TxLogRecordTest, txReceiverRetriesRetainedInboundFrameWhenSenderQueueHasSpa
     ASSERT_TRUE(sender.m_inbound_records.pop(ingress));
     EXPECT_EQ(ingress.kind, TxSenderInboundKind::TransportEvent);
     EXPECT_EQ(ingress.transport_event, TxTransportEvent::Connected);
-    EXPECT_FALSE(sender.m_inbound_records.pop(ingress));
 
     ASSERT_TRUE(receiver.pollOnce());
+    bool found_frame = false;
+    while (sender.m_inbound_records.pop(ingress)) {
+        if (ingress.kind != TxSenderInboundKind::Frame) {
+            continue;
+        }
+
+        found_frame = true;
+        EXPECT_EQ(ingress.frame.payload_length, frame.size());
+        EXPECT_EQ(ingress.frame.payload[2], static_cast<uint8_t>('H'));
+        break;
+    }
+    EXPECT_TRUE(found_frame);
+
+    ::close(sockets[0]);
+    ::close(sockets[1]);
+    connection.m_socket_fd = -1;
+}
+
+TEST(TxLogRecordTest, txReceiverPollOnceReportsWorkPendingUnderRetainedBackpressure) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxConnection connection {};
+    connection.m_socket_fd = sockets[0];
+
+    TxSender sender(TxSenderConfig {
+        .intent_capacity = 1,
+        .pending_capacity = 1,
+        .inbound_capacity = 1,
+        .transport_capacity = 1,
+    });
+    TxReceiver receiver(connection, sender);
+
+    std::size_t queued_transport_events = 0;
+    while (sender.acceptTransportEvent(TxTransportEvent::Connected)) {
+        ++queued_transport_events;
+    }
+    ASSERT_GT(queued_transport_events, 0U);
+
+    const std::array<uint8_t, 3> frame {0x00, 0x01, static_cast<uint8_t>('H')};
+    ASSERT_EQ(::send(sockets[1], frame.data(), frame.size(), 0), 3);
+    ASSERT_TRUE(receiver.pollOnce());
+    EXPECT_TRUE(receiver.pollOnce());
+
+    TxSenderInboundRecord ingress {};
     ASSERT_TRUE(sender.m_inbound_records.pop(ingress));
-    EXPECT_EQ(ingress.kind, TxSenderInboundKind::Frame);
-    EXPECT_EQ(ingress.frame.payload_length, frame.size());
-    EXPECT_EQ(ingress.frame.payload[2], static_cast<uint8_t>('H'));
-    EXPECT_FALSE(sender.m_inbound_records.pop(ingress));
+    EXPECT_EQ(ingress.kind, TxSenderInboundKind::TransportEvent);
+    EXPECT_EQ(ingress.transport_event, TxTransportEvent::Connected);
+
+    ASSERT_TRUE(receiver.pollOnce());
+    bool found_frame = false;
+    while (sender.m_inbound_records.pop(ingress)) {
+        if (ingress.kind != TxSenderInboundKind::Frame) {
+            continue;
+        }
+
+        found_frame = true;
+        EXPECT_EQ(ingress.frame.payload_length, frame.size());
+        EXPECT_EQ(ingress.frame.payload[2], static_cast<uint8_t>('H'));
+        break;
+    }
+    EXPECT_TRUE(found_frame);
 
     ::close(sockets[0]);
     ::close(sockets[1]);

@@ -40,7 +40,8 @@ bool TxReceiver::_retryRetainedRecord() {
 bool TxReceiver::pollOnce() {
     const bool had_retained_record = m_has_retained_record;
     if (!_retryRetainedRecord()) {
-        return false;
+        // Backpressure remains active; caller should keep polling instead of sleeping.
+        return true;
     }
 
     bool did_work = had_retained_record;

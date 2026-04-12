@@ -6,7 +6,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <charconv>
+#include <limits>
+#include <stdexcept>
 #include <string_view>
 
 namespace {
@@ -191,8 +194,29 @@ void writeFramePayload(TxOutboundRecord& record, char side) {
     writeBigEndian32(payload + 12, record.price);
 }
 
-std::size_t readInboundIngressCapacity(const TxSenderConfig& config) {
-    return std::max(config.inbound_capacity, config.transport_capacity);
+std::size_t roundUpPowerOfTwo(std::size_t value) {
+    if (value <= 1) {
+        return 1;
+    }
+
+    std::size_t rounded = 1;
+    while (rounded < value) {
+        if (rounded > (std::numeric_limits<std::size_t>::max() >> 1U)) {
+            throw std::invalid_argument("TxSender merged ingress capacity overflow");
+        }
+        rounded <<= 1U;
+    }
+
+    return rounded;
+}
+
+std::size_t computeMergedIngressCapacity(const TxSenderConfig& config) {
+    if (config.inbound_capacity >
+        (std::numeric_limits<std::size_t>::max() - config.transport_capacity)) {
+        throw std::invalid_argument("TxSender merged ingress capacity overflow");
+    }
+    const std::size_t required = config.inbound_capacity + config.transport_capacity;
+    return roundUpPowerOfTwo(required);
 }
 
 } // namespace
@@ -213,7 +237,7 @@ TxSender::TxSender(TxSenderConfig config)
           .ordered_tags = {},
       },
       m_intent_buffer(m_config.intent_capacity),
-      m_inbound_records(readInboundIngressCapacity(m_config)),
+      m_inbound_records(computeMergedIngressCapacity(m_config)),
       m_ready_outbound {},
       m_blocked_outbound {} {
     m_pending_orders.order_records.reserve(m_config.pending_capacity);
@@ -231,11 +255,31 @@ void TxSender::attachLatenyTracker(LatencyTracker* latency_tracker) {
     m_latency_tracker = latency_tracker;
 }
 
+void TxSender::_assertIngressProducerThread() {
+#ifndef NDEBUG
+    thread_local uint8_t ingress_thread_token {};
+    const std::uintptr_t producer_token =
+        reinterpret_cast<std::uintptr_t>(&ingress_thread_token);
+
+    std::uintptr_t expected_token = 0;
+    if (m_ingress_producer_thread_token.compare_exchange_strong(expected_token,
+                                                                 producer_token,
+                                                                 std::memory_order_relaxed,
+                                                                 std::memory_order_relaxed)) {
+        return;
+    }
+
+    assert(expected_token == producer_token &&
+           "TxSender ingress queue is SPSC: one producer thread for frame/event APIs");
+#endif
+}
+
 bool TxSender::acceptIntent(const OrderIntent& intent) {
     return m_intent_buffer.push(intent);
 }
 
 bool TxSender::acceptInboundFrame(const TxInboundFrame& frame) {
+    _assertIngressProducerThread();
     return m_inbound_records.push(TxSenderInboundRecord {
         .kind = TxSenderInboundKind::Frame,
         .frame = frame,
@@ -243,6 +287,7 @@ bool TxSender::acceptInboundFrame(const TxInboundFrame& frame) {
 }
 
 bool TxSender::acceptTransportEvent(TxTransportEvent event) {
+    _assertIngressProducerThread();
     return m_inbound_records.push(TxSenderInboundRecord {
         .kind = TxSenderInboundKind::TransportEvent,
         .transport_event = event,

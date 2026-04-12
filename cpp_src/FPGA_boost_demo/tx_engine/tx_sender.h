@@ -3,6 +3,7 @@
 #include "../common/shared_types.h"
 #include "../latency/trace_buffer.h"
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -33,6 +34,8 @@ public:
     void attachLatenyTracker(LatencyTracker* latency_tracker);
 
     bool acceptIntent(const OrderIntent& intent);
+    // acceptInboundFrame() and acceptTransportEvent() feed one shared SPSC ingress queue.
+    // Callers must serialize both APIs on the same producer thread (TxReceiver thread in split mode).
     bool acceptInboundFrame(const TxInboundFrame& frame);
     bool acceptTransportEvent(TxTransportEvent event);
     bool acceptTransportControl(const TxTransportControl& control);
@@ -56,6 +59,7 @@ private:
         std::vector<uint32_t> ordered_tags {};
     };
 
+    void _assertIngressProducerThread();
     void _acceptInboundFramePayload(const TxInboundFrame& frame);
     bool _buildOrderFrame(const OrderIntent& intent, TxOutboundRecord& record);
     void _queueReadyRecord(const TxOutboundRecord& record);
@@ -88,6 +92,7 @@ private:
     void _normalizeReadyRecords();
 
     TxSenderConfig m_config {};
+    std::atomic<std::uintptr_t> m_ingress_producer_thread_token {0};
     PendingOrderState m_pending_orders {};
     TraceBuffer<OrderIntent> m_intent_buffer;
     TraceBuffer<TxSenderInboundRecord> m_inbound_records;

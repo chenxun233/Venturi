@@ -214,6 +214,31 @@ TEST(TxTranslatorTest, transportConnectQueuesLoginRequestFrame) {
     EXPECT_EQ(record.payload[2], static_cast<uint8_t>('L'));
 }
 
+TEST(TxTranslatorTest, fullInboundBacklogStillAllowsTransportBudgetEnqueue) {
+    TxSender sender(TxSenderConfig {
+        .intent_capacity = 8,
+        .pending_capacity = 8,
+        .inbound_capacity = 4,
+        .transport_capacity = 4,
+    });
+
+    TxInboundFrame frame {};
+    frame.payload[0] = 0x00;
+    frame.payload[1] = 0x01;
+    frame.payload[2] = static_cast<uint8_t>('H');
+    frame.payload_length = 3;
+
+    for (std::size_t idx = 0; idx < 4; ++idx) {
+        ASSERT_TRUE(sender.acceptInboundFrame(frame));
+    }
+
+    for (std::size_t idx = 0; idx < 4; ++idx) {
+        ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    }
+
+    EXPECT_FALSE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+}
+
 TEST(TxTranslatorTest, inboundFrameAndDisconnectAreAppliedInArrivalOrder) {
     TxSender sender(4);
 
