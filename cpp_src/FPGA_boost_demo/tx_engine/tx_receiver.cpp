@@ -4,6 +4,8 @@
 #include "tx_connection.h"
 #include "tx_sender.h"
 
+#include <unistd.h>
+
 TxReceiver::TxReceiver(TxConnection& connection, TxSender& sender)
     : m_connection(connection),
       m_sender(sender) {}
@@ -48,17 +50,32 @@ bool TxReceiver::pollOnce() {
 
     did_work = m_connection.pollConnectStep() || did_work;
 
-    if (m_connection.takeConnectEvent()) {
-        const TxSenderInboundRecord inbound_record {
-            .kind = TxSenderInboundKind::TransportEvent,
-            .transport_event = TxTransportEvent::Connected,
-        };
-        if (!_tryEnqueueRecord(inbound_record)) {
-            m_retained_record = inbound_record;
+    TxTransportControl transport_control {};
+    if (m_connection.takeTransportControl(transport_control)) {
+        if (!m_sender.acceptTransportControl(transport_control)) {
+            m_retained_record = TxSenderInboundRecord {
+                .kind = TxSenderInboundKind::TransportEvent,
+                .transport_event = transport_control.kind == TxTransportControlKind::Connected
+                    ? TxTransportEvent::Connected
+                    : TxTransportEvent::Disconnected,
+            };
             m_has_retained_record = true;
+            // Transitional: TxSender::acceptTransportControl() currently only forwards
+            // connect/disconnect events, so we cannot retain the sender fd. Close it to avoid
+            // leaking across reconnects until sender-owned controls are wired end-to-end.
+            if (transport_control.kind == TxTransportControlKind::Connected &&
+                transport_control.tx_fd >= 0) {
+                ::close(transport_control.tx_fd);
+                transport_control.tx_fd = -1;
+            }
             return true;
         }
 
+        if (transport_control.kind == TxTransportControlKind::Connected &&
+            transport_control.tx_fd >= 0) {
+            ::close(transport_control.tx_fd);
+            transport_control.tx_fd = -1;
+        }
         did_work = true;
     }
 
@@ -77,17 +94,28 @@ bool TxReceiver::pollOnce() {
         did_work = true;
     }
 
-    if (m_connection.takeDisconnectEvent()) {
-        const TxSenderInboundRecord inbound_record {
-            .kind = TxSenderInboundKind::TransportEvent,
-            .transport_event = TxTransportEvent::Disconnected,
-        };
-        if (!_tryEnqueueRecord(inbound_record)) {
-            m_retained_record = inbound_record;
+    if (m_connection.takeTransportControl(transport_control)) {
+        if (!m_sender.acceptTransportControl(transport_control)) {
+            m_retained_record = TxSenderInboundRecord {
+                .kind = TxSenderInboundKind::TransportEvent,
+                .transport_event = transport_control.kind == TxTransportControlKind::Connected
+                    ? TxTransportEvent::Connected
+                    : TxTransportEvent::Disconnected,
+            };
             m_has_retained_record = true;
+            if (transport_control.kind == TxTransportControlKind::Connected &&
+                transport_control.tx_fd >= 0) {
+                ::close(transport_control.tx_fd);
+                transport_control.tx_fd = -1;
+            }
             return true;
         }
 
+        if (transport_control.kind == TxTransportControlKind::Connected &&
+            transport_control.tx_fd >= 0) {
+            ::close(transport_control.tx_fd);
+            transport_control.tx_fd = -1;
+        }
         did_work = true;
     }
 

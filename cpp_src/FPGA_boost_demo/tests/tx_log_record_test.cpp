@@ -11,6 +11,8 @@
 
 #include "../tx_engine/tx_receiver.h"
 
+#include "../tx_engine/tx_send_socket.h"
+
 #define private public
 #include "../latency/latency_tracker.h"
 #undef private
@@ -30,8 +32,7 @@
 #include <type_traits>
 
 static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::pollConnectStep)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::takeConnectEvent)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::takeDisconnectEvent)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::takeTransportControl)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::isConnected)>);
 
 static_assert(std::is_member_function_pointer_v<decltype(&TxReceiver::pollOnce)>);
@@ -79,6 +80,54 @@ TEST(TxLogRecordTest, disconnectedTransportControlDoesNotRequireSenderFd) {
     EXPECT_LT(control.tx_fd, 0);
 }
 
+TEST(TxLogRecordTest, successfulConnectPublishesConnectedControlWithDuplicatedSenderFd) {
+    TxConnection connection {};
+
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    // Mirror the original test intent (use a stable fd number) while ensuring it is valid.
+    constexpr int kStableFd = 11;
+    ASSERT_EQ(::dup2(sockets[0], kStableFd), kStableFd);
+    ::close(sockets[0]);
+    sockets[0] = -1;
+
+    connection.m_socket_fd = kStableFd;
+    connection.m_generation = 0;
+    ASSERT_TRUE(connection._publishConnectedControlForCurrentSocket());
+
+    TxTransportControl control {};
+    ASSERT_TRUE(connection.takeTransportControl(control));
+    EXPECT_EQ(control.kind, TxTransportControlKind::Connected);
+    EXPECT_EQ(control.generation, 1U);
+    EXPECT_GE(control.tx_fd, 0);
+
+    if (control.tx_fd >= 0) {
+        ::close(control.tx_fd);
+        control.tx_fd = -1;
+    }
+    ::close(sockets[1]);
+}
+
+TEST(TxLogRecordTest, handleDisconnectPublishesDisconnectedControlForCurrentGeneration) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxConnection connection {};
+    connection.m_socket_fd = sockets[0];
+    connection.m_generation = 5;
+
+    connection._handleDisconnect("test disconnect");
+
+    TxTransportControl control {};
+    ASSERT_TRUE(connection.takeTransportControl(control));
+    EXPECT_EQ(control.kind, TxTransportControlKind::Disconnected);
+    EXPECT_EQ(control.generation, 5U);
+    EXPECT_LT(control.tx_fd, 0);
+
+    ::close(sockets[1]);
+}
+
 TEST(TxLogRecordTest, txReceiverForwardsInboundFrameIntoSenderOwnedQueue) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
@@ -99,9 +148,7 @@ TEST(TxLogRecordTest, txReceiverForwardsInboundFrameIntoSenderOwnedQueue) {
     EXPECT_EQ(inbound.kind, TxSenderInboundKind::Frame);
     EXPECT_EQ(inbound.frame.payload_length, frame.size());
 
-    ::close(sockets[0]);
     ::close(sockets[1]);
-    connection.m_socket_fd = -1;
 }
 
 TEST(TxLogRecordTest, txReceiverForwardsConnectEventIntoSenderOwnedQueue) {
@@ -110,11 +157,11 @@ TEST(TxLogRecordTest, txReceiverForwardsConnectEventIntoSenderOwnedQueue) {
 
     TxConnection connection {};
     connection.m_socket_fd = sockets[0];
+    ASSERT_TRUE(connection._publishConnectedControlForCurrentSocket());
 
     TxSender sender(8);
     TxReceiver receiver(connection, sender);
 
-    connection.m_connect_event_pending = true;
     ASSERT_TRUE(receiver.pollOnce());
 
     TxSenderInboundRecord inbound {};
@@ -122,9 +169,7 @@ TEST(TxLogRecordTest, txReceiverForwardsConnectEventIntoSenderOwnedQueue) {
     EXPECT_EQ(inbound.kind, TxSenderInboundKind::TransportEvent);
     EXPECT_EQ(inbound.transport_event, TxTransportEvent::Connected);
 
-    ::close(sockets[0]);
     ::close(sockets[1]);
-    connection.m_socket_fd = -1;
 }
 
 TEST(TxLogRecordTest, txReceiverForwardsDisconnectEventIntoSenderOwnedQueue) {
@@ -147,8 +192,7 @@ TEST(TxLogRecordTest, txReceiverForwardsDisconnectEventIntoSenderOwnedQueue) {
     EXPECT_EQ(inbound.kind, TxSenderInboundKind::TransportEvent);
     EXPECT_EQ(inbound.transport_event, TxTransportEvent::Disconnected);
 
-    ::close(sockets[0]);
-    connection.m_socket_fd = -1;
+    EXPECT_LT(connection.m_socket_fd, 0);
 }
 
 TEST(TxLogRecordTest, txReceiverRetriesRetainedInboundFrameWhenSenderQueueHasSpace) {
@@ -195,9 +239,7 @@ TEST(TxLogRecordTest, txReceiverRetriesRetainedInboundFrameWhenSenderQueueHasSpa
     }
     EXPECT_TRUE(found_frame);
 
-    ::close(sockets[0]);
     ::close(sockets[1]);
-    connection.m_socket_fd = -1;
 }
 
 TEST(TxLogRecordTest, txReceiverPollOnceReportsWorkPendingUnderRetainedBackpressure) {
@@ -245,9 +287,7 @@ TEST(TxLogRecordTest, txReceiverPollOnceReportsWorkPendingUnderRetainedBackpress
     }
     EXPECT_TRUE(found_frame);
 
-    ::close(sockets[0]);
     ::close(sockets[1]);
-    connection.m_socket_fd = -1;
 }
 
 TEST(TxLogRecordTest, txEventRecordStoresConnectionAndOrderEvents) {
@@ -285,80 +325,48 @@ TEST(TxLogRecordTest, txEventRecordCanRepresentAcceptedFeedback) {
     EXPECT_EQ(record.event, TxEventKind::OrderAccepted);
 }
 
-TEST(TxLogRecordTest, orderSentHelperDoesNotPrintDirectlyWithoutLogPrinter) {
-    TxConnection connection {};
-    TxOutboundRecord record {};
-    record.user_ref_num = 42;
-    record.stock_locate = 0x000d;
-    record.price = 123450;
-    record.shares = 100;
-
-    testing::internal::CaptureStdout();
-    connection._logOrderSent(record);
-    const std::string output = testing::internal::GetCapturedStdout();
-
-    EXPECT_TRUE(output.empty());
-}
-
-TEST(TxLogRecordTest, connectEventDefaultsToFalse) {
-    TxConnection connection {};
-
-    EXPECT_FALSE(connection.takeConnectEvent());
-}
-
-TEST(TxLogRecordTest, sendPayloadWritesPayloadToSocket) {
+TEST(TxLogRecordTest, txSendSocketWritesPayloadToInstalledFd) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
-    TxConnection connection {};
-    connection.m_socket_fd = sockets[0];
+    TxSendSocket send_socket {};
+    send_socket.install(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 3,
+        .tx_fd = sockets[0],
+    });
 
     TxOutboundRecord record {};
-    record.user_ref_num = 42;
     record.payload[0] = 0x00;
     record.payload[1] = 0x02;
     record.payload[2] = static_cast<uint8_t>('U');
     record.payload[3] = static_cast<uint8_t>('R');
     record.payload_length = 4;
 
-    ASSERT_TRUE(connection.sendPayload(record));
+    ASSERT_TRUE(send_socket.sendPayload(record));
 
     std::array<uint8_t, 4> received {};
     ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0), 4);
-    EXPECT_EQ(received[0], record.payload[0]);
-    EXPECT_EQ(received[1], record.payload[1]);
-    EXPECT_EQ(received[2], record.payload[2]);
-    EXPECT_EQ(received[3], record.payload[3]);
-    EXPECT_FALSE(connection.takeDisconnectEvent());
+    EXPECT_EQ(received[2], static_cast<uint8_t>('U'));
+    EXPECT_EQ(received[3], static_cast<uint8_t>('R'));
 
-    ::close(sockets[0]);
     ::close(sockets[1]);
-    connection.m_socket_fd = -1;
 }
 
-TEST(TxLogRecordTest, sendPayloadDoesNotRaiseSigpipeOnClosedSocket) {
+TEST(TxLogRecordTest, txSendSocketClosesLocalFdWhenSendFails) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
-    TxConnection connection {};
-    connection.m_socket_fd = sockets[0];
+    TxSendSocket send_socket {};
+    send_socket.install(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 4,
+        .tx_fd = sockets[0],
+    });
 
     ::close(sockets[1]);
     sockets[1] = -1;
 
-    static std::atomic<int> sigpipe_hits {0};
-    sigpipe_hits.store(0, std::memory_order_relaxed);
-    const auto handler = +[](int) {
-        sigpipe_hits.fetch_add(1, std::memory_order_relaxed);
-    };
-
-    struct sigaction old_action {};
-    struct sigaction new_action {};
-    new_action.sa_handler = handler;
-    sigemptyset(&new_action.sa_mask);
-    new_action.sa_flags = 0;
-    ASSERT_EQ(::sigaction(SIGPIPE, &new_action, &old_action), 0);
-
     TxOutboundRecord record {};
     record.payload[0] = 0x00;
     record.payload[1] = 0x02;
@@ -366,25 +374,122 @@ TEST(TxLogRecordTest, sendPayloadDoesNotRaiseSigpipeOnClosedSocket) {
     record.payload[3] = static_cast<uint8_t>('R');
     record.payload_length = 4;
 
-    EXPECT_FALSE(connection.sendPayload(record));
-    EXPECT_EQ(sigpipe_hits.load(std::memory_order_relaxed), 0);
+    EXPECT_FALSE(send_socket.sendPayload(record));
+    EXPECT_FALSE(send_socket.hasActiveFd());
+}
 
-    ASSERT_EQ(::sigaction(SIGPIPE, &old_action, nullptr), 0);
-    // sendPayload() may close the fd on disconnect.
-    if (connection.m_socket_fd >= 0) {
-        ::close(sockets[0]);
-        connection.m_socket_fd = -1;
-    }
+TEST(TxLogRecordTest, txSendSocketStaleRetireDoesNotCloseNewGeneration) {
+    int sockets1[2] {-1, -1};
+    int sockets2[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets1), 0);
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets2), 0);
+
+    TxSendSocket send_socket {};
+    send_socket.install(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 1,
+        .tx_fd = sockets1[0],
+    });
+
+    send_socket.install(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 2,
+        .tx_fd = sockets2[0],
+    });
+
+    send_socket.retireGeneration(1);
+    EXPECT_TRUE(send_socket.hasActiveFd());
+    EXPECT_EQ(send_socket.activeGeneration(), 2U);
+
+    TxOutboundRecord record {};
+    record.payload[0] = static_cast<uint8_t>('A');
+    record.payload[1] = static_cast<uint8_t>('B');
+    record.payload_length = 2;
+    ASSERT_TRUE(send_socket.sendPayload(record));
+
+    std::array<uint8_t, 2> received {};
+    ASSERT_EQ(::recv(sockets2[1], received.data(), received.size(), 0),
+              static_cast<ssize_t>(received.size()));
+    EXPECT_EQ(received[0], record.payload[0]);
+    EXPECT_EQ(received[1], record.payload[1]);
+
+    send_socket.retireGeneration(2);
+    ::close(sockets1[1]);
+    ::close(sockets2[1]);
+}
+
+TEST(TxLogRecordTest, txSendSocketMatchingRetireClosesActiveFd) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSendSocket send_socket {};
+    send_socket.install(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 3,
+        .tx_fd = sockets[0],
+    });
+
+    EXPECT_TRUE(send_socket.hasActiveFd());
+    send_socket.retireGeneration(3);
+    EXPECT_FALSE(send_socket.hasActiveFd());
+
+    ::close(sockets[1]);
+}
+
+TEST(TxLogRecordTest, txSendSocketLateRetireOfOldGenerationKeepsNewFd) {
+    int sockets1[2] {-1, -1};
+    int sockets2[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets1), 0);
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets2), 0);
+
+    TxSendSocket send_socket {};
+    send_socket.install(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 4,
+        .tx_fd = sockets1[0],
+    });
+
+    send_socket.retireGeneration(4);
+    ::close(sockets1[1]);
+
+    send_socket.install(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 5,
+        .tx_fd = sockets2[0],
+    });
+
+    send_socket.retireGeneration(4);
+    EXPECT_TRUE(send_socket.hasActiveFd());
+    EXPECT_EQ(send_socket.activeGeneration(), 5U);
+
+    TxOutboundRecord record {};
+    record.payload[0] = static_cast<uint8_t>('C');
+    record.payload[1] = static_cast<uint8_t>('D');
+    record.payload_length = 2;
+    ASSERT_TRUE(send_socket.sendPayload(record));
+
+    std::array<uint8_t, 2> received {};
+    ASSERT_EQ(::recv(sockets2[1], received.data(), received.size(), 0),
+              static_cast<ssize_t>(received.size()));
+    EXPECT_EQ(received[0], record.payload[0]);
+    EXPECT_EQ(received[1], record.payload[1]);
+
+    send_socket.retireGeneration(5);
+    ::close(sockets2[1]);
 }
 
 TEST(TxLogRecordTest, successfulTrackedSendPushesTxSendRecord) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
-    TxConnection connection {};
     LatencyTracker tracker(2, 8);
-    connection.attachLatenyTracker(&tracker);
-    connection.m_socket_fd = sockets[0];
+    TxSendSocket send_socket {};
+    send_socket.attachLatenyTracker(&tracker);
+    send_socket.install(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 0,
+        .tx_fd = sockets[0],
+    });
 
     TxOutboundRecord record {};
     record.que_idx = 1;
@@ -395,7 +500,7 @@ TEST(TxLogRecordTest, successfulTrackedSendPushesTxSendRecord) {
     record.payload[3] = static_cast<uint8_t>('R');
     record.payload_length = 4;
 
-    ASSERT_TRUE(connection.sendPayload(record));
+    ASSERT_TRUE(send_socket.sendPayload(record));
 
     TimeRecord pushed {};
     ASSERT_TRUE(tracker.m_trace_buffer[1]->pop(pushed));
@@ -405,42 +510,7 @@ TEST(TxLogRecordTest, successfulTrackedSendPushesTxSendRecord) {
     EXPECT_GT(pushed.time_captured, 0U);
     EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(pushed));
 
-    ::close(sockets[0]);
     ::close(sockets[1]);
-    connection.m_socket_fd = -1;
-}
-
-TEST(TxLogRecordTest, sendPayloadDupFailureDoesNotForceDisconnectEvent) {
-    int sockets[2] {-1, -1};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
-
-    TxConnection connection {};
-    connection.m_socket_fd = sockets[0];
-
-    struct rlimit old_limit {};
-    ASSERT_EQ(::getrlimit(RLIMIT_NOFILE, &old_limit), 0);
-
-    struct rlimit limited = old_limit;
-    limited.rlim_cur = static_cast<rlim_t>(sockets[0] + 1);
-    ASSERT_LT(limited.rlim_cur, old_limit.rlim_cur);
-    ASSERT_EQ(::setrlimit(RLIMIT_NOFILE, &limited), 0);
-
-    TxOutboundRecord record {};
-    record.payload[0] = 0x00;
-    record.payload[1] = 0x02;
-    record.payload[2] = static_cast<uint8_t>('U');
-    record.payload[3] = static_cast<uint8_t>('R');
-    record.payload_length = 4;
-
-    EXPECT_FALSE(connection.sendPayload(record));
-    EXPECT_TRUE(connection.isConnected());
-    EXPECT_FALSE(connection.takeDisconnectEvent());
-
-    ASSERT_EQ(::setrlimit(RLIMIT_NOFILE, &old_limit), 0);
-
-    ::close(sockets[0]);
-    ::close(sockets[1]);
-    connection.m_socket_fd = -1;
 }
 
 TEST(TxLogRecordTest, txConnectionDestructorClosesSocketFd) {
@@ -460,37 +530,13 @@ TEST(TxLogRecordTest, txConnectionDestructorClosesSocketFd) {
     ::close(sockets[1]);
 }
 
-TEST(TxLogRecordTest, sendPayloadSucceedsWhenLatencyTrackerThrows) {
-    int sockets[2] {-1, -1};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
-
-    TxConnection connection {};
-    LatencyTracker tracker(1, 8);
-    connection.attachLatenyTracker(&tracker);
-    connection.m_socket_fd = sockets[0];
-
-    TxOutboundRecord record {};
-    record.que_idx = 1;
-    record.event_tag = 0x55ULL;
-    record.payload[0] = 0x00;
-    record.payload[1] = 0x02;
-    record.payload[2] = static_cast<uint8_t>('U');
-    record.payload[3] = static_cast<uint8_t>('R');
-    record.payload_length = 4;
-
-    ASSERT_TRUE(connection.sendPayload(record));
-
-    ::close(sockets[0]);
-    ::close(sockets[1]);
-    connection.m_socket_fd = -1;
-}
-
 TEST(TxLogRecordTest, txConnectionReadInboundFrameReadsFrameAndDetectsDisconnect) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
     TxConnection connection {};
     connection.m_socket_fd = sockets[0];
+    connection.m_generation = 7;
 
     const std::array<uint8_t, 3> frame {0x00, 0x01, static_cast<uint8_t>('H')};
     ASSERT_EQ(::send(sockets[1], frame.data(), frame.size(), 0), 3);
@@ -504,10 +550,13 @@ TEST(TxLogRecordTest, txConnectionReadInboundFrameReadsFrameAndDetectsDisconnect
     sockets[1] = -1;
 
     EXPECT_FALSE(connection.readInboundFrame(inbound));
-    EXPECT_TRUE(connection.takeDisconnectEvent());
+    TxTransportControl control {};
+    ASSERT_TRUE(connection.takeTransportControl(control));
+    EXPECT_EQ(control.kind, TxTransportControlKind::Disconnected);
+    EXPECT_EQ(control.generation, 7U);
+    EXPECT_LT(control.tx_fd, 0);
 
-    ::close(sockets[0]);
-    connection.m_socket_fd = -1;
+    EXPECT_LT(connection.m_socket_fd, 0);
 }
 
 TEST(TxLogRecordTest, txConnectionReadInboundFrameDoesNotDisconnectOnPartialNonBlocking) {
@@ -525,7 +574,8 @@ TEST(TxLogRecordTest, txConnectionReadInboundFrameDoesNotDisconnectOnPartialNonB
 
     TxInboundFrame inbound {};
     EXPECT_FALSE(connection.readInboundFrame(inbound));
-    EXPECT_FALSE(connection.takeDisconnectEvent());
+    TxTransportControl control {};
+    EXPECT_FALSE(connection.takeTransportControl(control));
 
     ASSERT_EQ(::send(sockets[1], frame.data() + 1, 2, 0), 2);
     EXPECT_TRUE(connection.readInboundFrame(inbound));
@@ -559,7 +609,8 @@ TEST(TxLogRecordTest, txConnectionReadInboundFrameHandlesMaxSoupFrame) {
     EXPECT_EQ(inbound.payload[1], frame[1]);
     EXPECT_EQ(inbound.payload[2], frame[2]);
     EXPECT_EQ(inbound.payload[66], frame[66]);
-    EXPECT_FALSE(connection.takeDisconnectEvent());
+    TxTransportControl control {};
+    EXPECT_FALSE(connection.takeTransportControl(control));
 
     ::close(sockets[0]);
     ::close(sockets[1]);

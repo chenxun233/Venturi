@@ -5,8 +5,10 @@
 #include "../strategy/dummy_strategy.h"
 #include "../sync/FPGA_regression.h"
 #include "../tx_engine/executor.h"
-#include "../tx_engine/tx_translator.h"
-#include "../tx_engine/tx_engine.h"
+#include "../tx_engine/tx_connection.h"
+#include "../tx_engine/tx_receiver.h"
+#include "../tx_engine/tx_send_socket.h"
+#include "../tx_engine/tx_sender.h"
 #include "../../common/log.h"
 
 #include <atomic>
@@ -91,7 +93,7 @@ int main() {
     DummyStrategy strategy0;
     DummyStrategy strategy1;
     Executor executor(kQueueCount, kExecutorQueueCapacity);
-    TxTranslator tx_translator(TxTranslatorConfig {
+    TxSender tx_sender(TxSenderConfig {
         .username = std::string(kTxUsername),
         .password = std::string(kTxPassword),
         .requested_session = std::string(kTxSession),
@@ -99,11 +101,12 @@ int main() {
         .intent_capacity = kExecutorQueueCapacity,
         .pending_capacity = 1024,
     });
-    TxEngine tx_engine(GatewayClientConfig {
+    TxConnection tx_connection(GatewayClientConfig {
         .bind_ip = std::string(kTxBindIp),
         .server_ip = std::string(kTxServerIp),
         .port = kTxServerPort,
     });
+    TxReceiver tx_receiver(tx_connection, tx_sender);
     LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
     LogPrinter log_printer(kLatencyLogCapacity);
 
@@ -112,15 +115,15 @@ int main() {
     strategy0.attachLatenyTracker(&latency_tracker);
     strategy1.attachLatenyTracker(&latency_tracker);
     executor.attachLatenyTracker(&latency_tracker);
-    tx_translator.attachLatenyTracker(&latency_tracker);
-    tx_engine.attachLatenyTracker(&latency_tracker);
+    tx_sender.attachLatenyTracker(&latency_tracker);
     
     latency_tracker.attachLogPrinter(&log_printer);
     latency_tracker.attachRegression(&FPGA_regression);
     log_printer.start();
     executor.attachLogPrinter(&log_printer);
-    tx_translator.attachLogPrinter(&log_printer);
-    tx_engine.attachLogPrinter(&log_printer);
+    tx_sender.attachLogPrinter(&log_printer);
+    tx_connection.attachLogPrinter(&log_printer);
+    tx_receiver.attachLogPrinter(&log_printer);
     
     
     CapSignal capture_signal {};
@@ -160,23 +163,17 @@ int main() {
             if (count > 0) {
                 for (std::size_t idx = 0; idx < count; ++idx) {
                     FPGAEventDesc& event = events[idx];
-                    const bool is_first_event = (event.is_first_event != 0);
-
-                    if (strategy0.evaluateEvent(event, intent, 0)) {
-                        if (!is_first_event) {
-                            intent.event_ts = 0;
-                        }
-                        while (!executor.acceptIntent(0, intent)) {
-                            std::this_thread::yield();
-                        }
+                    if (strategy0.evaluateEvent(0, event, intent)) {
+                        executor.acceptIntent(0, intent);
                     }
                 }
             }
             if (count == 0) {
-                std::this_thread::yield();
+               continue;
             }
         }
     });
+
     rx_threads.emplace_back([&]() {//rx_engine1
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
@@ -185,70 +182,60 @@ int main() {
             if (count > 0) {
                 for (std::size_t idx = 0; idx < count; ++idx) {
                     FPGAEventDesc& event = events[idx];
-                    const bool is_first_event =(event.is_first_event != 0);
-
-                    if (strategy1.evaluateEvent(event, intent, 1)) {
-                        if (!is_first_event) {
-                            intent.event_ts = 0;
-                        }
-                        while (!executor.acceptIntent(1, intent)) {
-                            std::this_thread::yield();
-                        }
+                    if (strategy1.evaluateEvent(1, event, intent)) {
+                        executor.acceptIntent(1, intent);
                     }
                 }
             }
             if (count == 0) {
-                std::this_thread::yield();
+                continue;
             }
         }
     });
 
     std::thread executor_thread([&]() 
     {
+        OrderIntent intent {};
+        bool has_pending_intent = false;
         while (true) {
-            bool did_work = false;
-            OrderIntent intent {};
-            while (executor.popReadyIntent(intent)) {
-                while (!tx_translator.acceptIntent(intent)) {
-                    std::this_thread::yield();
-                }
-                executor.logExecution(intent);
-                did_work = true;
+            if (!has_pending_intent && executor.popReadyIntent(intent)) {
+                has_pending_intent = true;
             }
-            if (!did_work) {
-                std::this_thread::yield();
+            if (has_pending_intent && tx_sender.acceptIntent(intent)) {
+                executor.logExecution(intent);
+                has_pending_intent = false;
             }
         }
     });
-    std::thread tx_thread([&]() {
+    std::thread tx_sender_thread([&]() {
+        // Transitional bridge: TxConnection is receiver-owned and now publishes TxTransportControl
+        // (including sender fd) on the receiver thread. The end-to-end transport-control plumbing
+        // into the sender thread is not yet wired, so TxSendSocket will remain inactive until a
+        // later task installs real Connected controls.
+        TxSendSocket send_socket {};
+        send_socket.attachLogPrinter(&log_printer);
+        send_socket.attachLatenyTracker(&latency_tracker);
         while (true) {
             bool did_work = false;
-            did_work = tx_engine.pollConnectStep() || did_work;
-            if (tx_engine.takeConnectEvent()) {
-                tx_translator.onTransportConnected();
-                did_work = true;
-            }
 
-            did_work = tx_translator.buildReadyOutboundFromAcceptedIntents() || did_work;
-            did_work = tx_translator.queueHeartbeatIfDue() || did_work;
+            did_work = tx_sender.buildOutboundFrame() || did_work;
+            did_work = tx_sender.queueHeartbeatIfDue() || did_work;
+            did_work = tx_sender.processInboundQueues() || did_work;
+
+            if (!send_socket.hasActiveFd()) {
+                if (!did_work) {
+                    std::this_thread::sleep_for(kThreadSleepTime);
+                }
+                continue;
+            }
 
             TxOutboundRecord outbound {};
-            while (tx_translator.popReadyOutbound(outbound)) {
-                if (!tx_engine.sendOutboundRecord(outbound)) {
-                    tx_translator.restoreReadyOutbound(outbound);
+            while (tx_sender.popReadyOutbound(outbound)) {
+                if (!send_socket.sendPayload(outbound)) {
+                    tx_sender.restoreReadyOutbound(outbound);
                     break;
                 }
-                did_work = true;
-            }
-
-            std::vector<uint8_t> payload {};
-            while (tx_engine.pollInboundFrame(payload)) {
-                tx_translator.acceptInboundPayload(payload);
-                payload.clear();
-                did_work = true;
-            }
-            if (tx_engine.takeDisconnectEvent()) {
-                tx_translator.onTransportDisconnected();
+                tx_sender.noteOutboundSent(outbound);
                 did_work = true;
             }
 
@@ -258,6 +245,14 @@ int main() {
         }
     });
 
+    std::thread tx_receiver_thread([&]() {
+        while (true) {
+            const bool did_work = tx_receiver.pollOnce();
+            if (!did_work) {
+                std::this_thread::sleep_for(kThreadSleepTime);
+            }
+        }
+    });
     
 
     for (std::thread& rx_thread : rx_threads) {
@@ -271,8 +266,11 @@ int main() {
     if (executor_thread.joinable()) {
         executor_thread.join();
     }
-    if (tx_thread.joinable()) {
-        tx_thread.join();
+    if (tx_sender_thread.joinable()) {
+        tx_sender_thread.join();
+    }
+    if (tx_receiver_thread.joinable()) {
+        tx_receiver_thread.join();
     }
     log_printer.stop();
 
