@@ -1,9 +1,9 @@
-#include "../latency/trace_buffer.h"
+#include "../common/spsc_ring_queue.h"
 
 #include <gtest/gtest.h>
 
-TEST(TraceBufferOverwriteTest, pushDropOldestOverwritesOldestRecord) {
-    TraceBuffer<uint32_t> buffer(2);
+TEST(SpscRingQueueOverwriteTest, pushDropOldestOverwritesOldestRecord) {
+    SpscRingQueue<uint32_t> buffer(2);
     ASSERT_TRUE(buffer.pushDropOldest(1));
     ASSERT_TRUE(buffer.pushDropOldest(2));
     EXPECT_FALSE(buffer.pushDropOldest(3));

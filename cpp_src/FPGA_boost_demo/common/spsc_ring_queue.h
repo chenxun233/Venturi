@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../common/shared_types.h"
+#include "shared_types.h"
 
 #include <atomic>
 #include <cstddef>
@@ -10,9 +10,9 @@
 
 // Single-producer/single-consumer ring buffer for hot-path trace points.
 template <typename T>
-class TraceBuffer {
+class SpscRingQueue {
 public:
-    explicit    TraceBuffer(std::size_t capacity);
+    explicit    SpscRingQueue(std::size_t capacity);
     std::size_t readCapacity() const;
     uint64_t    readDropCount() const;
     bool        push(const T& record);
@@ -31,26 +31,26 @@ private:
 };
 
 template <typename T>
-TraceBuffer<T>::TraceBuffer(std::size_t capacity)
+SpscRingQueue<T>::SpscRingQueue(std::size_t capacity)
     : m_records(capacity),
       m_capacity_mask(capacity - 1) {
     if (capacity == 0 || (capacity & (capacity - 1)) != 0) {
-        throw std::invalid_argument("TraceBuffer capacity must be a non-zero power of two");
+        throw std::invalid_argument("SpscRingQueue capacity must be a non-zero power of two");
     }
 }
 
 template <typename T>
-std::size_t TraceBuffer<T>::readCapacity() const {
+std::size_t SpscRingQueue<T>::readCapacity() const {
     return m_records.size();
 }
 
 template <typename T>
-uint64_t TraceBuffer<T>::readDropCount() const {
+uint64_t SpscRingQueue<T>::readDropCount() const {
     return m_drop_count.load(std::memory_order_relaxed);
 }
 
 template <typename T>
-bool TraceBuffer<T>::push(const T& record) {
+bool SpscRingQueue<T>::push(const T& record) {
     const std::size_t tail = m_tail.load(std::memory_order_relaxed);
     const std::size_t head = m_head.load(std::memory_order_acquire);
     if (tail - head == readCapacity()) {
@@ -64,7 +64,7 @@ bool TraceBuffer<T>::push(const T& record) {
 }
 
 template <typename T>
-bool TraceBuffer<T>::pushDropOldest(const T& record, T* dropped_record) {
+bool SpscRingQueue<T>::pushDropOldest(const T& record, T* dropped_record) {
     const std::lock_guard<std::mutex> lock(m_threadsafe_mutex);
     const std::size_t tail = m_tail.load(std::memory_order_relaxed);
     std::size_t head = m_head.load(std::memory_order_relaxed);
@@ -84,7 +84,7 @@ bool TraceBuffer<T>::pushDropOldest(const T& record, T* dropped_record) {
 }
 
 template <typename T>
-bool TraceBuffer<T>::pop(T& record) {
+bool SpscRingQueue<T>::pop(T& record) {
     const std::size_t head = m_head.load(std::memory_order_relaxed);
     if (head == m_tail.load(std::memory_order_acquire)) {
         return false;
@@ -97,6 +97,6 @@ bool TraceBuffer<T>::pop(T& record) {
 
 
 template <typename T>
-std::size_t TraceBuffer<T>::_wrapIndexP1(std::size_t idx) const {
+std::size_t SpscRingQueue<T>::_wrapIndexP1(std::size_t idx) const {
     return idx & m_capacity_mask;
 }

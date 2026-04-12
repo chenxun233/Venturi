@@ -95,6 +95,7 @@ set(FPGA_VALIDATION_DIR ${FPGA_ROOT}/validation)
 set(FPGA_EXCHANGE_DIR ${FPGA_ROOT}/exchange)
 set(FPGA_APP_DIR ${FPGA_ROOT}/app)
 set(FPGA_TEST_DIR ${FPGA_ROOT}/tests)
+set(FPGA_COMMON_DIR ${FPGA_ROOT}/common)
 
 
 # FPGA Hello World test v2 (using common infrastructure)
@@ -123,7 +124,7 @@ add_executable(Venturi
     ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
     ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
     ${FPGA_LATENCY_DIR}/log_printer.cpp
-    ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+    ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
     ${FPGA_LATENCY_DIR}/latency_tracker.cpp
     ${FPGA_SYNC_DIR}/FPGA_regression.cpp
     ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
@@ -182,7 +183,7 @@ if(TARGET GTest::gtest_main)
         ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
         ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
-        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/fpga_rx_engine_test.cpp
@@ -227,7 +228,7 @@ if(TARGET GTest::gtest_main)
     add_executable(tx_translator_test
         ${FPGA_TX_DIR}/tx_translator.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
-        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/tx_translator_test.cpp
@@ -245,7 +246,7 @@ if(TARGET GTest::gtest_main)
     add_executable(dummy_strategy_test
         ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
-        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/dummy_strategy_test.cpp
@@ -263,7 +264,7 @@ if(TARGET GTest::gtest_main)
     add_executable(executor_test
         ${FPGA_TX_DIR}/executor.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
-        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/executor_test.cpp
@@ -322,7 +323,7 @@ if(TARGET GTest::gtest_main)
     add_executable(tx_log_record_test
         ${FPGA_TX_DIR}/tx_engine.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
-        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/tx_log_record_test.cpp
@@ -353,7 +354,7 @@ if(TARGET GTest::gtest_main)
     add_executable(latency_tracker_test
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
-        ${FPGA_LATENCY_DIR}/trace_buffer.cpp
+        ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
         ${FPGA_TEST_DIR}/latency_tracker_test.cpp
     )
@@ -367,15 +368,15 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
-    add_executable(trace_buffer_overwrite_test
-        ${FPGA_TEST_DIR}/trace_buffer_overwrite_test.cpp
+    add_executable(spsc_ring_queue_overwrite_test
+        ${FPGA_TEST_DIR}/spsc_ring_queue_overwrite_test.cpp
     )
-    target_include_directories(trace_buffer_overwrite_test PRIVATE
+    target_include_directories(spsc_ring_queue_overwrite_test PRIVATE
         ${FPGA_LATENCY_DIR}
         ${FPGA_ROOT}/common
         ${FPGA_TEST_DIR}
     )
-    target_link_libraries(trace_buffer_overwrite_test PRIVATE
+    target_link_libraries(spsc_ring_queue_overwrite_test PRIVATE
         GTest::gtest_main
     )
 
@@ -404,7 +405,7 @@ if(TARGET GTest::gtest_main)
     gtest_discover_tests(tx_log_record_test)
     gtest_discover_tests(log_printer_test)
     gtest_discover_tests(latency_tracker_test)
-    gtest_discover_tests(trace_buffer_overwrite_test)
+    gtest_discover_tests(spsc_ring_queue_overwrite_test)
     gtest_discover_tests(fixed_ring_buffer_test)
 endif()
 
