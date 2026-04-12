@@ -48,7 +48,7 @@ enum stage {
 
 struct TimeRecord {
     uint16_t    que_idx {0};
-    uint64_t    event_ts {0};
+    uint64_t    event_tag {0};
     stage       event_stage {stage::DECODE};
     uint64_t    time_captured {0};
 };
@@ -56,7 +56,7 @@ struct TimeRecord {
 struct StageLatency{
 
     uint16_t    que_idx {0};
-    uint64_t    event_ts {0};
+    uint64_t    event_tag {0};
     stage       prev_stage {stage::DECODE};
     stage       curr_stage {stage::DECODE};
     uint64_t    latency {0};
@@ -74,7 +74,7 @@ struct LatencyStats {
 
 struct LatencyLogRecord {
     uint16_t    que_idx {0};
-    uint64_t    event_ts {0};
+    uint64_t    event_tag {0};
     uint64_t    frame_start_to_dma_emit_ns {0};
     int64_t     dma_emit_to_decode_ns {0};
     int64_t     decode_to_strategy_ns {0};
@@ -103,7 +103,7 @@ struct OrderIntentPayload {
 struct OrderIntent {
     uint16_t stock_locate {0};
     uint16_t que_idx {0};
-    uint64_t event_ts {0};
+    uint64_t event_tag {0};
     OrderIntentPayload intent {};
 };
 
@@ -126,11 +126,12 @@ struct TxOutboundRecord {
     uint32_t                user_ref_num    {0};
     uint16_t                stock_locate    {0};
     uint16_t                que_idx         {0};
-    uint64_t                event_ts        {0};
+    uint64_t                event_tag       {0};
     uint32_t                price           {0};
     uint32_t                shares          {0};
-    std::array<uint8_t, 64> payload         {};
     uint8_t                 payload_length  {0};
+    std::array<uint8_t, 64> payload         {};
+
 };
 
 struct TxLogRecord {
@@ -141,6 +142,27 @@ struct TxLogRecord {
     uint32_t shares         {0};
     uint16_t reason         {0};
     uint64_t match_number   {0};
+};
+
+struct TxInboundFrame {
+    std::array<uint8_t, 67> payload {};
+    uint8_t payload_length {0};
+};
+
+enum class TxTransportControlKind : uint8_t {
+    Connected,
+    Disconnected,
+};
+
+struct TxTransportControl {
+    TxTransportControlKind kind {TxTransportControlKind::Disconnected};
+    uint64_t generation {0};
+    int tx_fd {-1};
+};
+
+enum class TxTransportEvent : uint8_t {
+    Connected,
+    Disconnected,
 };
 
 enum class AsyncLogKind : uint8_t {
