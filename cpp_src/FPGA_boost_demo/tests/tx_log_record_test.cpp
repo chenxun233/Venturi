@@ -167,7 +167,9 @@ TEST(TxLogRecordTest, txReceiverForwardsConnectEventIntoSenderOwnedQueue) {
     TxSenderInboundRecord inbound {};
     ASSERT_TRUE(sender.m_inbound_records.pop(inbound));
     EXPECT_EQ(inbound.kind, TxSenderInboundKind::TransportEvent);
-    EXPECT_EQ(inbound.transport_event, TxTransportEvent::Connected);
+    EXPECT_EQ(inbound.transport_event.kind, TxTransportControlKind::Connected);
+    EXPECT_EQ(inbound.transport_event.generation, 1U);
+    EXPECT_GE(inbound.transport_event.tx_fd, 0);
 
     ::close(sockets[1]);
 }
@@ -190,7 +192,9 @@ TEST(TxLogRecordTest, txReceiverForwardsDisconnectEventIntoSenderOwnedQueue) {
     TxSenderInboundRecord inbound {};
     ASSERT_TRUE(sender.m_inbound_records.pop(inbound));
     EXPECT_EQ(inbound.kind, TxSenderInboundKind::TransportEvent);
-    EXPECT_EQ(inbound.transport_event, TxTransportEvent::Disconnected);
+    EXPECT_EQ(inbound.transport_event.kind, TxTransportControlKind::Disconnected);
+    EXPECT_EQ(inbound.transport_event.generation, 0U);
+    EXPECT_LT(inbound.transport_event.tx_fd, 0);
 
     EXPECT_LT(connection.m_socket_fd, 0);
 }
@@ -223,7 +227,8 @@ TEST(TxLogRecordTest, txReceiverRetriesRetainedInboundFrameWhenSenderQueueHasSpa
     TxSenderInboundRecord ingress {};
     ASSERT_TRUE(sender.m_inbound_records.pop(ingress));
     EXPECT_EQ(ingress.kind, TxSenderInboundKind::TransportEvent);
-    EXPECT_EQ(ingress.transport_event, TxTransportEvent::Connected);
+    EXPECT_EQ(ingress.transport_event.kind, TxTransportControlKind::Connected);
+    EXPECT_EQ(ingress.transport_event.generation, 1U);
 
     ASSERT_TRUE(receiver.pollOnce());
     bool found_frame = false;
@@ -271,7 +276,8 @@ TEST(TxLogRecordTest, txReceiverPollOnceReportsWorkPendingUnderRetainedBackpress
     TxSenderInboundRecord ingress {};
     ASSERT_TRUE(sender.m_inbound_records.pop(ingress));
     EXPECT_EQ(ingress.kind, TxSenderInboundKind::TransportEvent);
-    EXPECT_EQ(ingress.transport_event, TxTransportEvent::Connected);
+    EXPECT_EQ(ingress.transport_event.kind, TxTransportControlKind::Connected);
+    EXPECT_EQ(ingress.transport_event.generation, 1U);
 
     ASSERT_TRUE(receiver.pollOnce());
     bool found_frame = false;

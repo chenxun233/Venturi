@@ -154,15 +154,15 @@ enum class TxTransportControlKind : uint8_t {
     Disconnected,
 };
 
+enum class TxTransportEvent : uint8_t {
+    Connected,
+    Disconnected,
+};
+
 struct TxTransportControl {
     TxTransportControlKind kind {TxTransportControlKind::Disconnected};
     uint64_t generation {0};
     int tx_fd {-1};
-};
-
-enum class TxTransportEvent : uint8_t {
-    Connected,
-    Disconnected,
 };
 
 enum class TxSenderInboundKind : uint8_t {
@@ -173,7 +173,7 @@ enum class TxSenderInboundKind : uint8_t {
 struct TxSenderInboundRecord {
     TxSenderInboundKind kind {TxSenderInboundKind::Frame};
     TxInboundFrame frame {};
-    TxTransportEvent transport_event {TxTransportEvent::Connected};
+    TxTransportControl transport_event {};
 };
 
 enum class AsyncLogKind : uint8_t {

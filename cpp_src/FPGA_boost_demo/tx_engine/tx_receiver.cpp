@@ -4,8 +4,6 @@
 #include "tx_connection.h"
 #include "tx_sender.h"
 
-#include <unistd.h>
-
 TxReceiver::TxReceiver(TxConnection& connection, TxSender& sender)
     : m_connection(connection),
       m_sender(sender) {}
@@ -22,7 +20,7 @@ bool TxReceiver::_tryEnqueueRecord(const TxSenderInboundRecord& record) {
         case TxSenderInboundKind::Frame:
             return m_sender.acceptInboundFrame(record.frame);
         case TxSenderInboundKind::TransportEvent:
-            return m_sender.acceptTransportEvent(record.transport_event);
+            return m_sender.acceptTransportControl(record.transport_event);
     }
     return false;
 }
@@ -55,26 +53,10 @@ bool TxReceiver::pollOnce() {
         if (!m_sender.acceptTransportControl(transport_control)) {
             m_retained_record = TxSenderInboundRecord {
                 .kind = TxSenderInboundKind::TransportEvent,
-                .transport_event = transport_control.kind == TxTransportControlKind::Connected
-                    ? TxTransportEvent::Connected
-                    : TxTransportEvent::Disconnected,
+                .transport_event = transport_control,
             };
             m_has_retained_record = true;
-            // Transitional: TxSender::acceptTransportControl() currently only forwards
-            // connect/disconnect events, so we cannot retain the sender fd. Close it to avoid
-            // leaking across reconnects until sender-owned controls are wired end-to-end.
-            if (transport_control.kind == TxTransportControlKind::Connected &&
-                transport_control.tx_fd >= 0) {
-                ::close(transport_control.tx_fd);
-                transport_control.tx_fd = -1;
-            }
             return true;
-        }
-
-        if (transport_control.kind == TxTransportControlKind::Connected &&
-            transport_control.tx_fd >= 0) {
-            ::close(transport_control.tx_fd);
-            transport_control.tx_fd = -1;
         }
         did_work = true;
     }
@@ -98,23 +80,10 @@ bool TxReceiver::pollOnce() {
         if (!m_sender.acceptTransportControl(transport_control)) {
             m_retained_record = TxSenderInboundRecord {
                 .kind = TxSenderInboundKind::TransportEvent,
-                .transport_event = transport_control.kind == TxTransportControlKind::Connected
-                    ? TxTransportEvent::Connected
-                    : TxTransportEvent::Disconnected,
+                .transport_event = transport_control,
             };
             m_has_retained_record = true;
-            if (transport_control.kind == TxTransportControlKind::Connected &&
-                transport_control.tx_fd >= 0) {
-                ::close(transport_control.tx_fd);
-                transport_control.tx_fd = -1;
-            }
             return true;
-        }
-
-        if (transport_control.kind == TxTransportControlKind::Connected &&
-            transport_control.tx_fd >= 0) {
-            ::close(transport_control.tx_fd);
-            transport_control.tx_fd = -1;
         }
         did_work = true;
     }

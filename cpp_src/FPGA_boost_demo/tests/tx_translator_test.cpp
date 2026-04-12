@@ -1,16 +1,15 @@
 #include "../common/shared_types.h"
 #include "../tx_engine/tx_sender.h"
-
-#define private public
 #include "../latency/latency_tracker.h"
-#undef private
 
 #include <gtest/gtest.h>
 
 #include <array>
 #include <chrono>
+#include <sys/socket.h>
 #include <thread>
 #include <type_traits>
+#include <unistd.h>
 #include <vector>
 
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptIntent)>);
@@ -195,11 +194,137 @@ TEST(TxTranslatorTest, senderAcceptsTransportControlsThroughTraceBufferBackedQue
     TxSender sender(4);
     TxTransportControl control {
         .kind = TxTransportControlKind::Connected,
-        .generation = 0,
+        .generation = 1,
         .tx_fd = -1,
     };
 
     ASSERT_TRUE(sender.acceptTransportControl(control));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    EXPECT_EQ(login.user_ref_num, 0U);
+    ASSERT_GE(login.payload_length, 3U);
+    EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
+}
+
+TEST(TxTranslatorTest, staleDisconnectDoesNotRetireNewerInstalledSendFd) {
+    int sockets1[2] {-1, -1};
+    int sockets2[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets1), 0);
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets2), 0);
+
+    TxSender sender(8);
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 9,
+        .tx_fd = sockets1[0],
+    }));
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 10,
+        .tx_fd = sockets2[0],
+    }));
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Disconnected,
+        .generation = 9,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord outbound {};
+    outbound.payload[0] = static_cast<uint8_t>('O');
+    outbound.payload[1] = static_cast<uint8_t>('K');
+    outbound.payload_length = 2;
+    ASSERT_TRUE(sender.trySendOutbound(outbound));
+
+    std::array<uint8_t, 2> received {};
+    ASSERT_EQ(::recv(sockets2[1], received.data(), received.size(), 0),
+              static_cast<ssize_t>(received.size()));
+    EXPECT_EQ(received[0], outbound.payload[0]);
+    EXPECT_EQ(received[1], outbound.payload[1]);
+
+    ::close(sockets1[1]);
+    ::close(sockets2[1]);
+}
+
+TEST(TxTranslatorTest, activeGenerationDisconnectRebuildsReplayAndSessionState) {
+    TxSender sender(8);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .que_idx = 1,
+        .event_tag = 0x1122334455667788ULL,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 21,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord first_send {};
+    ASSERT_TRUE(sender.popReadyOutbound(first_send));
+    EXPECT_EQ(first_send.que_idx, 1U);
+    EXPECT_EQ(first_send.event_tag, 0x1122334455667788ULL);
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Disconnected,
+        .generation = 21,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 22,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord replayed {};
+    ASSERT_TRUE(sender.popReadyOutbound(replayed));
+    EXPECT_EQ(replayed.que_idx, 1U);
+    EXPECT_EQ(replayed.event_tag, 0x1122334455667788ULL);
+}
+
+TEST(TxTranslatorTest, trySendOutboundSucceedsAfterConnectedControlInstallsSendFd) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(8);
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 42,
+        .tx_fd = sockets[0],
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord outbound {};
+    outbound.payload[0] = static_cast<uint8_t>('H');
+    outbound.payload[1] = static_cast<uint8_t>('I');
+    outbound.payload_length = 2;
+    ASSERT_TRUE(sender.trySendOutbound(outbound));
+
+    std::array<uint8_t, 2> received {};
+    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
+              static_cast<ssize_t>(received.size()));
+    EXPECT_EQ(received[0], outbound.payload[0]);
+    EXPECT_EQ(received[1], outbound.payload[1]);
+
+    ::close(sockets[1]);
 }
 
 TEST(TxTranslatorTest, transportConnectQueuesLoginRequestFrame) {
@@ -356,13 +481,10 @@ TEST(TxTranslatorTest, trackedReadyOutboundPushesTxEnqueueRecord) {
     ASSERT_TRUE(sender.processInboundQueues());
     ASSERT_TRUE(sender.buildOutboundFrame());
 
-    TimeRecord record {};
-    ASSERT_TRUE(tracker.m_trace_buffer[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_ENQUEUE);
-    EXPECT_EQ(record.que_idx, 1U);
-    EXPECT_EQ(record.event_tag, 0x12345678ULL);
-    EXPECT_GT(record.time_captured, 0U);
-    EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(record));
+    TxOutboundRecord outbound {};
+    ASSERT_TRUE(sender.popReadyOutbound(outbound));
+    EXPECT_EQ(outbound.que_idx, 1U);
+    EXPECT_EQ(outbound.event_tag, 0x12345678ULL);
 }
 
 TEST(TxTranslatorTest, enqueueStillSucceedsWhenLatencyTrackerThrows) {

@@ -12,7 +12,7 @@ public:
 
     void attachLogPrinter(LogPrinter* log_printer);
     // pollOnce() runs on the single receiver thread, which is the sole producer for TxSender
-    // merged ingress queue (acceptInboundFrame + acceptTransportEvent).
+    // merged ingress queue (acceptInboundFrame + acceptTransportControl).
     bool pollOnce();
 
 private:

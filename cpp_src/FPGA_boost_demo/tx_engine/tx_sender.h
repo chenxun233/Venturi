@@ -2,6 +2,7 @@
 
 #include "../common/shared_types.h"
 #include "../latency/trace_buffer.h"
+#include "tx_send_socket.h"
 
 #include <atomic>
 #include <chrono>
@@ -46,6 +47,7 @@ public:
 
     bool popReadyOutbound(TxOutboundRecord& record);
     void restoreReadyOutbound(const TxOutboundRecord& record);
+    bool trySendOutbound(const TxOutboundRecord& record);
     void noteOutboundSent(const TxOutboundRecord& record);
 
     void login();
@@ -107,6 +109,7 @@ private:
     bool m_logged_in {false};
     std::chrono::steady_clock::time_point m_last_successful_send {};
     std::size_t m_heartbeat_ready_count {0};
+    TxSendSocket m_send_socket {};
     LogPrinter* m_log_printer {nullptr};
     LatencyTracker* m_latency_tracker {nullptr};
 };

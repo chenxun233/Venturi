@@ -252,10 +252,12 @@ TxSender::TxSender(TxSenderConfig config)
 
 void TxSender::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
+    m_send_socket.attachLogPrinter(log_printer);
 }
 
 void TxSender::attachLatenyTracker(LatencyTracker* latency_tracker) {
     m_latency_tracker = latency_tracker;
+    m_send_socket.attachLatenyTracker(latency_tracker);
 }
 
 void TxSender::_assertIngressProducerThread() {
@@ -290,22 +292,26 @@ bool TxSender::acceptInboundFrame(const TxInboundFrame& frame) {
 }
 
 bool TxSender::acceptTransportEvent(TxTransportEvent event) {
-    _assertIngressProducerThread();
-    return m_inbound_records.push(TxSenderInboundRecord {
-        .kind = TxSenderInboundKind::TransportEvent,
-        .transport_event = event,
-    });
+    uint64_t generation = m_send_socket.activeGeneration();
+    if (event == TxTransportEvent::Connected && generation < std::numeric_limits<uint64_t>::max()) {
+        ++generation;
+    }
+    const TxTransportControl control {
+        .kind = event == TxTransportEvent::Connected
+            ? TxTransportControlKind::Connected
+            : TxTransportControlKind::Disconnected,
+        .generation = generation,
+        .tx_fd = -1,
+    };
+    return acceptTransportControl(control);
 }
 
 bool TxSender::acceptTransportControl(const TxTransportControl& control) {
     _assertIngressProducerThread();
-    switch (control.kind) {
-        case TxTransportControlKind::Connected:
-            return acceptTransportEvent(TxTransportEvent::Connected);
-        case TxTransportControlKind::Disconnected:
-            return acceptTransportEvent(TxTransportEvent::Disconnected);
-    }
-    return false;
+    return m_inbound_records.push(TxSenderInboundRecord {
+        .kind = TxSenderInboundKind::TransportEvent,
+        .transport_event = control,
+    });
 }
 
 bool TxSender::processInboundQueues() {
@@ -319,13 +325,23 @@ bool TxSender::processInboundQueues() {
                 _acceptInboundFramePayload(inbound.frame);
                 break;
             case TxSenderInboundKind::TransportEvent:
-                switch (inbound.transport_event) {
-                    case TxTransportEvent::Connected:
+                switch (inbound.transport_event.kind) {
+                    case TxTransportControlKind::Connected:
+                        m_send_socket.install(inbound.transport_event);
                         login();
                         break;
-                    case TxTransportEvent::Disconnected:
+                    case TxTransportControlKind::Disconnected: {
+                        const uint64_t active_generation = m_send_socket.activeGeneration();
+                        if (inbound.transport_event.generation < active_generation) {
+                            break;
+                        }
+                        if (inbound.transport_event.generation != active_generation) {
+                            break;
+                        }
+                        m_send_socket.retireGeneration(inbound.transport_event.generation);
                         onTransportDisconnected();
                         break;
+                    }
                 }
                 break;
         }
@@ -365,6 +381,10 @@ void TxSender::restoreReadyOutbound(const TxOutboundRecord& record) {
     if (record.payload_length >= 3 && record.payload[2] == static_cast<uint8_t>('R')) {
         m_heartbeat_ready_count += 1;
     }
+}
+
+bool TxSender::trySendOutbound(const TxOutboundRecord& record) {
+    return m_send_socket.sendPayload(record);
 }
 
 void TxSender::noteOutboundSent(const TxOutboundRecord& record) {
