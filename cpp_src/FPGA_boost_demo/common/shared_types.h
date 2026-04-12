@@ -165,6 +165,17 @@ enum class TxTransportEvent : uint8_t {
     Disconnected,
 };
 
+enum class TxSenderInboundKind : uint8_t {
+    Frame,
+    TransportEvent,
+};
+
+struct TxSenderInboundRecord {
+    TxSenderInboundKind kind {TxSenderInboundKind::Frame};
+    TxInboundFrame frame {};
+    TxTransportEvent transport_event {TxTransportEvent::Connected};
+};
+
 enum class AsyncLogKind : uint8_t {
     Latency,
     Snapshot,

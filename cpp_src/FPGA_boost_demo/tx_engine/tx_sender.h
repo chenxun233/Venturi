@@ -37,7 +37,7 @@ public:
     bool acceptTransportEvent(TxTransportEvent event);
     bool acceptTransportControl(const TxTransportControl& control);
 
-    // Drains sender-owned inbound queues. Transport events are applied first, then inbound frames parsed.
+    // Drains sender-owned inbound queue in strict FIFO arrival order.
     bool processInboundQueues();
 
     bool popReadyOutbound(TxOutboundRecord& record);
@@ -90,8 +90,7 @@ private:
     TxSenderConfig m_config {};
     PendingOrderState m_pending_orders {};
     TraceBuffer<OrderIntent> m_intent_buffer;
-    TraceBuffer<TxInboundFrame> m_inbound_frames;
-    TraceBuffer<TxTransportEvent> m_transport_events;
+    TraceBuffer<TxSenderInboundRecord> m_inbound_records;
     std::vector<TxOutboundRecord> m_ready_outbound {};
     std::size_t m_ready_head {0};
     std::vector<TxOutboundRecord> m_blocked_outbound {};

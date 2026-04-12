@@ -214,6 +214,33 @@ TEST(TxTranslatorTest, transportConnectQueuesLoginRequestFrame) {
     EXPECT_EQ(record.payload[2], static_cast<uint8_t>('L'));
 }
 
+TEST(TxTranslatorTest, inboundFrameAndDisconnectAreAppliedInArrivalOrder) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    EXPECT_EQ(login.user_ref_num, 0U);
+    ASSERT_GE(login.payload_length, 3U);
+    EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
+
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord ready {};
+    EXPECT_FALSE(sender.popReadyOutbound(ready));
+    EXPECT_FALSE(sender.queueHeartbeatIfDue());
+}
+
 TEST(TxTranslatorTest, loginAcceptReleasesBufferedOrdersWithIncreasingTags) {
     TxSender sender(4);
 

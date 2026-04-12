@@ -191,6 +191,10 @@ void writeFramePayload(TxOutboundRecord& record, char side) {
     writeBigEndian32(payload + 12, record.price);
 }
 
+std::size_t readInboundIngressCapacity(const TxSenderConfig& config) {
+    return std::max(config.inbound_capacity, config.transport_capacity);
+}
+
 } // namespace
 
 TxSender::TxSender(std::size_t pending_capacity)
@@ -209,8 +213,7 @@ TxSender::TxSender(TxSenderConfig config)
           .ordered_tags = {},
       },
       m_intent_buffer(m_config.intent_capacity),
-      m_inbound_frames(m_config.inbound_capacity),
-      m_transport_events(m_config.transport_capacity),
+      m_inbound_records(readInboundIngressCapacity(m_config)),
       m_ready_outbound {},
       m_blocked_outbound {} {
     m_pending_orders.order_records.reserve(m_config.pending_capacity);
@@ -233,11 +236,17 @@ bool TxSender::acceptIntent(const OrderIntent& intent) {
 }
 
 bool TxSender::acceptInboundFrame(const TxInboundFrame& frame) {
-    return m_inbound_frames.push(frame);
+    return m_inbound_records.push(TxSenderInboundRecord {
+        .kind = TxSenderInboundKind::Frame,
+        .frame = frame,
+    });
 }
 
 bool TxSender::acceptTransportEvent(TxTransportEvent event) {
-    return m_transport_events.push(event);
+    return m_inbound_records.push(TxSenderInboundRecord {
+        .kind = TxSenderInboundKind::TransportEvent,
+        .transport_event = event,
+    });
 }
 
 bool TxSender::acceptTransportControl(const TxTransportControl& control) {
@@ -253,23 +262,24 @@ bool TxSender::acceptTransportControl(const TxTransportControl& control) {
 bool TxSender::processInboundQueues() {
     bool did_work = false;
 
-    TxTransportEvent event {};
-    while (m_transport_events.pop(event)) {
+    TxSenderInboundRecord inbound {};
+    while (m_inbound_records.pop(inbound)) {
         did_work = true;
-        switch (event) {
-            case TxTransportEvent::Connected:
-                login();
+        switch (inbound.kind) {
+            case TxSenderInboundKind::Frame:
+                _acceptInboundFramePayload(inbound.frame);
                 break;
-            case TxTransportEvent::Disconnected:
-                onTransportDisconnected();
+            case TxSenderInboundKind::TransportEvent:
+                switch (inbound.transport_event) {
+                    case TxTransportEvent::Connected:
+                        login();
+                        break;
+                    case TxTransportEvent::Disconnected:
+                        onTransportDisconnected();
+                        break;
+                }
                 break;
         }
-    }
-
-    TxInboundFrame frame {};
-    while (m_inbound_frames.pop(frame)) {
-        did_work = true;
-        _acceptInboundFramePayload(frame);
     }
 
     return did_work;

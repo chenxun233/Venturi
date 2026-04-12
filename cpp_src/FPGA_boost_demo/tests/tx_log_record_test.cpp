@@ -94,9 +94,10 @@ TEST(TxLogRecordTest, txReceiverForwardsInboundFrameIntoSenderOwnedQueue) {
 
     ASSERT_TRUE(receiver.pollOnce());
 
-    TxInboundFrame inbound {};
-    ASSERT_TRUE(sender.m_inbound_frames.pop(inbound));
-    EXPECT_EQ(inbound.payload_length, frame.size());
+    TxSenderInboundRecord inbound {};
+    ASSERT_TRUE(sender.m_inbound_records.pop(inbound));
+    EXPECT_EQ(inbound.kind, TxSenderInboundKind::Frame);
+    EXPECT_EQ(inbound.frame.payload_length, frame.size());
 
     ::close(sockets[0]);
     ::close(sockets[1]);
@@ -116,9 +117,10 @@ TEST(TxLogRecordTest, txReceiverForwardsConnectEventIntoSenderOwnedQueue) {
     connection.m_connect_event_pending = true;
     ASSERT_TRUE(receiver.pollOnce());
 
-    TxTransportEvent event {};
-    ASSERT_TRUE(sender.m_transport_events.pop(event));
-    EXPECT_EQ(event, TxTransportEvent::Connected);
+    TxSenderInboundRecord inbound {};
+    ASSERT_TRUE(sender.m_inbound_records.pop(inbound));
+    EXPECT_EQ(inbound.kind, TxSenderInboundKind::TransportEvent);
+    EXPECT_EQ(inbound.transport_event, TxTransportEvent::Connected);
 
     ::close(sockets[0]);
     ::close(sockets[1]);
@@ -140,11 +142,51 @@ TEST(TxLogRecordTest, txReceiverForwardsDisconnectEventIntoSenderOwnedQueue) {
 
     ASSERT_TRUE(receiver.pollOnce());
 
-    TxTransportEvent event {};
-    ASSERT_TRUE(sender.m_transport_events.pop(event));
-    EXPECT_EQ(event, TxTransportEvent::Disconnected);
+    TxSenderInboundRecord inbound {};
+    ASSERT_TRUE(sender.m_inbound_records.pop(inbound));
+    EXPECT_EQ(inbound.kind, TxSenderInboundKind::TransportEvent);
+    EXPECT_EQ(inbound.transport_event, TxTransportEvent::Disconnected);
 
     ::close(sockets[0]);
+    connection.m_socket_fd = -1;
+}
+
+TEST(TxLogRecordTest, txReceiverRetriesRetainedInboundFrameWhenSenderQueueHasSpace) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxConnection connection {};
+    connection.m_socket_fd = sockets[0];
+
+    TxSender sender(TxSenderConfig {
+        .intent_capacity = 1,
+        .pending_capacity = 1,
+        .inbound_capacity = 1,
+        .transport_capacity = 1,
+    });
+    TxReceiver receiver(connection, sender);
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+
+    const std::array<uint8_t, 3> frame {0x00, 0x01, static_cast<uint8_t>('H')};
+    ASSERT_EQ(::send(sockets[1], frame.data(), frame.size(), 0), 3);
+    ASSERT_TRUE(receiver.pollOnce());
+
+    TxSenderInboundRecord ingress {};
+    ASSERT_TRUE(sender.m_inbound_records.pop(ingress));
+    EXPECT_EQ(ingress.kind, TxSenderInboundKind::TransportEvent);
+    EXPECT_EQ(ingress.transport_event, TxTransportEvent::Connected);
+    EXPECT_FALSE(sender.m_inbound_records.pop(ingress));
+
+    ASSERT_TRUE(receiver.pollOnce());
+    ASSERT_TRUE(sender.m_inbound_records.pop(ingress));
+    EXPECT_EQ(ingress.kind, TxSenderInboundKind::Frame);
+    EXPECT_EQ(ingress.frame.payload_length, frame.size());
+    EXPECT_EQ(ingress.frame.payload[2], static_cast<uint8_t>('H'));
+    EXPECT_FALSE(sender.m_inbound_records.pop(ingress));
+
+    ::close(sockets[0]);
+    ::close(sockets[1]);
     connection.m_socket_fd = -1;
 }
 
