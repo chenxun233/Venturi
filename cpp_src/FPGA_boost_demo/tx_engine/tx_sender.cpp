@@ -216,6 +216,9 @@ std::size_t computeMergedIngressCapacity(const TxSenderConfig& config) {
         throw std::invalid_argument("TxSender merged ingress capacity overflow");
     }
     const std::size_t required = config.inbound_capacity + config.transport_capacity;
+    if (required == 0) {
+        throw std::invalid_argument("TxSender merged ingress capacity must be non-zero");
+    }
     return roundUpPowerOfTwo(required);
 }
 
@@ -295,6 +298,7 @@ bool TxSender::acceptTransportEvent(TxTransportEvent event) {
 }
 
 bool TxSender::acceptTransportControl(const TxTransportControl& control) {
+    _assertIngressProducerThread();
     switch (control.kind) {
         case TxTransportControlKind::Connected:
             return acceptTransportEvent(TxTransportEvent::Connected);

@@ -239,6 +239,16 @@ TEST(TxTranslatorTest, fullInboundBacklogStillAllowsTransportBudgetEnqueue) {
     EXPECT_FALSE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
 }
 
+TEST(TxTranslatorTest, zeroMergedIngressCapacityIsRejected) {
+    EXPECT_THROW((void)TxSender(TxSenderConfig {
+                     .intent_capacity = 8,
+                     .pending_capacity = 8,
+                     .inbound_capacity = 0,
+                     .transport_capacity = 0,
+                 }),
+                 std::invalid_argument);
+}
+
 TEST(TxTranslatorTest, inboundFrameAndDisconnectAreAppliedInArrivalOrder) {
     TxSender sender(4);
 

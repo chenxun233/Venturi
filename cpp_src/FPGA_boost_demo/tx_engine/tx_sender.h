@@ -34,8 +34,9 @@ public:
     void attachLatenyTracker(LatencyTracker* latency_tracker);
 
     bool acceptIntent(const OrderIntent& intent);
-    // acceptInboundFrame() and acceptTransportEvent() feed one shared SPSC ingress queue.
-    // Callers must serialize both APIs on the same producer thread (TxReceiver thread in split mode).
+    // acceptInboundFrame(), acceptTransportEvent(), and acceptTransportControl() all feed one
+    // shared SPSC ingress queue. Callers must serialize all three APIs on the same producer
+    // thread (TxReceiver thread in split mode).
     bool acceptInboundFrame(const TxInboundFrame& frame);
     bool acceptTransportEvent(TxTransportEvent event);
     bool acceptTransportControl(const TxTransportControl& control);
