@@ -60,6 +60,21 @@ The final TX path should converge toward these responsibilities:
 - `Venturi.cpp`
   - wires these modules incrementally, stage by stage
 
+## Threading Progression
+
+The intended TX-side thread progression is:
+
+- Stage 1: 1 TX-related thread
+  - `TxConnection` only
+- Stage 2: 1 TX-related thread
+  - `TxConnection` and `TxReceiver` colocated on the receiver/control side
+- Stage 3 and later: 2 TX-related threads
+  - receiver/control thread: `TxConnection` + `TxReceiver`
+  - sender thread: `TxSender`
+
+`TxConnection` is not intended to become a permanent third hot-path thread.
+It should stay colocated with the receiver/control side once `TxReceiver` exists.
+
 ## Non-Goals
 
 - Do not require the whole final TX path to exist before anything is visible in `Venturi`.
@@ -117,6 +132,11 @@ If the current `TxConnection` file already owns any of those, this stage is expe
 
 No sender or receiver module is required yet.
 
+Threading for Stage 1:
+
+- one TX-related thread only
+- that thread runs `TxConnection`
+
 #### Expected Observation
 
 You should be able to observe:
@@ -168,6 +188,11 @@ If the current `TxReceiver` is only a forwarding shell around `TxConnection`, th
 - run a receiver loop or thread
 - route received outputs to a temporary debug sink if `TxSender` is not wired yet
 
+Threading for Stage 2:
+
+- still one TX-related thread
+- `TxConnection` and `TxReceiver` run together on the receiver/control side
+
 #### Expected Observation
 
 You should be able to observe:
@@ -216,6 +241,15 @@ If the current `TxSender` does not clearly own sender-side fd, send path, and pe
 - create `TxSender`
 - route sender-side connection controls into it
 - run sender loop or sender-owned processing in the actual runtime
+
+Threading for Stage 3:
+
+- two TX-related threads
+- receiver/control thread:
+  - `TxConnection`
+  - `TxReceiver`
+- sender thread:
+  - `TxSender`
 
 #### Expected Observation
 

@@ -25,6 +25,18 @@ Important:
 - you may reuse those same file/class names
 - but you should rewrite or delete their current logic whenever it violates the intended split
 
+## Threading By Stage
+
+- Stage 1: 1 TX-related thread
+  - `TxConnection` only
+- Stage 2: 1 TX-related thread
+  - `TxConnection` + `TxReceiver`
+- Stage 3 and later: 2 TX-related threads
+  - receiver/control thread: `TxConnection` + `TxReceiver`
+  - sender thread: `TxSender`
+
+`TxConnection` should not become a permanent third hot-path thread.
+
 ## Stage Order
 
 ### 1. `TxConnection`
@@ -78,6 +90,10 @@ Do not require yet:
 
 - sender-side completion logic
 
+Threading:
+
+- `TxConnection` and `TxReceiver` should share the same receiver/control thread in this stage
+
 If current `TxReceiver` is only a bridge/wrapper, this stage is where it stops being acceptable.
 
 ### 3. `TxSender`
@@ -100,6 +116,12 @@ Do not require yet:
 - full feedback-driven completion
 
 If current `TxSender` does not clearly own send-side authority, rewrite it in place.
+
+Threading:
+
+- this is the first stage with 2 TX-related threads
+- receiver/control thread: `TxConnection` + `TxReceiver`
+- sender thread: `TxSender`
 
 ### 4. Receiver To Sender Feedback
 
