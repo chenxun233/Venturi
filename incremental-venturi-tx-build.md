@@ -52,6 +52,13 @@ Do not require yet:
 
 If current `TxConnection` still owns `recv()` or protocol/session logic, that is something to remove in this stage.
 
+Also for Stage 1:
+
+- do not instantiate `TxSender` in `Venturi.cpp`
+- do not instantiate `TxReceiver` in `Venturi.cpp`
+- remove sender/receiver runtime loops from `Venturi.cpp`
+- keep only the connection-control loop visible
+
 ### 2. `TxReceiver`
 
 Build only:
