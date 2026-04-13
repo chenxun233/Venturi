@@ -1,0 +1,143 @@
+# Incremental Venturi TX Build
+
+This note is the quick reference version of the formal design in:
+
+- [docs/superpowers/specs/2026-04-13-incremental-venturi-tx-build-design.md](/home/chenxun/Documents/Project/Venturi/docs/superpowers/specs/2026-04-13-incremental-venturi-tx-build-design.md)
+
+Use this file while working through the TX path module by module.
+
+## Rule
+
+Build one module at a time.
+
+After each module:
+
+1. wire it into `Venturi.cpp`
+2. observe what it does
+3. explain the ownership
+4. only then move on
+
+Do not jump straight to the full final TX path.
+
+## Stage Order
+
+### 1. `TxConnection`
+
+Build only:
+
+- connect/reconnect
+- socket option setup
+- generation tracking
+- `Connected` / `Disconnected` control publication
+
+Observe:
+
+- connect attempts
+- successful connect publication
+- disconnect publication
+- generation changes
+
+Do not require yet:
+
+- sender
+- receiver
+- login
+- order flow
+
+### 2. `TxReceiver`
+
+Build only:
+
+- install receiver-side fd
+- `recv()`
+- Soup frame assembly
+- read-side disconnect detection
+
+Observe:
+
+- receiver becomes active after connect
+- inbound frames are assembled
+- read-side disconnect is detected
+
+Do not require yet:
+
+- sender-side completion logic
+
+### 3. `TxSender`
+
+Build only:
+
+- install sender-side fd
+- outbound encoding
+- login / heartbeat send
+- sender-side socket ownership
+
+Observe:
+
+- login frame is sent
+- heartbeat path works
+- sender loop is live in `Venturi.cpp`
+
+Do not require yet:
+
+- full feedback-driven completion
+
+### 4. Receiver To Sender Feedback
+
+Build:
+
+- receiver emits parsed feedback
+- sender consumes it
+- sender owns completion / pending cleanup / replay rebuild
+
+Observe:
+
+- accepts/rejects/executions change sender state
+- disconnect leads to replay rebuild
+
+### 5. Full Intent Path
+
+Build:
+
+- strategy/executor intents flow into sender
+- sender sends
+- receiver parses
+- sender closes the loop
+
+Observe:
+
+- end-to-end order lifecycle
+
+### 6. Failure And Recovery Validation
+
+Validate:
+
+- send failure
+- receive failure
+- disconnect before feedback
+- reconnect and replay
+- stale control ignored correctly
+
+## Ownership Reminder
+
+Desired end-state:
+
+- `TxConnection`: pure connection lifecycle
+- `TxReceiver`: true receive owner
+- `TxSender`: true send owner and state owner
+
+Important:
+
+- `TxSender` should own pending/replay/completion state
+- `TxReceiver` should not be the authority for “order is done”
+- `TxReceiver` should feed feedback back into `TxSender`
+
+## What To Write Down At Each Stage
+
+For each stage, note:
+
+- what module changed
+- what changed in `Venturi.cpp`
+- what is intentionally incomplete
+- what you observed
+- what ownership rule became clear
