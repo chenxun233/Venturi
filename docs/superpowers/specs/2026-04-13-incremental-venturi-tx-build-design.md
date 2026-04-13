@@ -24,6 +24,14 @@ Instead:
 
 This design is intentionally optimized for learning and observability, not just shortest implementation path.
 
+Another explicit rule:
+
+- the current `TxConnection`, `TxReceiver`, and `TxSender` implementations are not treated as the target architecture
+- the staged build may reuse those file/class names
+- but their current logic may be deleted and rewritten if it conflicts with the intended split pattern
+
+This is an incremental rebuild in place, not a commitment to preserve the current implementation shape.
+
 ## Desired End-State
 
 The final TX path should converge toward these responsibilities:
@@ -57,6 +65,22 @@ The final TX path should converge toward these responsibilities:
 - Do not require the whole final TX path to exist before anything is visible in `Venturi`.
 - Do not hide incomplete wiring behind fake “finished” module boundaries.
 - Do not optimize for maximum short-term code throughput at the expense of understandability.
+- Do not preserve current TX module internals merely because the files already exist.
+
+## File/Class Reuse Policy
+
+The following names may be reused:
+
+- `tx_connection.*`
+- `tx_receiver.*`
+- `tx_sender.*`
+
+But reuse of the names does not imply reuse of the current implementation.
+
+The correct rule is:
+
+- keep the names if they help continuity in `Venturi.cpp`
+- discard existing logic if it does not match the intended ownership model
 
 ## Incremental Build Strategy
 
@@ -80,6 +104,8 @@ It should not yet own:
 - inbound frame assembly
 - login/session logic
 - pending-order logic
+
+If the current `TxConnection` file already owns any of those, this stage is expected to remove that logic.
 
 #### Venturi Wiring
 
@@ -131,6 +157,8 @@ Now introduce `TxReceiver` as the true receive-side owner:
 
 At this stage `TxReceiver` still should not own sender/session/pending state.
 
+If the current `TxReceiver` is only a forwarding shell around `TxConnection`, that is not good enough for this staged design. This stage is where `TxReceiver` becomes the actual receive-side owner.
+
 #### Venturi Wiring
 
 `Venturi.cpp` should:
@@ -178,6 +206,8 @@ Now introduce `TxSender` as the send-side owner:
 - own sender-side send helper
 
 At this stage it can still be incomplete on feedback-driven completion.
+
+If the current `TxSender` does not clearly own sender-side fd, send path, and pending-state authority, this stage should rewrite it in place until it does.
 
 #### Venturi Wiring
 
@@ -347,3 +377,5 @@ This staged design is correct when:
 3. each stage has explicit expected observations
 4. no stage silently depends on hidden final-stage assumptions
 5. the final full TX path emerges by composition of understood modules rather than one opaque refactor
+
+6. the current TX module implementations are allowed to be replaced stage by stage under the same names

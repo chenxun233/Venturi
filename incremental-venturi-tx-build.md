@@ -19,6 +19,12 @@ After each module:
 
 Do not jump straight to the full final TX path.
 
+Important:
+
+- the current `TxConnection`, `TxReceiver`, and `TxSender` implementations are not assumed to be correct
+- you may reuse those same file/class names
+- but you should rewrite or delete their current logic whenever it violates the intended split
+
 ## Stage Order
 
 ### 1. `TxConnection`
@@ -44,6 +50,8 @@ Do not require yet:
 - login
 - order flow
 
+If current `TxConnection` still owns `recv()` or protocol/session logic, that is something to remove in this stage.
+
 ### 2. `TxReceiver`
 
 Build only:
@@ -63,6 +71,8 @@ Do not require yet:
 
 - sender-side completion logic
 
+If current `TxReceiver` is only a bridge/wrapper, this stage is where it stops being acceptable.
+
 ### 3. `TxSender`
 
 Build only:
@@ -81,6 +91,8 @@ Observe:
 Do not require yet:
 
 - full feedback-driven completion
+
+If current `TxSender` does not clearly own send-side authority, rewrite it in place.
 
 ### 4. Receiver To Sender Feedback
 
@@ -141,3 +153,4 @@ For each stage, note:
 - what is intentionally incomplete
 - what you observed
 - what ownership rule became clear
+- what existing logic was removed because it violated the split pattern
