@@ -175,6 +175,10 @@ Now introduce `TxReceiver` as the true receive-side owner:
 - detect read-side disconnect
 - produce parsed receive-side outputs
 
+Connection-control handoff should use a dedicated per-consumer SPSC queue:
+
+- `TxConnection -> TxReceiver`: one `SpscRingQueue<TxTransportControl>`
+
 At this stage `TxReceiver` still should not own sender/session/pending state.
 
 If the current `TxReceiver` is only a forwarding shell around `TxConnection`, that is not good enough for this staged design. This stage is where `TxReceiver` becomes the actual receive-side owner.
@@ -230,6 +234,10 @@ Now introduce `TxSender` as the send-side owner:
 - send test/login/heartbeat traffic
 - own sender-side send helper
 
+Connection-control handoff should also use its own dedicated per-consumer SPSC queue:
+
+- `TxConnection -> TxSender`: one `SpscRingQueue<TxTransportControl>`
+
 At this stage it can still be incomplete on feedback-driven completion.
 
 If the current `TxSender` does not clearly own sender-side fd, send path, and pending-state authority, this stage should rewrite it in place until it does.
@@ -250,6 +258,15 @@ Threading for Stage 3:
   - `TxReceiver`
 - sender thread:
   - `TxSender`
+
+Fan-out rule:
+
+- do not use one shared multi-consumer queue for connection publication
+- `TxConnection` should publish into two separate `SpscRingQueue<TxTransportControl>` instances
+  - one consumed only by `TxReceiver`
+  - one consumed only by `TxSender`
+
+This keeps the publication model simple and preserves single-producer/single-consumer ownership.
 
 #### Expected Observation
 

@@ -69,7 +69,10 @@ Also for Stage 1:
 - do not instantiate `TxSender` in `Venturi.cpp`
 - do not instantiate `TxReceiver` in `Venturi.cpp`
 - remove sender/receiver runtime loops from `Venturi.cpp`
-- keep only the connection-control loop visible
+- keep only the connection lifecycle loop visible
+- do not store TX lifecycle state in local `Venturi` variables
+- do not close published TX fds in `Venturi`
+- push connection issues to `LogPrinter`, not `printf` from the connection thread
 
 ### 2. `TxReceiver`
 
@@ -79,6 +82,7 @@ Build only:
 - `recv()`
 - Soup frame assembly
 - read-side disconnect detection
+- consume connection controls from its own `SpscRingQueue<TxTransportControl>`
 
 Observe:
 
@@ -93,6 +97,7 @@ Do not require yet:
 Threading:
 
 - `TxConnection` and `TxReceiver` should share the same receiver/control thread in this stage
+- `TxConnection -> TxReceiver` should use one dedicated `SpscRingQueue<TxTransportControl>`
 
 If current `TxReceiver` is only a bridge/wrapper, this stage is where it stops being acceptable.
 
@@ -104,6 +109,7 @@ Build only:
 - outbound encoding
 - login / heartbeat send
 - sender-side socket ownership
+- consume connection controls from its own `SpscRingQueue<TxTransportControl>`
 
 Observe:
 
@@ -122,6 +128,8 @@ Threading:
 - this is the first stage with 2 TX-related threads
 - receiver/control thread: `TxConnection` + `TxReceiver`
 - sender thread: `TxSender`
+- `TxConnection -> TxSender` should use a second dedicated `SpscRingQueue<TxTransportControl>`
+- do not use one shared multi-consumer queue
 
 ### 4. Receiver To Sender Feedback
 
