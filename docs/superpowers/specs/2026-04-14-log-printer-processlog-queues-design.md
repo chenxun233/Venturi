@@ -1,4 +1,4 @@
-# Log Printer ProcessLog Queues Design
+# Log Printer ProcessLogRecord Queues Design
 
 Date: 2026-04-14
 
@@ -6,8 +6,8 @@ Date: 2026-04-14
 
 Simplify the non-latency side of `LogPrinter` so it follows the same queue ownership pattern as `LatencyTracker`:
 
-- keep `pushLatency(const LatencyLogRecord&)` as the dedicated latency path
-- replace non-latency typed push APIs with one unified `pushProcessLog(const ProcessLog&)`
+- keep `pushLatencyLog(const LatencyLogRecord&)` as the dedicated latency path
+- replace non-latency typed push APIs with one unified `pushProcessLogRecord(const ProcessLogRecord&)`
 - remove the `ProducerSlot` and `LogProducer` abstraction
 - use `std::vector<std::unique_ptr<SpscRingQueue<...>>>` directly inside `LogPrinter`
 - keep producer-side log pushes lock-free and low-latency
@@ -33,14 +33,14 @@ For the non-latency path, the user also wants producers to build the final sente
 
 Chosen approach:
 
-- keep `pushLatency(const LatencyLogRecord&)` unchanged for latency logs only
-- add a new `ProcessLog` transport record with:
+- keep `pushLatencyLog(const LatencyLogRecord&)` unchanged for latency logs only
+- add a new `ProcessLogRecord` transport record with:
   - `queue_idx`
   - fixed-size `log_sentence`
   - explicit `message_length`
-- add `pushProcessLog(const ProcessLog&)`
+- add `pushProcessLogRecord(const ProcessLogRecord&)`
 - store process-log queues directly as:
-  - `std::vector<std::unique_ptr<SpscRingQueue<ProcessLog>>> m_process_log_queues`
+  - `std::vector<std::unique_ptr<SpscRingQueue<ProcessLogRecord>>> m_process_log_queues`
 - make producer call sites build the final human-readable sentence before enqueue
 - make `LogPrinter` drain latency queues and process-log queues and print them
 - keep the producer push path limited to fixed-size record copy plus atomic queue operations
@@ -50,16 +50,16 @@ Rejected alternatives:
 
 - keep the registration-based `LogProducer` handle model
   - rejected because the user explicitly wants the simpler `LatencyTracker`-style queue pattern
-- convert latency logs to `ProcessLog` too
-  - rejected because the user explicitly wants `pushLatency(...)` left alone
+- convert latency logs to `ProcessLogRecord` too
+  - rejected because the user explicitly wants `pushLatencyLog(...)` left alone
 - keep multiple typed non-latency APIs (`pushExecution`, `pushTxEvent`, `pushRegressionStatus`)
   - rejected because the user wants one unified non-latency push interface
 
 ## Data Types
 
-### `ProcessLog`
+### `ProcessLogRecord`
 
-`ProcessLog` should be added to `cpp_src/FPGA_boost_demo/common/shared_types.h`.
+`ProcessLogRecord` should be added to `cpp_src/FPGA_boost_demo/common/shared_types.h`.
 
 Required fields:
 
@@ -69,7 +69,7 @@ Required fields:
 
 Recommended shape:
 
-- `std::array<char, kProcessLogSentenceCapacity> log_sentence`
+- `std::array<char, kProcessLogRecordSentenceCapacity> log_sentence`
 
 This avoids dynamic allocation in producer paths and keeps enqueue behavior deterministic.
 
@@ -77,7 +77,7 @@ The sentence buffer should be treated as raw stored bytes with an explicit lengt
 
 The fixed-size record is part of the latency requirement:
 
-- no heap allocation while constructing or enqueuing a `ProcessLog`
+- no heap allocation while constructing or enqueuing a `ProcessLogRecord`
 - deterministic bounded copy cost on producer threads
 
 ## Architecture
@@ -87,7 +87,7 @@ The fixed-size record is part of the latency requirement:
 `LogPrinter` should own two queue families:
 
 - latency queues for typed `LatencyLogRecord`
-- process-log queues for preformatted `ProcessLog`
+- process-log queues for preformatted `ProcessLogRecord`
 
 Both queue families should use the same direct storage pattern already used by `LatencyTracker`:
 
@@ -107,7 +107,7 @@ The non-latency path should not use:
 
 ### Producer-Side Performance Requirement
 
-The push path for `ProcessLog` is performance-sensitive and must be treated as hot-path code.
+The push path for `ProcessLogRecord` is performance-sensitive and must be treated as hot-path code.
 
 Required properties:
 
@@ -119,17 +119,17 @@ Required properties:
 
 The intended producer push sequence is:
 
-1. caller formats into a fixed-size `ProcessLog`
+1. caller formats into a fixed-size `ProcessLogRecord`
 2. caller provides `queue_idx`
-3. `pushProcessLog(...)` performs queue index validation
-4. the target `SpscRingQueue<ProcessLog>` performs the enqueue using its SPSC atomic operations
+3. `pushProcessLogRecord(...)` performs queue index validation
+4. the target `SpscRingQueue<ProcessLogRecord>` performs the enqueue using its SPSC atomic operations
 5. the call returns immediately with success or drop
 
 The design goal is that logging should not introduce noticeable latency into producer threads.
 
 ### Producer Responsibilities
 
-The caller of `pushProcessLog(...)` is responsible for:
+The caller of `pushProcessLogRecord(...)` is responsible for:
 
 - choosing the correct `queue_idx`
 - formatting the final human-readable message
@@ -143,7 +143,6 @@ That logic moves to the producer call sites such as:
 - `Executor`
 - `TxConnection`
 - `TxSender`
-- startup status publication in `Venturi.cpp`
 
 ## Queue Model
 
@@ -152,7 +151,7 @@ The queue model should match `LatencyTracker` as closely as practical.
 Expected members in `LogPrinter`:
 
 - `std::vector<std::unique_ptr<SpscRingQueue<LatencyLogRecord>>> m_latency_log_queues`
-- `std::vector<std::unique_ptr<SpscRingQueue<ProcessLog>>> m_process_log_queues`
+- `std::vector<std::unique_ptr<SpscRingQueue<ProcessLogRecord>>> m_process_log_queues`
 - queue count and round-robin state for draining
 
 The push path should use the record's `queue_idx` to select the correct queue directly.
@@ -161,7 +160,7 @@ The push path should use the record's `queue_idx` to select the correct queue di
 
 - queue `N` on the latency path refers to the same runtime queue identity as queue `N` on the process-log path
 - non-latency producers should reuse their existing runtime `queue_idx`
-- no separate `ProcessLog`-only queue numbering scheme should be introduced
+- no separate `ProcessLogRecord`-only queue numbering scheme should be introduced
 
 No handle registration phase is part of this design.
 
@@ -171,8 +170,8 @@ The consumer side may use polling or another wakeup strategy, but that choice mu
 
 Public API after this redesign should include:
 
-- `pushLatency(const LatencyLogRecord& record)`
-- `pushProcessLog(const ProcessLog& record)`
+- `pushLatencyLog(const LatencyLogRecord& record)`
+- `pushProcessLogRecord(const ProcessLogRecord& record)`
 - `start()`
 - `stop()`
 - `readDropCount()`
@@ -190,7 +189,7 @@ The old non-latency APIs should be removed:
 The latency path remains unchanged in principle:
 
 1. `LatencyTracker` assembles a `LatencyLogRecord`
-2. `LatencyTracker` calls `pushLatency(...)`
+2. `LatencyTracker` calls `pushLatencyLog(...)`
 3. `LogPrinter` enqueues by `record.que_idx`
 4. the worker thread prints the typed latency line
 
@@ -199,9 +198,9 @@ The latency path remains unchanged in principle:
 The process-log path works like this:
 
 1. a producer builds the final printable sentence
-2. the producer fills a `ProcessLog`
+2. the producer fills a `ProcessLogRecord`
 3. the producer sets `queue_idx`
-4. the producer calls `pushProcessLog(...)`
+4. the producer calls `pushProcessLogRecord(...)`
 5. `LogPrinter` enqueues into `m_process_log_queues[queue_idx]`
 6. the worker thread prints the stored sentence immediately
 
@@ -238,7 +237,7 @@ Files expected to change during implementation:
 - `cpp_src/FPGA_boost_demo/latency/log_printer.h`
 - `cpp_src/FPGA_boost_demo/latency/log_printer.cpp`
 - producer call sites that currently emit execution, TX, and regression logs
-- startup wiring in `cpp_src/FPGA_boost_demo/app/Venturi.cpp`
+- logger wiring in `cpp_src/FPGA_boost_demo/app/Venturi.cpp`, if needed for constructor or attachment changes
 - tests covering logger behavior
 
 Files intentionally not redesigned in this change:
@@ -251,8 +250,8 @@ Files intentionally not redesigned in this change:
 
 Implementation verification should cover:
 
-1. `pushLatency(...)` still works unchanged
-2. `pushProcessLog(...)` routes correctly by `queue_idx`
+1. `pushLatencyLog(...)` still works unchanged
+2. `pushProcessLogRecord(...)` routes correctly by `queue_idx`
 3. process-log queue overflow increments drop accounting
 4. overlong sentences are truncated deterministically
 5. execution and TX producers still print the expected text after formatting moves out of `LogPrinter`
@@ -277,7 +276,7 @@ If a producer sends the wrong `queue_idx`, log ordering and ownership assumption
 Mitigation:
 
 - use existing queue-local context already available at call sites
-- validate `queue_idx` in `pushProcessLog(...)`
+- validate `queue_idx` in `pushProcessLogRecord(...)`
 
 ### Hidden Complexity Reappearing
 
@@ -299,15 +298,15 @@ This design replaces that approach with:
 
 - direct queue vectors
 - explicit `queue_idx`
-- a unified non-latency `ProcessLog` record
+- a unified non-latency `ProcessLogRecord` record
 
 ## Stop Condition
 
 This design is complete when:
 
-1. `pushLatency(...)` remains the dedicated latency interface
-2. non-latency logs use `pushProcessLog(...)`
-3. `ProcessLog` carries `queue_idx` and a fixed-size sentence buffer with explicit length
+1. `pushLatencyLog(...)` remains the dedicated latency interface
+2. non-latency logs use `pushProcessLogRecord(...)`
+3. `ProcessLogRecord` carries `queue_idx` and a fixed-size sentence buffer with explicit length
 4. `LogPrinter` stores queues directly as vector-of-`SpscRingQueue` pointers
 5. `ProducerSlot` and `LogProducer` are no longer part of the design
 6. producer-side log enqueue remains lock-free and avoids noticeable added latency
