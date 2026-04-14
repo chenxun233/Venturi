@@ -10,6 +10,7 @@ Simplify the non-latency side of `LogPrinter` so it follows the same queue owner
 - replace non-latency typed push APIs with one unified `pushProcessLog(const ProcessLog&)`
 - remove the `ProducerSlot` and `LogProducer` abstraction
 - use `std::vector<std::unique_ptr<SpscRingQueue<...>>>` directly inside `LogPrinter`
+- keep producer-side log pushes lock-free and low-latency
 
 ## Why This Change Is Needed
 
@@ -42,6 +43,8 @@ Chosen approach:
   - `std::vector<std::unique_ptr<SpscRingQueue<ProcessLog>>> m_process_log_queues`
 - make producer call sites build the final human-readable sentence before enqueue
 - make `LogPrinter` drain latency queues and process-log queues and print them
+- keep the producer push path limited to fixed-size record copy plus atomic queue operations
+- avoid producer-side mutexes, heap allocation, and any blocking wait behavior
 
 Rejected alternatives:
 
@@ -72,6 +75,11 @@ This avoids dynamic allocation in producer paths and keeps enqueue behavior dete
 
 The sentence buffer should be treated as raw stored bytes with an explicit length, not as a required null-terminated C string.
 
+The fixed-size record is part of the latency requirement:
+
+- no heap allocation while constructing or enqueuing a `ProcessLog`
+- deterministic bounded copy cost on producer threads
+
 ## Architecture
 
 ### `LogPrinter`
@@ -96,6 +104,28 @@ The non-latency path should not use:
 - route by `queue_idx`
 - drain queues
 - print records
+
+### Producer-Side Performance Requirement
+
+The push path for `ProcessLog` is performance-sensitive and must be treated as hot-path code.
+
+Required properties:
+
+- lock-free on the producer side
+- no producer-side mutexes
+- no producer-side condition-variable waiting
+- no heap allocation during enqueue
+- no formatting work inside `LogPrinter`
+
+The intended producer push sequence is:
+
+1. caller formats into a fixed-size `ProcessLog`
+2. caller provides `queue_idx`
+3. `pushProcessLog(...)` performs queue index validation
+4. the target `SpscRingQueue<ProcessLog>` performs the enqueue using its SPSC atomic operations
+5. the call returns immediately with success or drop
+
+The design goal is that logging should not introduce noticeable latency into producer threads.
 
 ### Producer Responsibilities
 
@@ -128,6 +158,8 @@ Expected members in `LogPrinter`:
 The push path should use the record's `queue_idx` to select the correct queue directly.
 
 No handle registration phase is part of this design.
+
+The consumer side may use polling or another wakeup strategy, but that choice must not add locking or blocking work to the producer push path.
 
 ## API Shape
 
@@ -167,6 +199,8 @@ The process-log path works like this:
 5. `LogPrinter` enqueues into `m_process_log_queues[queue_idx]`
 6. the worker thread prints the stored sentence immediately
 
+The worker thread may observe logs shortly after enqueue, but producer progress must not depend on consumer wakeup timing.
+
 ## Error Handling
 
 Push remains best-effort:
@@ -175,6 +209,7 @@ Push remains best-effort:
 - full queue returns `false`
 - drop accounting increments on rejected pushes
 - producers must not block
+- producers must not acquire a logger-side lock
 
 For message construction:
 
@@ -210,6 +245,7 @@ Implementation verification should cover:
 4. overlong sentences are truncated deterministically
 5. execution and TX producers still print the expected text after formatting moves out of `LogPrinter`
 6. the worker thread drains both latency and process-log queues correctly
+7. the producer push path does not use mutex-protected enqueue logic
 
 ## Risks
 
@@ -262,3 +298,4 @@ This design is complete when:
 3. `ProcessLog` carries `queue_idx` and a fixed-size sentence buffer with explicit length
 4. `LogPrinter` stores queues directly as vector-of-`SpscRingQueue` pointers
 5. `ProducerSlot` and `LogProducer` are no longer part of the design
+6. producer-side log enqueue remains lock-free and avoids noticeable added latency
