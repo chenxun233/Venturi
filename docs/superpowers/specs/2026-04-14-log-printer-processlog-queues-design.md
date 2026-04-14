@@ -151,11 +151,17 @@ The queue model should match `LatencyTracker` as closely as practical.
 
 Expected members in `LogPrinter`:
 
-- `std::vector<std::unique_ptr<SpscRingQueue<LatencyLogRecord>>> m_latency_queues`
+- `std::vector<std::unique_ptr<SpscRingQueue<LatencyLogRecord>>> m_latency_log_queues`
 - `std::vector<std::unique_ptr<SpscRingQueue<ProcessLog>>> m_process_log_queues`
 - queue count and round-robin state for draining
 
 The push path should use the record's `queue_idx` to select the correct queue directly.
+
+`queue_idx` should use one shared namespace across both queue families:
+
+- queue `N` on the latency path refers to the same runtime queue identity as queue `N` on the process-log path
+- non-latency producers should reuse their existing runtime `queue_idx`
+- no separate `ProcessLog`-only queue numbering scheme should be introduced
 
 No handle registration phase is part of this design.
 
@@ -200,6 +206,12 @@ The process-log path works like this:
 6. the worker thread prints the stored sentence immediately
 
 The worker thread may observe logs shortly after enqueue, but producer progress must not depend on consumer wakeup timing.
+
+Current assumption:
+
+- there is no main-thread process-log producer in the current runtime
+- therefore this design does not reserve a special queue index for startup or main-thread logs
+- if such logs are introduced later, that should be handled as a separate design change instead of overloading the current queue model
 
 ## Error Handling
 
