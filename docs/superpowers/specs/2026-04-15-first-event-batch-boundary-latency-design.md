@@ -8,7 +8,7 @@ Replace the current regression-based FPGA-to-host latency conversion in the Vent
 2. `batch_start_ns`
 3. `batch_end_ns`
 
-`frame_start_to_dma_emit_ns` is derived directly from FPGA ticks using a fixed conversion of `6.4 ns/tick`. `batch_start_ns` is captured in `pollDecodedBatchImpl()`, and `batch_end_ns` is captured in `pollDecodedBatch()` using a lightweight post-pass over the decoded batch.
+`frame_start_to_dma_emit_ns` is derived in `LatencyTracker` from FPGA ticks using a fixed conversion of `6.4 ns/tick`. `batch_start_ns` is captured in `pollDecodedBatchImpl()`, and `batch_end_ns` is captured in `pollDecodedBatch()` using a lightweight post-pass over the decoded batch.
 
 ## Goals
 
@@ -41,7 +41,33 @@ That first-event-only contract should remain unchanged.
 
 ### 1. FPGA-derived metric
 
-Keep `frame_start_to_dma_emit_ns`, but compute it in `LatencyTracker` from the FPGA record fields:
+Keep the existing first-event hot-path record pushes exactly as they are today:
+
+```cpp
+if (out[record_count].is_first_event != 0 && m_latency_tracker != nullptr) {
+    const uint64_t decode_time_ns = readMonotonicRawNs();
+    m_latency_tracker->pushRecord(TimeRecord {
+        .que_idx = m_que_idx,
+        .event_tag = out[record_count].event_tk,
+        .event_stage = stage::FRAME_START,
+        .time_captured = out[record_count].frame_start_tk,
+    });
+    m_latency_tracker->pushRecord(TimeRecord {
+        .que_idx = m_que_idx,
+        .event_tag = out[record_count].event_tk,
+        .event_stage = stage::DMA_EMIT,
+        .time_captured = out[record_count].event_tk,
+    });
+    m_latency_tracker->pushRecord(TimeRecord {
+        .que_idx = m_que_idx,
+        .event_tag = out[record_count].event_tk,
+        .event_stage = stage::DECODE,
+        .time_captured = decode_time_ns,
+    });
+}
+```
+
+`LatencyTracker` must retain `FRAME_START` and `DMA_EMIT` stage handling, but change their meaning:
 
 - start tick: `frame_start_tk`
 - end tick: `event_tk`
@@ -65,11 +91,17 @@ Definitions:
 
 If a batch contains no tracked first event, no batch-boundary latency records are emitted for that batch.
 
+`LatencyTracker` should treat these as raw timestamps and derive:
+
+- `batch_duration_ns = batch_end_ns - batch_start_ns`
+
+This mirrors the way other stage-to-stage latencies are derived from stored timestamps.
+
 ### 3. Removed metric
 
 Stop reporting `dma_emit_to_decode_ns` as a runtime latency metric.
 
-Once regression is removed from the runtime path, there is no trustworthy mixed-domain conversion for that interval. The tracker and log output should no longer treat it as a valid number.
+Once regression is removed from the runtime path, there is no trustworthy mixed-domain conversion for that interval. The tracker should still accept the existing `DECODE` record push, but it should no longer compute `dma_emit_to_decode_ns` from `event_tk` and `decode_time_ns`.
 
 ## Data Flow
 
@@ -78,8 +110,8 @@ Once regression is removed from the runtime path, there is no trustworthy mixed-
 Inside `pollDecodedBatchImpl()`:
 
 - Detect first-event records using the existing `is_first_event != 0` condition.
-- For the first tracked event in the batch:
-  - push the raw timing inputs needed to derive `frame_start_to_dma_emit_ns`
+- Keep the existing `FRAME_START`, `DMA_EMIT`, and `DECODE` record pushes unchanged for each first event.
+- For the first first-event encountered in the batch only:
   - capture and push `batch_start_ns`
 - Preserve the current decode loop behavior for all records.
 
@@ -96,18 +128,22 @@ Inside `pollDecodedBatchImpl()`:
 
 This keeps `batch_end_ns` outside `pollDecodedBatchImpl()` but inside `pollDecodedBatch()`, and bounds the extra work to a single short scan with early exit.
 
+Batch-boundary timestamps belong only to the first first-event in the batch. Any later first-event records in the same batch still receive the existing `FRAME_START`, `DMA_EMIT`, and `DECODE` records, but do not receive `batch_start_ns` or `batch_end_ns`.
+
 ### Latency tracker
 
 `LatencyTracker` should be simplified to reflect the new model:
 
 - remove runtime dependency on `FPGARegression`
-- remove `FRAME_START` and `DMA_EMIT` stage handling that exists only to support regression conversion
+- keep `FRAME_START` and `DMA_EMIT` stage handling so `frame_start_to_dma_emit_ns` can be computed from raw FPGA ticks
 - remove `dma_emit_to_decode_ns` state, stats updates, and drop handling
 - keep first-event keyed pending-state tracking
 - add handling for:
   - FPGA-derived `frame_start_to_dma_emit_ns`
   - host `batch_start_ns`
   - host `batch_end_ns`
+  - derived `batch_duration_ns`
+  - `batch_end_to_strategy_ns`
 
 The tracker should only compute metrics that are explicitly valid under the new model.
 
@@ -119,6 +155,8 @@ Expected changes:
 
 - add explicit record support for `batch_start_ns`
 - add explicit record support for `batch_end_ns`
+- add a derived latency field for `batch_duration_ns`
+- rename `decode_to_strategy_ns` to `batch_end_to_strategy_ns`
 - remove or stop emitting `dma_emit_to_decode_ns`
 - keep log records aligned with the new metric set
 
@@ -145,8 +183,8 @@ In `Venturi.cpp`:
 Per-event latency logs should report:
 
 - `frame_start_to_dma_emit_ns`
-- `batch_start_ns`
-- `batch_end_ns`
+- `batch_duration_ns`
+- `batch_end_to_strategy_ns`
 - any downstream fields that remain valid after the tracker cleanup
 
 The log output should not print removed metrics as if they are meaningful.
@@ -163,8 +201,11 @@ Update or add tests for:
 
 - first-event-only batch start capture
 - first-event-only batch end capture
+- first-first-event-only ownership of batch-boundary timestamps when a batch contains multiple first events
+- derived `batch_duration_ns`
 - no latency output for batches without a first event
 - fixed-tick conversion for `frame_start_to_dma_emit_ns`
+- rename from `decode_to_strategy_ns` to `batch_end_to_strategy_ns`
 - `Venturi.cpp` no longer references regression-driven snapshot control
 - RX flow uses `pollDecodedBatch()` rather than `pollDecodedBatchSync()`
 - removal or absence of `dma_emit_to_decode_ns` in logs and tracker outputs
@@ -172,7 +213,7 @@ Update or add tests for:
 ## Risks
 
 - The batch-start definition must stay precise. It is the start of decode handling for the tracked first event, not the start of polling the queue.
-- Batches with multiple first-event records need one explicit ownership rule. This design assigns the batch-boundary timestamps to the first tracked event encountered in the batch.
+- Batches with multiple first-event records need one explicit ownership rule. This design assigns the batch-boundary timestamps only to the first tracked first-event encountered in the batch.
 - Existing tests and log consumers may assume the old metric names and will need coordinated updates.
 
 ## Implementation Notes
@@ -187,3 +228,4 @@ Update or add tests for:
   - take one timestamp
   - push one latency record
   - break immediately after the first match
+- `DECODE` remains a hot-path timestamp push, but it no longer defines the upstream latency boundary for strategy. The new derived metric is `batch_end_to_strategy_ns`.
