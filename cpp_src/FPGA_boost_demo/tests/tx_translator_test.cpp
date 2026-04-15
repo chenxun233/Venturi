@@ -6,7 +6,6 @@
 #include <stdexcept>
 #include <sys/socket.h>
 #include <type_traits>
-#include <unordered_map>
 #include <unistd.h>
 
 #define private public
