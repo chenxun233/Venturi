@@ -229,6 +229,7 @@ void LogPrinter::_run() {
 }
 
 void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
+    constexpr int kLatencyLabelWidth = 48;
     const bool has_negative = (record.batch_duration_ns < 0) ||
                               (record.batch_end_to_strategy_start_ns < 0) ||
                               (record.strategy_start_to_tx_execution_accepted_ns < 0) ||
@@ -237,27 +238,37 @@ void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
                               (record.tx_order_frame_built_to_tx_pending_recorded_ns < 0) ||
                               (record.tx_pending_recorded_to_tx_enqueue_ns < 0) ||
                               (record.tx_enqueue_to_tx_send_ns < 0);
+    auto printSignedLatency = [kLatencyLabelWidth](const char* label, long long value) {
+        std::printf("%-*s = %lld\n", kLatencyLabelWidth, label, value);
+    };
+    auto printUnsignedLatency = [kLatencyLabelWidth](const char* label,
+                                                     unsigned long long value) {
+        std::printf("%-*s = %llu\n", kLatencyLabelWidth, label, value);
+    };
     std::printf("LatencyNs%s queue=%u event_tag=%llu\n",
                 has_negative ? "[NEG]" : "",
                 static_cast<unsigned int>(record.que_idx),
                 static_cast<unsigned long long>(record.event_tag));
-    std::printf("frame_start -> dma_emit_ns\t= %llu\n",
-                static_cast<unsigned long long>(record.frame_start_to_dma_emit_ns));
-    std::printf("batch_duration_ns\t= %lld\n", static_cast<long long>(record.batch_duration_ns));
-    std::printf("batch_end -> strategy_start_ns\t= %lld\n",
-                static_cast<long long>(record.batch_end_to_strategy_start_ns));
-    std::printf("strategy_start -> tx_execution_accepted_ns\t= %lld\n",
-                static_cast<long long>(record.strategy_start_to_tx_execution_accepted_ns));
-    std::printf("tx_execution_accepted -> tx_execution_dequeue_ns\t= %lld\n",
-                static_cast<long long>(record.tx_execution_accepted_to_tx_execution_dequeue_ns));
-    std::printf("tx_execution_dequeue -> tx_order_frame_built_ns\t= %lld\n",
-                static_cast<long long>(record.tx_execution_dequeue_to_tx_order_frame_built_ns));
-    std::printf("tx_order_frame_built -> tx_pending_recorded_ns\t= %lld\n",
-                static_cast<long long>(record.tx_order_frame_built_to_tx_pending_recorded_ns));
-    std::printf("tx_pending_recorded -> tx_enqueue_ns\t= %lld\n",
-                static_cast<long long>(record.tx_pending_recorded_to_tx_enqueue_ns));
-    std::printf("tx_enqueue -> tx_send_ns\t= %lld\n",
-                static_cast<long long>(record.tx_enqueue_to_tx_send_ns));
+    printUnsignedLatency("frame_start -> dma_emit_ns",
+                         static_cast<unsigned long long>(record.frame_start_to_dma_emit_ns));
+    printSignedLatency("batch_duration_ns", static_cast<long long>(record.batch_duration_ns));
+    printSignedLatency("batch_end -> strategy_start_ns",
+                       static_cast<long long>(record.batch_end_to_strategy_start_ns));
+    printSignedLatency("strategy_start -> tx_execution_accepted_ns",
+                       static_cast<long long>(record.strategy_start_to_tx_execution_accepted_ns));
+    printSignedLatency("tx_execution_accepted -> tx_execution_dequeue_ns",
+                       static_cast<long long>(
+                           record.tx_execution_accepted_to_tx_execution_dequeue_ns));
+    printSignedLatency("tx_execution_dequeue -> tx_order_frame_built_ns",
+                       static_cast<long long>(
+                           record.tx_execution_dequeue_to_tx_order_frame_built_ns));
+    printSignedLatency("tx_order_frame_built -> tx_pending_recorded_ns",
+                       static_cast<long long>(
+                           record.tx_order_frame_built_to_tx_pending_recorded_ns));
+    printSignedLatency("tx_pending_recorded -> tx_enqueue_ns",
+                       static_cast<long long>(record.tx_pending_recorded_to_tx_enqueue_ns));
+    printSignedLatency("tx_enqueue -> tx_send_ns",
+                       static_cast<long long>(record.tx_enqueue_to_tx_send_ns));
     std::fflush(stdout);
 }
 
