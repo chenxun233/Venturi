@@ -8,7 +8,7 @@ Replace the current regression-based FPGA-to-host latency conversion in the Vent
 2. `batch_start_ns`
 3. `batch_end_ns`
 
-`frame_start_to_dma_emit_ns` is derived directly from FPGA ticks using a fixed conversion of `6.4 ns/tick`. `batch_start_ns` and `batch_end_ns` are host timestamps around batch decode processing.
+`frame_start_to_dma_emit_ns` is derived directly from FPGA ticks using a fixed conversion of `6.4 ns/tick`. `batch_start_ns` is captured in `pollDecodedBatchImpl()`, and `batch_end_ns` is captured in `pollDecodedBatch()` using a lightweight post-pass over the decoded batch.
 
 ## Goals
 
@@ -61,7 +61,7 @@ Add two host timestamps for the tracked first event in a decoded batch:
 Definitions:
 
 - `batch_start_ns` is captured inside `pollDecodedBatchImpl()` when the first tracked event in the current batch begins decode handling.
-- `batch_end_ns` is captured immediately after `pollDecodedBatchSync()` returns in the RX thread and is attached to that same tracked event.
+- `batch_end_ns` is captured inside `pollDecodedBatch()` after `pollDecodedBatchImpl()` returns and is attached to the same tracked event.
 
 If a batch contains no tracked first event, no batch-boundary latency records are emitted for that batch.
 
@@ -83,18 +83,18 @@ Inside `pollDecodedBatchImpl()`:
   - capture and push `batch_start_ns`
 - Preserve the current decode loop behavior for all records.
 
-The function should return enough information for the caller to know whether a tracked first event existed in the batch and which `event_tag` owns the batch-boundary timestamps.
-
 `pollDecodedBatchSync()` is not part of the active runtime design after this change. The RX path should use `pollDecodedBatch()` only.
 
 ### RX thread
 
-Immediately after `pollDecodedBatch()` returns:
+`pollDecodedBatch()` is responsible for `batch_end_ns` capture:
 
-- if the returned batch contains a tracked first event, capture `batch_end_ns`
-- push it against that tracked event's `event_tag`
+- after `pollDecodedBatchImpl()` returns, do a lightweight post-pass over the decoded records
+- scan until the first `is_first_event != 0` record is found
+- capture `batch_end_ns` once and push it against that event's `event_tag`
+- break immediately after the first match
 
-This keeps `batch_end_ns` outside the decode loop and makes it an explicit end-of-batch boundary.
+This keeps `batch_end_ns` outside `pollDecodedBatchImpl()` but inside `pollDecodedBatch()`, and bounds the extra work to a single short scan with early exit.
 
 ### Latency tracker
 
@@ -136,7 +136,7 @@ In `Venturi.cpp`:
 - remove `FPGA_regression.initSync(...)`
 - comment out `device.setSync(kSyncEnabled);`
 - use `pollDecodedBatch()` in both RX threads
-- keep the rest of the RX thread flow unchanged except for pushing `batch_end_ns`
+- keep the rest of the RX thread flow unchanged
 
 `FPGARegression` remains in the repository but is no longer part of the active latency pipeline for this app.
 
@@ -182,3 +182,8 @@ Update or add tests for:
 - Do not delete regression code in this change; only remove its runtime wiring from the current latency path.
 - `frame_start_to_dma_emit_ns` is calculated in `LatencyTracker` from the decoded event fields:
   - `frame_start_to_dma_emit_ns = (event_tk - frame_start_tk) * 64 / 10`
+- `batch_end_ns` capture should minimize added influence:
+  - scan decoded records only until the first `is_first_event != 0`
+  - take one timestamp
+  - push one latency record
+  - break immediately after the first match
