@@ -1,65 +1,207 @@
+#include "../common/shared_types.h"
+#define private public
+#include "../tx_engine/tx_sender.h"
+#undef private
+#include "../latency/latency_tracker.h"
+
 #include <gtest/gtest.h>
 
 #include <array>
-#include <cerrno>
 #include <chrono>
-#include <stdexcept>
 #include <sys/socket.h>
+#include <thread>
 #include <type_traits>
 #include <unistd.h>
+#include <vector>
 
-#define private public
-#include "../tx_engine/tx_connection.h"
-#include "../tx_engine/tx_sender.h"
-#include "../latency/latency_tracker.h"
-#undef private
-
-#include "../common/shared_types.h"
+static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptIntent)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptInboundFrame)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptTransportControl)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxSender::buildOutboundFrame)>);
 
 namespace {
 
-enum class WrappedSendMode : uint8_t {
-    PassThrough,
-    PartialThenEagain,
-};
+void writeBigEndian16(uint8_t* out, uint16_t value) {
+    out[0] = static_cast<uint8_t>((value >> 8) & 0xffU);
+    out[1] = static_cast<uint8_t>(value & 0xffU);
+}
 
-WrappedSendMode g_wrapped_send_mode = WrappedSendMode::PassThrough;
-int g_partial_send_call_count = 0;
+void writeBigEndian32(uint8_t* out, uint32_t value) {
+    out[0] = static_cast<uint8_t>((value >> 24) & 0xffU);
+    out[1] = static_cast<uint8_t>((value >> 16) & 0xffU);
+    out[2] = static_cast<uint8_t>((value >> 8) & 0xffU);
+    out[3] = static_cast<uint8_t>(value & 0xffU);
+}
+
+void writeBigEndian64(uint8_t* out, uint64_t value) {
+    out[0] = static_cast<uint8_t>((value >> 56) & 0xffU);
+    out[1] = static_cast<uint8_t>((value >> 48) & 0xffU);
+    out[2] = static_cast<uint8_t>((value >> 40) & 0xffU);
+    out[3] = static_cast<uint8_t>((value >> 32) & 0xffU);
+    out[4] = static_cast<uint8_t>((value >> 24) & 0xffU);
+    out[5] = static_cast<uint8_t>((value >> 16) & 0xffU);
+    out[6] = static_cast<uint8_t>((value >> 8) & 0xffU);
+    out[7] = static_cast<uint8_t>(value & 0xffU);
+}
+
+std::vector<uint8_t> makeLoginAcceptedFrame() {
+    std::vector<uint8_t> bytes(33, 0);
+    bytes[0] = 0x00;
+    bytes[1] = 0x1f;
+    bytes[2] = static_cast<uint8_t>('A');
+
+    const std::array<uint8_t, 10> session {'S', 'E', 'S', 'S', 'I', 'O', 'N', '0', '1', ' '};
+    for (std::size_t idx = 0; idx < session.size(); ++idx) {
+        bytes[3 + idx] = session[idx];
+    }
+
+    const std::array<uint8_t, 20> sequence {
+        ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+        ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '1'
+    };
+    for (std::size_t idx = 0; idx < sequence.size(); ++idx) {
+        bytes[13 + idx] = sequence[idx];
+    }
+
+    return bytes;
+}
+
+std::vector<uint8_t> makeSequencedAcceptedFrame(uint32_t user_ref_num,
+                                                uint16_t stock_locate,
+                                                uint32_t shares,
+                                                uint32_t price) {
+    (void)stock_locate;
+    std::vector<uint8_t> bytes(67, 0);
+    bytes[0] = 0x00;
+    bytes[1] = 0x41;
+    bytes[2] = static_cast<uint8_t>('S');
+    bytes[3] = static_cast<uint8_t>('A');
+
+    writeBigEndian32(bytes.data() + 12, user_ref_num);
+    bytes[16] = static_cast<uint8_t>('B');
+    writeBigEndian32(bytes.data() + 17, shares);
+    const std::array<uint8_t, 8> symbol {'A', 'A', 'P', 'L', ' ', ' ', ' ', ' '};
+    for (std::size_t idx = 0; idx < symbol.size(); ++idx) {
+        bytes[21 + idx] = symbol[idx];
+    }
+    writeBigEndian64(bytes.data() + 29, static_cast<uint64_t>(price));
+    bytes[37] = static_cast<uint8_t>('0');
+    bytes[38] = static_cast<uint8_t>('Y');
+    writeBigEndian64(bytes.data() + 39, 1U);
+    bytes[47] = static_cast<uint8_t>('A');
+    bytes[48] = static_cast<uint8_t>('N');
+    bytes[49] = static_cast<uint8_t>('N');
+    bytes[50] = static_cast<uint8_t>('L');
+    bytes[65] = 0x00;
+    bytes[66] = 0x00;
+    return bytes;
+}
+
+std::vector<uint8_t> makeSequencedExecutedFrame(uint32_t user_ref_num,
+                                                uint32_t executed_shares,
+                                                uint32_t price,
+                                                uint64_t match_number) {
+    std::vector<uint8_t> bytes(39, 0);
+    bytes[0] = 0x00;
+    bytes[1] = 0x25;
+    bytes[2] = static_cast<uint8_t>('S');
+    bytes[3] = static_cast<uint8_t>('E');
+    writeBigEndian32(bytes.data() + 12, user_ref_num);
+    writeBigEndian32(bytes.data() + 16, executed_shares);
+    writeBigEndian64(bytes.data() + 20, static_cast<uint64_t>(price));
+    bytes[28] = static_cast<uint8_t>('A');
+    writeBigEndian64(bytes.data() + 29, match_number);
+    writeBigEndian16(bytes.data() + 37, 0);
+    return bytes;
+}
+
+std::vector<uint8_t> makeSequencedRejectedFrame(uint32_t user_ref_num, uint16_t reason) {
+    std::vector<uint8_t> bytes(34, 0);
+    bytes[0] = 0x00;
+    bytes[1] = 0x20;
+    bytes[2] = static_cast<uint8_t>('S');
+    bytes[3] = static_cast<uint8_t>('J');
+    writeBigEndian32(bytes.data() + 12, user_ref_num);
+    writeBigEndian16(bytes.data() + 16, reason);
+    writeBigEndian16(bytes.data() + 32, 0);
+    return bytes;
+}
+
+TxInboundFrame toInboundFrame(const std::vector<uint8_t>& bytes) {
+    TxInboundFrame frame {};
+    const std::size_t copy_size = std::min(bytes.size(), frame.payload.size());
+    std::copy_n(bytes.begin(), static_cast<std::ptrdiff_t>(copy_size), frame.payload.begin());
+    frame.payload_length = static_cast<uint8_t>(copy_size);
+    return frame;
+}
 
 } // namespace
 
-extern "C" ssize_t __real_send(int socket_fd, const void* buffer, size_t length, int flags);
+TEST(TxTranslatorTest, heartbeatTimingIsBasedOnSuccessfulSendsNotPopOrQueueTime) {
+    using namespace std::chrono_literals;
 
-extern "C" ssize_t __wrap_send(int socket_fd, const void* buffer, size_t length, int flags) {
-    if (g_wrapped_send_mode != WrappedSendMode::PartialThenEagain) {
-        return __real_send(socket_fd, buffer, length, flags);
-    }
+    TxSender sender(TxSenderConfig {
+        .username = "client",
+        .password = "secret",
+        .requested_session = "SESSION01",
+        .heartbeat_interval = 1ms,
+        .intent_capacity = 8,
+        .pending_capacity = 8,
+        .inbound_capacity = 8,
+        .transport_capacity = 8,
+    });
 
-    ++g_partial_send_call_count;
-    if (g_partial_send_call_count == 1) {
-        return length > 0 ? 1 : 0;
-    }
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
 
-    errno = EAGAIN;
-    return -1;
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    sender.noteOutboundSent(login);
+
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    std::this_thread::sleep_for(2ms);
+    ASSERT_TRUE(sender.queueHeartbeatIfDue());
+
+    TxOutboundRecord heartbeat {};
+    ASSERT_TRUE(sender.popReadyOutbound(heartbeat));
+    ASSERT_GE(heartbeat.payload_length, 3U);
+    ASSERT_EQ(heartbeat.payload[2], static_cast<uint8_t>('R'));
+
+    // If a heartbeat is popped but not successfully sent (and not restored), the next heartbeat is still due.
+    ASSERT_TRUE(sender.queueHeartbeatIfDue());
+
+    // Restoring the popped heartbeat suppresses enqueueing duplicates until it is sent.
+    sender.restoreReadyOutbound(heartbeat);
+    EXPECT_FALSE(sender.queueHeartbeatIfDue());
+
+    // A successful send updates the heartbeat timer.
+    sender.popReadyOutbound(heartbeat);
+    sender.noteOutboundSent(heartbeat);
+    EXPECT_FALSE(sender.queueHeartbeatIfDue());
 }
 
-static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptExecution)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxSender::updateConnectionInfo)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxSender::runOnce)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxSender::trySendOutbound)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxSender::buildOutboundFrames)>);
-
-TEST(TxTranslatorTest, senderAcceptsConnectionInfoThroughSenderOwnedQueue) {
+TEST(TxTranslatorTest, senderAcceptsInboundFramesThroughTraceBufferBackedQueue) {
     TxSender sender(4);
-    TxConnectionInfo info {
-        .kind = TxConnectionKind::Connected,
+    TxInboundFrame frame {};
+    frame.payload[0] = 0x00;
+    frame.payload[1] = 0x1f;
+    frame.payload[2] = static_cast<uint8_t>('A');
+
+    ASSERT_TRUE(sender.acceptInboundFrame(frame));
+}
+
+TEST(TxTranslatorTest, senderAcceptsTransportControlsThroughTraceBufferBackedQueue) {
+    TxSender sender(4);
+    TxTransportControl control {
+        .kind = TxTransportControlKind::Connected,
         .generation = 1,
-        .fd = -1,
+        .tx_fd = -1,
     };
 
-    sender.updateConnectionInfo(info);
-    (void)sender.runOnce();
+    ASSERT_TRUE(sender.acceptTransportControl(control));
+    ASSERT_TRUE(sender.processInboundQueues());
 
     TxOutboundRecord login {};
     ASSERT_TRUE(sender.popReadyOutbound(login));
@@ -68,43 +210,29 @@ TEST(TxTranslatorTest, senderAcceptsConnectionInfoThroughSenderOwnedQueue) {
     EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
 }
 
-TEST(TxTranslatorTest, senderInstallsSendFdAndSendsLoginImmediatelyAfterConnectedInfo) {
-    int sockets[2] {-1, -1};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+TEST(TxTranslatorTest, staleDisconnectDoesNotRetireNewerInstalledSendFd) {
+    int sockets1[2] {-1, -1};
+    int sockets2[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets1), 0);
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets2), 0);
 
     TxSender sender(8);
-    sender.updateConnectionInfo(TxConnectionInfo {
-        .kind = TxConnectionKind::Connected,
-        .generation = 42,
-        .fd = sockets[0],
-    });
-    ASSERT_TRUE(sender.runOnce());
-
-    std::array<uint8_t, 39> received {};
-    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
-              static_cast<ssize_t>(received.size()));
-    EXPECT_EQ(received[2], static_cast<uint8_t>('L'));
-
-    ::close(sockets[1]);
-}
-
-TEST(TxTranslatorTest, senderTrySendOutboundUsesSenderOwnedFdDirectly) {
-    int sockets[2] {-1, -1};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
-
-    TxSender sender(8);
-    sender.updateConnectionInfo(TxConnectionInfo {
-        .kind = TxConnectionKind::Connected,
-        .generation = 42,
-        .fd = sockets[0],
-    });
-    ASSERT_TRUE(sender.runOnce());
-
-    std::array<uint8_t, 128> login_bytes {};
-    const ssize_t login_size = ::recv(sockets[1], login_bytes.data(), login_bytes.size(), 0);
-    ASSERT_GT(login_size, 0);
-    ASSERT_GE(login_size, 3);
-    EXPECT_EQ(login_bytes[2], static_cast<uint8_t>('L'));
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 9,
+        .tx_fd = sockets1[0],
+    }));
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 10,
+        .tx_fd = sockets2[0],
+    }));
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Disconnected,
+        .generation = 9,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
 
     TxOutboundRecord outbound {};
     outbound.payload[0] = static_cast<uint8_t>('O');
@@ -113,105 +241,206 @@ TEST(TxTranslatorTest, senderTrySendOutboundUsesSenderOwnedFdDirectly) {
     ASSERT_TRUE(sender.trySendOutbound(outbound));
 
     std::array<uint8_t, 2> received {};
+    ASSERT_EQ(::recv(sockets2[1], received.data(), received.size(), 0),
+              static_cast<ssize_t>(received.size()));
+    EXPECT_EQ(received[0], outbound.payload[0]);
+    EXPECT_EQ(received[1], outbound.payload[1]);
+
+    ::close(sockets1[1]);
+    ::close(sockets2[1]);
+}
+
+TEST(TxTranslatorTest, activeGenerationDisconnectRebuildsReplayAndSessionState) {
+    TxSender sender(8);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .que_idx = 1,
+        .event_tag = 0x1122334455667788ULL,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 21,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord first_send {};
+    ASSERT_TRUE(sender.popReadyOutbound(first_send));
+    EXPECT_EQ(first_send.que_idx, 1U);
+    EXPECT_EQ(first_send.event_tag, 0x1122334455667788ULL);
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Disconnected,
+        .generation = 21,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 22,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord replayed {};
+    ASSERT_TRUE(sender.popReadyOutbound(replayed));
+    EXPECT_EQ(replayed.que_idx, 1U);
+    EXPECT_EQ(replayed.event_tag, 0x1122334455667788ULL);
+}
+
+TEST(TxTranslatorTest, sendFailureThenMatchingDisconnectStillRebuildsReplayOnReconnect) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(8);
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .que_idx = 1,
+        .event_tag = 0x1122334455667788ULL,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 7,
+        .tx_fd = sockets[0],
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord first_send {};
+    ASSERT_TRUE(sender.popReadyOutbound(first_send));
+    EXPECT_EQ(first_send.que_idx, 1U);
+    EXPECT_EQ(first_send.event_tag, 0x1122334455667788ULL);
+
+    ::close(sockets[1]);
+    sockets[1] = -1;
+    EXPECT_FALSE(sender.trySendOutbound(first_send));
+    sender.restoreReadyOutbound(first_send);
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Disconnected,
+        .generation = 7,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 8,
+        .tx_fd = -1,
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord replayed {};
+    ASSERT_TRUE(sender.popReadyOutbound(replayed));
+    EXPECT_EQ(replayed.que_idx, 1U);
+    EXPECT_EQ(replayed.event_tag, 0x1122334455667788ULL);
+}
+
+TEST(TxTranslatorTest, trySendOutboundSucceedsAfterConnectedControlInstallsSendFd) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(8);
+    ASSERT_TRUE(sender.acceptTransportControl(TxTransportControl {
+        .kind = TxTransportControlKind::Connected,
+        .generation = 42,
+        .tx_fd = sockets[0],
+    }));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord outbound {};
+    outbound.payload[0] = static_cast<uint8_t>('H');
+    outbound.payload[1] = static_cast<uint8_t>('I');
+    outbound.payload_length = 2;
+    ASSERT_TRUE(sender.trySendOutbound(outbound));
+
+    std::array<uint8_t, 2> received {};
     ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
               static_cast<ssize_t>(received.size()));
-    EXPECT_EQ(received[0], static_cast<uint8_t>('O'));
-    EXPECT_EQ(received[1], static_cast<uint8_t>('K'));
+    EXPECT_EQ(received[0], outbound.payload[0]);
+    EXPECT_EQ(received[1], outbound.payload[1]);
 
     ::close(sockets[1]);
 }
 
-TEST(TxTranslatorTest, senderDoesNotReleaseOrderFramesBeforeLoginAcceptedFeedbackExists) {
-    TxSender sender(8);
+TEST(TxTranslatorTest, transportConnectQueuesLoginRequestFrame) {
+    TxSender sender(4);
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
 
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x000d,
-        .que_idx = 1,
-        .event_tag = 0x1234ULL,
-        .order = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
-    }));
-    ASSERT_TRUE(sender.buildOutboundFrames());
+    TxOutboundRecord record {};
+    ASSERT_TRUE(sender.popReadyOutbound(record));
+    EXPECT_EQ(record.user_ref_num, 0U);
+    ASSERT_GE(record.payload_length, 3U);
+    EXPECT_EQ(record.payload[2], static_cast<uint8_t>('L'));
+}
 
-    sender.updateConnectionInfo(TxConnectionInfo {
-        .kind = TxConnectionKind::Connected,
-        .generation = 7,
-        .fd = -1,
+TEST(TxTranslatorTest, fullInboundBacklogStillAllowsTransportBudgetEnqueue) {
+    TxSender sender(TxSenderConfig {
+        .intent_capacity = 8,
+        .pending_capacity = 8,
+        .inbound_capacity = 4,
+        .transport_capacity = 4,
     });
-    (void)sender.runOnce();
 
-    TxOutboundRecord outbound {};
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    EXPECT_EQ(outbound.user_ref_num, 0U);
-    EXPECT_FALSE(sender.popReadyOutbound(outbound));
-}
+    TxInboundFrame frame {};
+    frame.payload[0] = 0x00;
+    frame.payload[1] = 0x01;
+    frame.payload[2] = static_cast<uint8_t>('H');
+    frame.payload_length = 3;
 
-TEST(TxTranslatorTest, acceptExecutionMakesExecutionAvailableWithoutThreadBoundaryQueue) {
-    TxSender sender(8);
-
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x000d,
-        .que_idx = 0,
-        .event_tag = 99ULL,
-        .order = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
-    }));
-
-    ASSERT_TRUE(sender.buildOutboundFrames());
-
-    TxOutboundRecord outbound {};
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    EXPECT_EQ(outbound.que_idx, 0U);
-    EXPECT_EQ(outbound.event_tag, 99ULL);
-}
-
-TEST(TxTranslatorTest, acceptExecutionReturnsFalseWhenFixedExecutionBufferIsFull) {
-    TxSender sender(8);
-
-    OrderExecution execution {
-        .stock_locate = 0x000d,
-        .que_idx = 0,
-        .event_tag = 1ULL,
-        .order = {.action = OrderIntentAction::Buy, .price = 100, .shares = 10},
-    };
-
-    for (std::size_t idx = 0; idx < 1024; ++idx) {
-        execution.event_tag = idx + 1;
-        ASSERT_TRUE(sender.acceptExecution(execution));
+    for (std::size_t idx = 0; idx < 4; ++idx) {
+        ASSERT_TRUE(sender.acceptInboundFrame(frame));
     }
 
-    execution.event_tag = 2048ULL;
-    EXPECT_FALSE(sender.acceptExecution(execution));
+    for (std::size_t idx = 0; idx < 4; ++idx) {
+        ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    }
+
+    EXPECT_FALSE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
 }
 
-TEST(TxTranslatorTest, fixedExecutionBufferPreservesFifoOrderIntoOutboundFrames) {
-    TxSender sender(8);
-
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x000d,
-        .que_idx = 0,
-        .event_tag = 10ULL,
-        .order = {.action = OrderIntentAction::Buy, .price = 100, .shares = 10},
-    }));
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x000d,
-        .que_idx = 0,
-        .event_tag = 20ULL,
-        .order = {.action = OrderIntentAction::Buy, .price = 200, .shares = 20},
-    }));
-
-    ASSERT_TRUE(sender.buildOutboundFrames());
-
-    TxOutboundRecord outbound {};
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    EXPECT_EQ(outbound.event_tag, 10ULL);
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    EXPECT_EQ(outbound.event_tag, 20ULL);
+TEST(TxTranslatorTest, zeroMergedIngressCapacityIsRejected) {
+    EXPECT_THROW((void)TxSender(TxSenderConfig {
+                     .intent_capacity = 8,
+                     .pending_capacity = 8,
+                     .inbound_capacity = 0,
+                     .transport_capacity = 0,
+                 }),
+                 std::invalid_argument);
 }
 
 TEST(TxTranslatorTest, senderRejectsNonPowerOfTwoPendingSlotCount) {
     EXPECT_THROW((void)TxSender(TxSenderConfig {
-        .pending_capacity = 8,
-        .pending_slot_count = 12,
-    }), std::invalid_argument);
+                     .pending_capacity = 8,
+                     .pending_slot_count = 12,
+                 }),
+                 std::invalid_argument);
 }
 
 TEST(TxTranslatorTest, senderRejectsNewPendingOrderWhenPendingCapacityReached) {
@@ -296,75 +525,510 @@ TEST(TxTranslatorTest, rebuildBlockedRecordsRestoresAscendingUserRefOrder) {
     EXPECT_EQ(sender.m_blocked_outbound[2].user_ref_num, 11U);
 }
 
-TEST(TxTranslatorTest, senderEmitsExecutionDequeueFrameBuiltAndPendingRecordedStages) {
+TEST(TxTranslatorTest, inboundFrameAndDisconnectAreAppliedInArrivalOrder) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    EXPECT_EQ(login.user_ref_num, 0U);
+    ASSERT_GE(login.payload_length, 3U);
+    EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
+
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord ready {};
+    EXPECT_FALSE(sender.popReadyOutbound(ready));
+    EXPECT_FALSE(sender.queueHeartbeatIfDue());
+}
+
+TEST(TxTranslatorTest, queuedLegacyConnectThenDisconnectBeforeSingleDrainLeavesNoLogin) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord ready {};
+    EXPECT_FALSE(sender.popReadyOutbound(ready));
+    EXPECT_FALSE(sender.queueHeartbeatIfDue());
+}
+
+TEST(TxTranslatorTest, loginAcceptReleasesBufferedOrdersWithIncreasingTags) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .intent = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
+
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord first {};
+    TxOutboundRecord second {};
+    ASSERT_TRUE(sender.popReadyOutbound(first));
+    ASSERT_TRUE(sender.popReadyOutbound(second));
+
+    EXPECT_LT(first.user_ref_num, second.user_ref_num);
+    EXPECT_EQ(first.payload[2], static_cast<uint8_t>('U'));
+    EXPECT_EQ(first.payload[3], static_cast<uint8_t>('O'));
+    EXPECT_EQ(second.payload[2], static_cast<uint8_t>('U'));
+    EXPECT_EQ(second.payload[3], static_cast<uint8_t>('O'));
+}
+
+TEST(TxTranslatorTest, acceptedIntentMetadataIsPreservedInOutboundRecord) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x123456789abcdef0ULL,
+        .intent = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord record {};
+    ASSERT_TRUE(sender.popReadyOutbound(record));
+    EXPECT_EQ(record.que_idx, 1U);
+    EXPECT_EQ(record.event_tag, 0x123456789abcdef0ULL);
+}
+
+TEST(TxTranslatorTest, trackedReadyOutboundPushesTxEnqueueRecord) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
         .pending_slot_count = 64,
     });
-    LatencyTracker tracker(1, 32);
+    LatencyTracker tracker(2, 8);
     sender.attachLatenyTracker(&tracker);
 
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x000d,
-        .que_idx = 0,
-        .event_tag = 99ULL,
-        .order = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x12345678ULL,
+        .intent = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
 
-    ASSERT_TRUE(sender.buildOutboundFrames());
-    EXPECT_GT(tracker.run(), 0U);
-}
-
-TEST(TxTranslatorTest, acceptExecutionDoesNotEmitExecutionAcceptedStage) {
-    TxSender sender(8);
-    LatencyTracker tracker(1, 32);
-    sender.attachLatenyTracker(&tracker);
-
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x000d,
-        .que_idx = 0,
-        .event_tag = 88ULL,
-        .order = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
-    }));
-
-    EXPECT_EQ(tracker.run(), 0U);
-}
-
-TEST(TxTranslatorTest, partialWouldBlockSendQueuesDisconnectNoticeAndClearsSenderFd) {
-    int sockets[2] {-1, -1};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
-
-    TxSender sender(8);
-    TxConnection connection;
-    sender.attachConnection(&connection);
-    sender.updateConnectionInfo(TxConnectionInfo {
-        .kind = TxConnectionKind::Connected,
-        .generation = 11,
-        .fd = sockets[0],
-    });
-    ASSERT_TRUE(sender.runOnce());
-
-    std::array<uint8_t, 128> login_bytes {};
-    ASSERT_GT(::recv(sockets[1], login_bytes.data(), login_bytes.size(), 0), 0);
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
 
     TxOutboundRecord outbound {};
-    outbound.payload_length = 2;
-    outbound.payload[0] = static_cast<uint8_t>('O');
-    outbound.payload[1] = static_cast<uint8_t>('K');
-    sender.m_ready_outbound.push_back(outbound);
+    ASSERT_TRUE(sender.popReadyOutbound(outbound));
+    EXPECT_EQ(outbound.que_idx, 1U);
+    EXPECT_EQ(outbound.event_tag, 0x12345678ULL);
+}
 
-    g_wrapped_send_mode = WrappedSendMode::PartialThenEagain;
-    g_partial_send_call_count = 0;
-    errno = 0;
-    ASSERT_TRUE(sender.runOnce());
-    g_wrapped_send_mode = WrappedSendMode::PassThrough;
+TEST(TxTranslatorTest, enqueueStillSucceedsWhenLatencyTrackerThrows) {
+    TxSender sender(4);
+    LatencyTracker tracker(1, 8);
+    sender.attachLatenyTracker(&tracker);
 
-    EXPECT_EQ(sender.m_send_fd, -1);
-    EXPECT_TRUE(sender.m_ready_outbound.empty());
-    TxDisconnectNotice notice {};
-    ASSERT_TRUE(connection.m_sender_disconnect_notices.pop(notice));
-    EXPECT_EQ(notice.generation, 11U);
-    EXPECT_FALSE(connection.m_sender_disconnect_notices.pop(notice));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x12345678ULL,
+        .intent = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
 
-    ::close(sockets[1]);
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord outbound {};
+    ASSERT_TRUE(sender.popReadyOutbound(outbound));
+    EXPECT_EQ(outbound.que_idx, 1U);
+}
+
+TEST(TxTranslatorTest, replayedOutboundPreservesMetadataAfterDisconnect) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .que_idx = 1,
+        .event_tag = 0x1122334455667788ULL,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord first_send {};
+    ASSERT_TRUE(sender.popReadyOutbound(first_send));
+    EXPECT_EQ(first_send.que_idx, 1U);
+    EXPECT_EQ(first_send.event_tag, 0x1122334455667788ULL);
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord replayed {};
+    ASSERT_TRUE(sender.popReadyOutbound(replayed));
+    EXPECT_EQ(replayed.que_idx, 1U);
+    EXPECT_EQ(replayed.event_tag, 0x1122334455667788ULL);
+}
+
+TEST(TxTranslatorTest, invalidIntentActionDoesNotProduceOrderFrame) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::None, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    EXPECT_FALSE(sender.buildOutboundFrame());
+
+    TxOutboundRecord record {};
+    EXPECT_FALSE(sender.popReadyOutbound(record));
+}
+
+TEST(TxTranslatorTest, acceptedOrderStopsBeingReplayCandidateAfterDisconnect) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord order {};
+    ASSERT_TRUE(sender.popReadyOutbound(order));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeSequencedAcceptedFrame(order.user_ref_num,
+                                                                                  order.stock_locate,
+                                                                                  order.shares,
+                                                                                  order.price))));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    EXPECT_FALSE(sender.popReadyOutbound(order));
+}
+
+TEST(TxTranslatorTest, executedOrderStopsBeingReplayCandidateAfterDisconnect) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord order {};
+    ASSERT_TRUE(sender.popReadyOutbound(order));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeSequencedExecutedFrame(order.user_ref_num,
+                                                                                   order.shares,
+                                                                                   order.price,
+                                                                                   77U))));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    EXPECT_FALSE(sender.popReadyOutbound(order));
+}
+
+TEST(TxTranslatorTest, rejectedOrderStopsBeingReplayCandidateAfterDisconnect) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord order {};
+    ASSERT_TRUE(sender.popReadyOutbound(order));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeSequencedRejectedFrame(order.user_ref_num, 0x0015))));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    EXPECT_FALSE(sender.popReadyOutbound(order));
+}
+
+TEST(TxTranslatorTest, pendingCapacityDropsOldestRecordOnDisconnectRestore) {
+    TxSender sender(TxSenderConfig {
+        .intent_capacity = 4,
+        .pending_capacity = 2,
+    });
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100000, .shares = 10},
+    }));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .intent = {.action = OrderIntentAction::Sell, .price = 100100, .shares = 11},
+    }));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100200, .shares = 12},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord first {};
+    TxOutboundRecord second {};
+    ASSERT_TRUE(sender.popReadyOutbound(first));
+    ASSERT_TRUE(sender.popReadyOutbound(second));
+    EXPECT_FALSE(sender.popReadyOutbound(second));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Disconnected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord resend_first {};
+    TxOutboundRecord resend_second {};
+    ASSERT_TRUE(sender.popReadyOutbound(resend_first));
+    ASSERT_TRUE(sender.popReadyOutbound(resend_second));
+    EXPECT_EQ(resend_first.user_ref_num, first.user_ref_num);
+    EXPECT_EQ(resend_second.user_ref_num, 3U);
+    EXPECT_FALSE(sender.popReadyOutbound(resend_second));
+}
+
+TEST(TxTranslatorTest, pendingCapacityEvictionRemovesOldestRecordFromReadyQueue) {
+    TxSender sender(TxSenderConfig {
+        .intent_capacity = 4,
+        .pending_capacity = 2,
+        .inbound_capacity = 4,
+        .transport_capacity = 4,
+    });
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100000, .shares = 10},
+    }));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .intent = {.action = OrderIntentAction::Sell, .price = 100100, .shares = 11},
+    }));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100200, .shares = 12},
+    }));
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord resend_first {};
+    TxOutboundRecord resend_second {};
+    ASSERT_TRUE(sender.popReadyOutbound(resend_first));
+    ASSERT_TRUE(sender.popReadyOutbound(resend_second));
+    EXPECT_EQ(resend_first.user_ref_num, 2U);
+    EXPECT_EQ(resend_second.user_ref_num, 3U);
+    EXPECT_FALSE(sender.popReadyOutbound(resend_second));
+}
+
+TEST(TxTranslatorTest, pendingCapacityEvictionBeforeReadyHeadDoesNotSkipUnsentRecord) {
+    TxSender sender(TxSenderConfig {
+        .intent_capacity = 4,
+        .pending_capacity = 2,
+        .inbound_capacity = 4,
+        .transport_capacity = 4,
+    });
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100000, .shares = 10},
+    }));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .intent = {.action = OrderIntentAction::Sell, .price = 100100, .shares = 11},
+    }));
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord first {};
+    ASSERT_TRUE(sender.popReadyOutbound(first));
+    EXPECT_EQ(first.user_ref_num, 1U);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100200, .shares = 12},
+    }));
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    TxOutboundRecord second {};
+    TxOutboundRecord third {};
+    ASSERT_TRUE(sender.popReadyOutbound(second));
+    ASSERT_TRUE(sender.popReadyOutbound(third));
+    EXPECT_EQ(second.user_ref_num, 2U);
+    EXPECT_EQ(third.user_ref_num, 3U);
+    EXPECT_FALSE(sender.popReadyOutbound(third));
+}
+
+TEST(TxTranslatorTest, pendingCapacityEvictionRemovesOldestRecordFromBlockedQueue) {
+    TxSender sender(TxSenderConfig {
+        .intent_capacity = 4,
+        .pending_capacity = 2,
+        .inbound_capacity = 4,
+        .transport_capacity = 4,
+    });
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100000, .shares = 10},
+    }));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x0ee8,
+        .intent = {.action = OrderIntentAction::Sell, .price = 100100, .shares = 11},
+    }));
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100200, .shares = 12},
+    }));
+    ASSERT_TRUE(sender.buildOutboundFrame());
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord resend_first {};
+    TxOutboundRecord resend_second {};
+    ASSERT_TRUE(sender.popReadyOutbound(resend_first));
+    ASSERT_TRUE(sender.popReadyOutbound(resend_second));
+    EXPECT_EQ(resend_first.user_ref_num, 2U);
+    EXPECT_EQ(resend_second.user_ref_num, 3U);
+    EXPECT_FALSE(sender.popReadyOutbound(resend_second));
+}
+
+TEST(TxTranslatorTest, readyOutboundDoesNotDrainAcceptedIntentsUntilExplicitStepRuns) {
+    TxSender sender(4);
+
+    ASSERT_TRUE(sender.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .intent = {.action = OrderIntentAction::Buy, .price = 123450, .shares = 100},
+    }));
+
+    ASSERT_TRUE(sender.acceptTransportEvent(TxTransportEvent::Connected));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord login {};
+    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(sender.acceptInboundFrame(toInboundFrame(makeLoginAcceptedFrame())));
+    ASSERT_TRUE(sender.processInboundQueues());
+
+    TxOutboundRecord record {};
+    EXPECT_FALSE(sender.popReadyOutbound(record));
+    EXPECT_TRUE(sender.buildOutboundFrame());
+    ASSERT_TRUE(sender.popReadyOutbound(record));
 }
