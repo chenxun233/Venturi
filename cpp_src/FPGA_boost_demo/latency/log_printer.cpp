@@ -1,39 +1,66 @@
 #include "log_printer.h"
 
+#include "../common/thread_affinity.h"
+
 #include <cstdio>
 #include <stdexcept>
 
 namespace {
 
-const char* readIntentActionName(OrderIntentAction action) {
+const char* readOrderActionLabel(OrderIntentAction action) {
     switch (action) {
         case OrderIntentAction::Buy:
             return "BUY";
         case OrderIntentAction::Sell:
             return "SELL";
+        case OrderIntentAction::None:
         default:
             return "NONE";
     }
 }
 
-const char* readSymbolName(uint16_t stock_locate) {
-    switch (stock_locate) {
-        case 0x000d:
-            return "AAPL";
-        case 0x0ee8:
-            return "HSBC";
+const char* readTxEventLabel(TxEventKind event) {
+    switch (event) {
+        case TxEventKind::ConnectionEstablished:
+            return "ConnectionEstablished";
+        case TxEventKind::ConnectionLost:
+            return "ConnectionLost";
+        case TxEventKind::OrderSent:
+            return "OrderSent";
+        case TxEventKind::OrderAccepted:
+            return "OrderAccepted";
+        case TxEventKind::OrderRejected:
+            return "OrderRejected";
+        case TxEventKind::OrderFilled:
+            return "OrderFilled";
+        case TxEventKind::OrderDropped:
+            return "OrderDropped";
         default:
-            return "UNKNOWN";
+            return "Unknown";
     }
 }
 
 } // namespace
 
-LogPrinter::LogPrinter(std::size_t capacity)
-    : m_records(capacity),
-      m_capacity_mask(capacity - 1) {
+LogPrinter::LogPrinter(uint16_t queue_num, std::size_t capacity)
+    : m_queue_num(queue_num) {
+    if (queue_num == 0) {
+        throw std::invalid_argument("LogPrinter queue_num must be non-zero");
+    }
     if (capacity == 0 || (capacity & (capacity - 1)) != 0) {
         throw std::invalid_argument("LogPrinter capacity must be a non-zero power of two");
+    }
+
+    m_latency_log_queues.reserve(queue_num);
+    m_execution_log_queues.reserve(queue_num);
+    m_tx_log_queues.reserve(queue_num);
+    for (uint16_t idx = 0; idx < queue_num; ++idx) {
+        m_latency_log_queues.push_back(
+            std::make_unique<SpscRingQueue<LatencyLogRecord>>(capacity));
+        m_execution_log_queues.push_back(
+            std::make_unique<SpscRingQueue<ExecutionLogRecord>>(capacity));
+        m_tx_log_queues.push_back(
+            std::make_unique<SpscRingQueue<TxLogRecord>>(capacity));
     }
 }
 
@@ -41,73 +68,56 @@ LogPrinter::~LogPrinter() {
     stop();
 }
 
-bool LogPrinter::pushLatency(const LatencyLogRecord& record) {
-    return _pushRecord(AsyncLogRecord {
-        .kind = AsyncLogKind::Latency,
-        .latency = record,
-        .snapshot = {},
-        .regression_status = {},
-        .execution = {},
-        .tx = {}
-    });
+bool LogPrinter::pushLatencyLog(const LatencyLogRecord& record) {
+    return _pushLatencyLogRecord(record);
 }
 
-bool LogPrinter::pushSnapshot(const FpgaSyncSnapshot& snapshot) {
-    return _pushRecord(AsyncLogRecord {
-        .kind = AsyncLogKind::Snapshot,
-        .latency = {},
-        .snapshot = snapshot,
-        .regression_status = {},
-        .execution = {},
-        .tx = {}
-    });
+bool LogPrinter::pushExecutionLog(const ExecutionLogRecord& execution) {
+    return _pushExecutionLogRecord(execution);
 }
 
-bool LogPrinter::pushRegressionStatus(const RegressionStatusLogRecord& record) {
-    return _pushRecord(AsyncLogRecord {
-        .kind = AsyncLogKind::RegressionStatus,
-        .latency = {},
-        .snapshot = {},
-        .regression_status = record,
-        .execution = {},
-        .tx = {}
-    });
+bool LogPrinter::pushTxLog(const TxLogRecord& record) {
+    return _pushTxLogRecord(record);
 }
 
-bool LogPrinter::pushExecution(const ExecutionLogRecord& record) {
-    return _pushRecord(AsyncLogRecord {
-        .kind = AsyncLogKind::Execution,
-        .latency = {},
-        .snapshot = {},
-        .regression_status = {},
-        .execution = record,
-        .tx = {}
-    });
+void LogPrinter::setWorkerCpu(int cpu_id) {
+    m_worker_cpu = cpu_id;
 }
 
-bool LogPrinter::pushTxEvent(const TxLogRecord& record) {
-    return _pushRecord(AsyncLogRecord {
-        .kind = AsyncLogKind::Tx,
-        .latency = {},
-        .snapshot = {},
-        .regression_status = {},
-        .execution = {},
-        .tx = record
-    });
-}
-
-bool LogPrinter::_pushRecord(const AsyncLogRecord& record) {
-    const std::lock_guard<std::mutex> lock(m_push_mutex);
-    const std::size_t tail = m_tail.load(std::memory_order_relaxed);
-    const std::size_t head = m_head.load(std::memory_order_acquire);
-    if (tail - head == m_records.size()) {
+bool LogPrinter::_pushLatencyLogRecord(const LatencyLogRecord& record) {
+    if (record.que_idx >= m_queue_num) {
         m_drop_count.fetch_add(1, std::memory_order_relaxed);
         return false;
     }
 
-    m_records[_wrapIndexP1(tail)] = record;
-    m_tail.store(tail + 1, std::memory_order_release);
-    m_record_cv.notify_one();
+    const bool pushed = m_latency_log_queues[record.que_idx]->push(record);
+    if (!pushed) {
+        m_drop_count.fetch_add(1, std::memory_order_relaxed);
+        return false;
+    }
+
+    return true;
+}
+
+bool LogPrinter::_pushExecutionLogRecord(const ExecutionLogRecord& execution) {
+    const uint16_t queue_idx = 0;
+    const bool pushed = m_execution_log_queues[queue_idx]->push(execution);
+    if (!pushed) {
+        m_drop_count.fetch_add(1, std::memory_order_relaxed);
+        return false;
+    }
+
+    return true;
+}
+
+bool LogPrinter::_pushTxLogRecord(const TxLogRecord& record) {
+    const uint16_t queue_idx = 0;
+    const bool pushed = m_tx_log_queues[queue_idx]->push(record);
+    if (!pushed) {
+        m_drop_count.fetch_add(1, std::memory_order_relaxed);
+        return false;
+    }
+
     return true;
 }
 
@@ -121,131 +131,146 @@ void LogPrinter::start() {
 }
 
 void LogPrinter::stop() {
-    const bool was_running = m_running.exchange(false, std::memory_order_acq_rel);
-    m_record_cv.notify_all();
+    m_running.store(false, std::memory_order_release);
     if (m_thread.joinable()) {
         m_thread.join();
     }
-    if (!was_running) {
-        return;
-    }
 
-    AsyncLogRecord record {};
-    while (m_head.load(std::memory_order_acquire) != m_tail.load(std::memory_order_acquire)) {
-        const std::size_t head = m_head.load(std::memory_order_relaxed);
-        record = m_records[_wrapIndexP1(head)];
-        m_head.store(head + 1, std::memory_order_release);
-        _handleRecord(record);
-    }
+    _drainRemaining();
 }
 
 uint64_t LogPrinter::readDropCount() const {
     return m_drop_count.load(std::memory_order_relaxed);
 }
 
-void LogPrinter::_run() {
-    AsyncLogRecord record {};
-    std::unique_lock<std::mutex> wait_lock(m_wait_mutex);
-    while (true) {
-        m_record_cv.wait(wait_lock, [this]() {
-            return !m_running.load(std::memory_order_acquire) ||
-                   m_head.load(std::memory_order_acquire) != m_tail.load(std::memory_order_acquire);
-        });
+bool LogPrinter::_drainLatencyRecord() {
+    if (m_latency_log_queues.empty()) {
+        return false;
+    }
 
-        const std::size_t head = m_head.load(std::memory_order_relaxed);
-        if (head == m_tail.load(std::memory_order_acquire)) {
-            if (!m_running.load(std::memory_order_acquire)) {
-                break;
-            }
+    LatencyLogRecord record {};
+    const std::size_t queue_num = m_queue_num;
+    for (std::size_t offset = 0; offset < queue_num; ++offset) {
+        const std::size_t queue_idx =
+            (static_cast<std::size_t>(m_next_latency_queue_idx) + offset) % queue_num;
+        if (!m_latency_log_queues[queue_idx]->pop(record)) {
             continue;
         }
 
-        record = m_records[_wrapIndexP1(head)];
-        m_head.store(head + 1, std::memory_order_release);
-        wait_lock.unlock();
-        _handleRecord(record);
-        wait_lock.lock();
+        m_next_latency_queue_idx = static_cast<uint16_t>((queue_idx + 1U) % queue_num);
+        _printLatencyRecord(record);
+        return true;
+    }
+
+    return false;
+}
+
+bool LogPrinter::_drainExecutionLogRecord() {
+    if (m_execution_log_queues.empty()) {
+        return false;
+    }
+
+    ExecutionLogRecord execution {};
+    const std::size_t queue_num = m_queue_num;
+    for (std::size_t offset = 0; offset < queue_num; ++offset) {
+        const std::size_t queue_idx =
+            (static_cast<std::size_t>(m_next_execution_log_queue_idx) + offset) % queue_num;
+        if (!m_execution_log_queues[queue_idx]->pop(execution)) {
+            continue;
+        }
+
+        m_next_execution_log_queue_idx = static_cast<uint16_t>((queue_idx + 1U) % queue_num);
+        _printExecutionLogRecord(execution);
+        return true;
+    }
+
+    return false;
+}
+
+bool LogPrinter::_drainTxLogRecord() {
+    if (m_tx_log_queues.empty()) {
+        return false;
+    }
+
+    TxLogRecord record {};
+    const std::size_t queue_num = m_queue_num;
+    for (std::size_t offset = 0; offset < queue_num; ++offset) {
+        const std::size_t queue_idx =
+            (static_cast<std::size_t>(m_next_tx_log_queue_idx) + offset) % queue_num;
+        if (!m_tx_log_queues[queue_idx]->pop(record)) {
+            continue;
+        }
+
+        m_next_tx_log_queue_idx = static_cast<uint16_t>((queue_idx + 1U) % queue_num);
+        _printTxLogRecord(record);
+        return true;
+    }
+
+    return false;
+}
+
+void LogPrinter::_drainRemaining() {
+    while (_drainLatencyRecord() || _drainExecutionLogRecord() || _drainTxLogRecord()) {
     }
 }
 
-void LogPrinter::_handleRecord(const AsyncLogRecord& record) {
-    if (record.kind == AsyncLogKind::Snapshot) {
-        std::printf("SyncSnapshot fpga_tick=%llu host_time_ns=%llu interval_ns=%llu\n",
-                    static_cast<unsigned long long>(record.snapshot.fpga_tick),
-                    static_cast<unsigned long long>(record.snapshot.host_time_ns),
-                    static_cast<unsigned long long>(record.snapshot.interval_ns));
-        std::fflush(stdout);
-        return;
-    }
-    if (record.kind == AsyncLogKind::RegressionStatus) {
-        if (record.regression_status.has_para) {
-            std::printf("FPGARegression a=%.9f\n", record.regression_status.a_ns_per_tick);
-            std::fflush(stdout);
-        }
-        return;
-    }
-    if (record.kind == AsyncLogKind::Execution) {
-        std::printf("Execution action=%s symbol=%s stock_locate=0x%04x price=%u shares=%u\n",
-                    readIntentActionName(record.execution.intent.action),
-                    readSymbolName(record.execution.stock_locate),
-                    record.execution.stock_locate,
-                    record.execution.intent.price,
-                    record.execution.intent.shares);
-        std::fflush(stdout);
-        return;
-    }
-    if (record.kind == AsyncLogKind::Tx) {
-        const char* event_name = "UNKNOWN";
-        switch (record.tx.event) {
-            case TxEventKind::ConnectionEstablished:
-                event_name = "CONNECTION_ESTABLISHED";
-                break;
-            case TxEventKind::ConnectionLost:
-                event_name = "CONNECTION_LOST";
-                break;
-            case TxEventKind::OrderSent:
-                event_name = "ORDER_SENT";
-                break;
-            case TxEventKind::OrderAccepted:
-                event_name = "ORDER_ACCEPTED";
-                break;
-            case TxEventKind::OrderRejected:
-                event_name = "ORDER_REJECTED";
-                break;
-            case TxEventKind::OrderFilled:
-                event_name = "ORDER_FILLED";
-                break;
-            case TxEventKind::OrderDropped:
-                event_name = "ORDER_DROPPED";
-                break;
-        }
-        std::printf("TxEvent event=%s user_ref=%u symbol=%s stock_locate=0x%04x price=%u shares=%u reason=0x%04x match=%llu\n",
-                    event_name,
-                    record.tx.user_ref_num,
-                    readSymbolName(record.tx.stock_locate),
-                    record.tx.stock_locate,
-                    record.tx.price,
-                    record.tx.shares,
-                    record.tx.reason,
-                    static_cast<unsigned long long>(record.tx.match_number));
-        std::fflush(stdout);
-        return;
+void LogPrinter::_run() {
+    if (m_worker_cpu >= 0) {
+        pinCurrentThreadToCpu(m_worker_cpu);
     }
 
-    std::printf("LatencyNs%s queue=%u event_ts=%llu frame_start_to_dma_emit_ns=%llu dma_emit_to_decode_ns=%lld decode_to_strategy_ns=%lld strategy_to_executor_ns=%lld executor_to_tx_enqueue_ns=%lld tx_enqueue_to_tx_send_ns=%lld\n",
-                (record.latency.dma_emit_to_decode_ns < 0) ? "[NEG]" : "",
-                record.latency.que_idx,
-                static_cast<unsigned long long>(record.latency.event_ts),
-                static_cast<unsigned long long>(record.latency.frame_start_to_dma_emit_ns),
-                static_cast<long long>(record.latency.dma_emit_to_decode_ns),
-                static_cast<long long>(record.latency.decode_to_strategy_ns),
-                static_cast<long long>(record.latency.strategy_to_executor_ns),
-                static_cast<long long>(record.latency.executor_to_tx_enqueue_ns),
-                static_cast<long long>(record.latency.tx_enqueue_to_tx_send_ns));
+    while (m_running.load(std::memory_order_acquire)) {
+        bool drained = false;
+        drained |= _drainLatencyRecord();
+        drained |= _drainExecutionLogRecord();
+        drained |= _drainTxLogRecord();
+        (void)drained;
+    }
+}
+
+void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
+    std::printf("LatencyNs%s queue=%u event_tag=%llu frame_start_to_dma_emit_ns=%llu "
+                "batch_duration_ns=%lld batch_end_to_strategy_start_ns=%lld "
+                "strategy_start_to_tx_execution_accepted_ns=%lld "
+                "tx_execution_accepted_to_tx_execution_dequeue_ns=%lld "
+                "tx_execution_dequeue_to_tx_order_frame_built_ns=%lld "
+                "tx_order_frame_built_to_tx_pending_recorded_ns=%lld "
+                "tx_pending_recorded_to_tx_enqueue_ns=%lld "
+                "tx_enqueue_to_tx_send_ns=%lld\n",
+                (record.batch_duration_ns < 0) ? "[NEG]" : "",
+                static_cast<unsigned int>(record.que_idx),
+                static_cast<unsigned long long>(record.event_tag),
+                static_cast<unsigned long long>(record.frame_start_to_dma_emit_ns),
+                static_cast<long long>(record.batch_duration_ns),
+                static_cast<long long>(record.batch_end_to_strategy_start_ns),
+                static_cast<long long>(record.strategy_start_to_tx_execution_accepted_ns),
+                static_cast<long long>(record.tx_execution_accepted_to_tx_execution_dequeue_ns),
+                static_cast<long long>(record.tx_execution_dequeue_to_tx_order_frame_built_ns),
+                static_cast<long long>(record.tx_order_frame_built_to_tx_pending_recorded_ns),
+                static_cast<long long>(record.tx_pending_recorded_to_tx_enqueue_ns),
+                static_cast<long long>(record.tx_enqueue_to_tx_send_ns));
     std::fflush(stdout);
-    return;
 }
 
-std::size_t LogPrinter::_wrapIndexP1(std::size_t idx) const {
-    return idx & m_capacity_mask;
+void LogPrinter::_printExecutionLogRecord(const ExecutionLogRecord& execution) {
+    std::printf("Execution action=%s symbol=%s stock_locate=0x%04x price=%u shares=%u\n",
+                readOrderActionLabel(execution.intent.action),
+                "UNKNOWN",
+                static_cast<unsigned int>(execution.stock_locate),
+                static_cast<unsigned int>(execution.intent.price),
+                static_cast<unsigned int>(execution.intent.shares));
+    std::fflush(stdout);
+}
+
+void LogPrinter::_printTxLogRecord(const TxLogRecord& record) {
+    std::printf("TxEvent event=%s user_ref=%u symbol=%s stock_locate=0x%04x price=%u shares=%u reason=0x%04x match=%llu\n",
+                readTxEventLabel(record.event),
+                static_cast<unsigned int>(record.user_ref_num),
+                "UNKNOWN",
+                static_cast<unsigned int>(record.stock_locate),
+                static_cast<unsigned int>(record.price),
+                static_cast<unsigned int>(record.shares),
+                static_cast<unsigned int>(record.reason),
+                static_cast<unsigned long long>(record.match_number));
+    std::fflush(stdout);
 }

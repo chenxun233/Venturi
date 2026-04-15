@@ -64,7 +64,9 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     EXPECT_NE(output.find("batch_end_to_strategy_start_ns=100"), std::string::npos);
     EXPECT_NE(output.find("strategy_start_to_tx_execution_accepted_ns=100"), std::string::npos);
     EXPECT_NE(output.find("tx_execution_accepted_to_tx_execution_dequeue_ns=10"), std::string::npos);
-    EXPECT_EQ(output.find("strategy_to_executor_ns="), std::string::npos);
-    EXPECT_EQ(output.find("executor_to_execution_dequeue_ns="), std::string::npos);
+    EXPECT_NE(output.find("tx_execution_dequeue_to_tx_order_frame_built_ns=10"), std::string::npos);
+    EXPECT_NE(output.find("tx_order_frame_built_to_tx_pending_recorded_ns=10"), std::string::npos);
+    EXPECT_NE(output.find("tx_pending_recorded_to_tx_enqueue_ns=10"), std::string::npos);
+    EXPECT_NE(output.find("tx_enqueue_to_tx_send_ns=10"), std::string::npos);
     EXPECT_EQ(output.find("executor_to_tx_enqueue_ns="), std::string::npos);
 }
