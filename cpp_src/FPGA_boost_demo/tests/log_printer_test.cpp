@@ -6,6 +6,10 @@
 #include <string>
 #include <type_traits>
 
+static_assert(std::is_member_function_pointer_v<decltype(&LogPrinter::pushLatencyLog)>);
+static_assert(std::is_member_function_pointer_v<decltype(&LogPrinter::pushExecutionLog)>);
+static_assert(std::is_member_function_pointer_v<decltype(&LogPrinter::pushTxLog)>);
+static_assert(std::is_member_function_pointer_v<decltype(&LogPrinter::setWorkerCpu)>);
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.batch_end_to_strategy_start_ns), int64_t>);
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.strategy_start_to_tx_execution_accepted_ns), int64_t>);
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_execution_accepted_to_tx_execution_dequeue_ns), int64_t>);
