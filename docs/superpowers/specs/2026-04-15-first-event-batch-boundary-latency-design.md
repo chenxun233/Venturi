@@ -41,11 +41,13 @@ That first-event-only contract should remain unchanged.
 
 ### 1. FPGA-derived metric
 
-Keep `frame_start_to_dma_emit_ns`, but compute it directly from the FPGA record fields:
+Keep `frame_start_to_dma_emit_ns`, but compute it in `LatencyTracker` from the FPGA record fields:
 
 - start tick: `frame_start_tk`
 - end tick: `event_tk`
 - conversion: `(event_tk - frame_start_tk) * 64 / 10`
+
+The hot path should push raw first-event timing inputs only. No fixed-tick arithmetic should be done in the RX hot path.
 
 This remains a per-first-event metric.
 
@@ -77,7 +79,7 @@ Inside `pollDecodedBatchImpl()`:
 
 - Detect first-event records using the existing `is_first_event != 0` condition.
 - For the first tracked event in the batch:
-  - compute and push `frame_start_to_dma_emit_ns` input data
+  - push the raw timing inputs needed to derive `frame_start_to_dma_emit_ns`
   - capture and push `batch_start_ns`
 - Preserve the current decode loop behavior for all records.
 
@@ -178,5 +180,5 @@ Update or add tests for:
 - Use integer math for the FPGA tick conversion.
 - Keep the hot path simple and avoid floating-point arithmetic.
 - Do not delete regression code in this change; only remove its runtime wiring from the current latency path.
-- `frame_start_to_dma_emit_ns` is calculated directly from the decoded event fields:
+- `frame_start_to_dma_emit_ns` is calculated in `LatencyTracker` from the decoded event fields:
   - `frame_start_to_dma_emit_ns = (event_tk - frame_start_tk) * 64 / 10`
