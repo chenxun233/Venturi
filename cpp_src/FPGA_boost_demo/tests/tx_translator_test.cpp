@@ -210,10 +210,9 @@ TEST(TxTranslatorTest, fixedExecutionBufferPreservesFifoOrderIntoOutboundFrames)
 
 TEST(TxTranslatorTest, senderRejectsNonPowerOfTwoPendingSlotCount) {
     EXPECT_THROW((void)TxSender(TxSenderConfig {
-                     .pending_capacity = 8,
-                     .pending_slot_count = 12,
-                 }),
-                 std::invalid_argument);
+        .pending_capacity = 8,
+        .pending_slot_count = 12,
+    }), std::invalid_argument);
 }
 
 TEST(TxTranslatorTest, senderRejectsNewPendingOrderWhenPendingCapacityReached) {
@@ -314,7 +313,6 @@ TEST(TxTranslatorTest, senderEmitsExecutionDequeueFrameBuiltAndPendingRecordedSt
     }));
 
     ASSERT_TRUE(sender.buildOutboundFrames());
-
     EXPECT_GT(tracker.run(), 0U);
 }
 
