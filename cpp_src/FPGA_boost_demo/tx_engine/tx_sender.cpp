@@ -183,10 +183,18 @@ void TxSender::attachConnection(TxConnection* connection) {
 
 bool TxSender::acceptExecution(const OrderExecution& execution) noexcept {
     const bool pushed = m_execution_buffer.pushBack(execution);
-    if (!pushed) {
-        return false;
+    if (pushed && execution.event_tag != 0 && m_latency_tracker != nullptr) {
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = execution.que_idx,
+                .event_tag = execution.event_tag,
+                .event_stage = stage::TX_EXECUTION_ACCEPTED,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (...) {
+        }
     }
-    return true;
+    return pushed;
 }
 
 void TxSender::updateConnectionInfo(const TxConnectionInfo& info) {
@@ -424,7 +432,7 @@ bool TxSender::buildOutboundFrames() {
                 m_latency_tracker->pushRecord(TimeRecord {
                     .que_idx = execution.que_idx,
                     .event_tag = execution.event_tag,
-                    .event_stage = stage::EXECUTION_DEQUEUE,
+                    .event_stage = stage::TX_EXECUTION_DEQUEUE,
                     .time_captured = readMonotonicRawNs(),
                 });
             } catch (...) {
@@ -473,7 +481,7 @@ bool TxSender::_buildOrderFrame(const OrderExecution& execution, TxOutboundRecor
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = execution.que_idx,
                 .event_tag = execution.event_tag,
-                .event_stage = stage::ORDER_FRAME_BUILT,
+                .event_stage = stage::TX_ORDER_FRAME_BUILT,
                 .time_captured = readMonotonicRawNs(),
             });
         } catch (...) {
@@ -576,22 +584,8 @@ bool TxSender::_recordPendingOrder(const TxOutboundRecord& record) {
         return false;
     }
 
-    const auto push_pending_stage = [this, &record](stage event_stage) {
-        if (record.event_tag == 0 || m_latency_tracker == nullptr) {
-            return;
-        }
-        try {
-            m_latency_tracker->pushRecord(TimeRecord {
-                .que_idx = record.que_idx,
-                .event_tag = record.event_tag,
-                .event_stage = event_stage,
-                .time_captured = readMonotonicRawNs(),
-            });
-        } catch (...) {
-        }
-    };
+  
 
-    push_pending_stage(stage::PENDING_CAPACITY_HANDLED);
     if (m_pending_orders.live_count >= m_pending_orders.capacity) {
         return false;
     }
@@ -601,11 +595,21 @@ bool TxSender::_recordPendingOrder(const TxOutboundRecord& record) {
         return false;
     }
 
-    push_pending_stage(stage::PENDING_TAG_RECORDED);
     slot.occupied = true;
     slot.record = record;
     m_pending_orders.live_count += 1U;
-    push_pending_stage(stage::PENDING_RECORDED);
+    if (record.event_tag == 0 || m_latency_tracker == nullptr) {
+            return true;
+        }
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = record.que_idx,
+                .event_tag = record.event_tag,
+                .event_stage = stage::TX_PENDING_RECORDED,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (...) {
+        }
     return true;
 }
 

@@ -4,85 +4,41 @@
 #include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
 
-#include <stdexcept>
+#include <utility>
 
-Executor::Executor(uint16_t producer_num, std::size_t buffer_capacity)
-    : m_producer_num(producer_num) {
-    if (m_producer_num == 0) {
-        throw std::invalid_argument("Executor producer number must be non-zero");
-    }
-    m_intent_buffers.reserve(producer_num);
-    for (uint16_t producer_idx = 0; producer_idx < producer_num; ++producer_idx) {
-        m_intent_buffers.push_back(std::make_unique<TraceBuffer<OrderIntent>>(buffer_capacity));
-    }
-}
+Executor::Executor(std::size_t buffer_capacity)
+    : m_execution_buffer(buffer_capacity) {}
 
 void Executor::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
+}
+
+void Executor::attachQueueIdx(uint16_t queue_idx) {
+    m_queue_idx = queue_idx;
+    m_has_queue_idx = true;
 }
 
 void Executor::attachLatenyTracker(LatencyTracker* latency_tracker) {
     m_latency_tracker = latency_tracker;
 }
 
-bool Executor::acceptIntent(uint16_t producer_idx, const OrderIntent& intent) {
-    if (producer_idx >= m_intent_buffers.size()) {
-        throw std::out_of_range("Executor producer index out of range");
+bool Executor::acceptIntent(const OrderIntent& intent) {
+    if (m_has_queue_idx && intent.que_idx != m_queue_idx) {
+        return false;
     }
-    // For tracked intents, que_idx is part of the contract and must identify the
-    // same producer queue that accepted the intent.
-    if (intent.event_ts != 0 && m_latency_tracker != nullptr && producer_idx != intent.que_idx) {
-        throw std::invalid_argument("Executor producer index does not match intent queue index");
-    }
-    const bool pushed = m_intent_buffers[producer_idx]->push(intent);
-    if (pushed && intent.event_ts != 0 && m_latency_tracker != nullptr) {
-        try {
-            m_latency_tracker->pushRecord(TimeRecord {
-                .que_idx = intent.que_idx,
-                .event_ts = intent.event_ts,
-                .event_stage = stage::EXECUTOR,
-                .time_captured = readMonotonicRawNs(),
-            });
-        } catch (...) {
-            // Latency tracking is best-effort and must not change enqueue success.
-        }
-    }
+    const OrderExecution execution {
+        .stock_locate = intent.stock_locate,
+        .que_idx = intent.que_idx,
+        .event_tag = intent.event_tag,
+        .order = intent.intent,
+    };
+
+    const bool pushed = m_execution_buffer.push(execution);
     return pushed;
 }
 
-bool Executor::popReadyIntent(OrderIntent& intent) {
-    for (uint16_t offset = 0; offset < m_producer_num; ++offset) {
-        const uint16_t buffer_idx = static_cast<uint16_t>((m_next_buffer_idx + offset) % m_producer_num);
-        if (!m_intent_buffers[buffer_idx]->pop(intent)) {
-            continue;
-        }
-        m_next_buffer_idx = static_cast<uint16_t>((buffer_idx + 1) % m_producer_num);
-        return true;
-    }
-    return false;
+bool Executor::takeReadyExecution(OrderExecution& execution) {
+    return m_execution_buffer.pop(execution);
 }
 
-void Executor::logExecution(const OrderIntent& intent) {
-    if (m_log_printer == nullptr) {
-        return;
-    }
 
-    m_log_printer->pushExecution(ExecutionLogRecord {
-        .stock_locate = intent.stock_locate,
-        .intent = intent.intent
-    });
-}
-
-void Executor::drain() {
-    OrderIntent intent {};
-    while (popReadyIntent(intent)) {
-        logExecution(intent);
-    }
-}
-
-void Executor::run(const std::atomic<bool>& running) {
-    while (running.load(std::memory_order_acquire)) {
-        drain();
-    }
-    drain();
-}

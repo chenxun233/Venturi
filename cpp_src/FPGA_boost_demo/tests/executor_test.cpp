@@ -7,115 +7,106 @@
 #include <gtest/gtest.h>
 #include <stdexcept>
 
+TEST(ExecutorTest, takeReadyExecutionReturnsNextExecutionWithoutCrossThreadQueueContract) {
+    Executor executor(8);
+
+    ASSERT_TRUE(executor.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .que_idx = 0,
+        .event_tag = 11ULL,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100, .shares = 10},
+    }));
+
+    OrderExecution execution {};
+    ASSERT_TRUE(executor.takeReadyExecution(execution));
+    EXPECT_EQ(execution.que_idx, 0);
+    EXPECT_EQ(execution.event_tag, 11ULL);
+    EXPECT_FALSE(executor.takeReadyExecution(execution));
+}
+
 TEST(ExecutorTest, acceptsIntentAndEmitsExecutionStageOutput) {
-    Executor executor(1, 8);
+    Executor executor(8);
     OrderIntent intent {};
     intent.stock_locate = 0x000d;
     intent.intent.action = OrderIntentAction::Buy;
 
-    ASSERT_TRUE(executor.acceptIntent(0, intent));
+    ASSERT_TRUE(executor.acceptIntent(intent));
 
-    OrderIntent ready {};
-    ASSERT_TRUE(executor.popReadyIntent(ready));
+    OrderExecution ready {};
+    ASSERT_TRUE(executor.takeReadyExecution(ready));
     EXPECT_EQ(ready.stock_locate, 0x000d);
 }
 
-TEST(ExecutorTest, popsReadyIntentsAcrossProducersInRoundRobinOrder) {
-    Executor executor(2, 8);
-
-    OrderIntent first {};
-    first.que_idx = 0;
-    first.stock_locate = 0x000d;
-    first.event_ts = 11U;
-    OrderIntent second {};
-    second.que_idx = 1;
-    second.stock_locate = 0x0ee8;
-    second.event_ts = 22U;
-
-    ASSERT_TRUE(executor.acceptIntent(0, first));
-    ASSERT_TRUE(executor.acceptIntent(1, second));
-
-    OrderIntent ready {};
-    ASSERT_TRUE(executor.popReadyIntent(ready));
-    EXPECT_EQ(ready.stock_locate, 0x000d);
-    ASSERT_TRUE(executor.popReadyIntent(ready));
-    EXPECT_EQ(ready.stock_locate, 0x0ee8);
-    EXPECT_FALSE(executor.popReadyIntent(ready));
-}
-
-TEST(ExecutorTest, successfulTrackedAcceptPushesExecutorRecord) {
-    Executor executor(1, 8);
+TEST(ExecutorTest, successfulTrackedAcceptDoesNotPushLatencyRecord) {
+    Executor executor(8);
     LatencyTracker tracker(1, 8);
     executor.attachLatenyTracker(&tracker);
 
     OrderIntent intent {};
     intent.que_idx = 0;
-    intent.event_ts = 77U;
+    intent.event_tag = 77U;
 
-    ASSERT_TRUE(executor.acceptIntent(0, intent));
+    ASSERT_TRUE(executor.acceptIntent(intent));
 
     TimeRecord record {};
-    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(record));
-    EXPECT_EQ(record.que_idx, 0U);
-    EXPECT_EQ(record.event_stage, stage::EXECUTOR);
-    EXPECT_EQ(record.event_ts, 77U);
-    EXPECT_GT(record.time_captured, 0U);
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
-TEST(ExecutorTest, successfulTrackedAcceptRoutesExecutorRecordToNonZeroQueue) {
-    Executor executor(2, 8);
+TEST(ExecutorTest, takeReadyExecutionDoesNotEmitExecutionTakenStage) {
+    Executor executor(8);
+    LatencyTracker tracker(1, 8);
+    executor.attachLatenyTracker(&tracker);
+
+    ASSERT_TRUE(executor.acceptIntent(OrderIntent {
+        .stock_locate = 0x000d,
+        .que_idx = 0,
+        .event_tag = 77ULL,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100, .shares = 10},
+    }));
+
+    OrderExecution execution {};
+    ASSERT_TRUE(executor.takeReadyExecution(execution));
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
+}
+
+TEST(ExecutorTest, successfulTrackedAcceptToNonZeroQueueDoesNotPushLatencyRecord) {
+    Executor executor(8);
     LatencyTracker tracker(2, 8);
     executor.attachLatenyTracker(&tracker);
 
     OrderIntent intent {};
     intent.que_idx = 1;
-    intent.event_ts = 88U;
+    intent.event_tag = 88U;
 
-    ASSERT_TRUE(executor.acceptIntent(1, intent));
+    ASSERT_TRUE(executor.acceptIntent(intent));
 
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
-    ASSERT_TRUE(tracker.m_trace_buffer[1]->pop(record));
-    EXPECT_EQ(record.que_idx, 1U);
-    EXPECT_EQ(record.event_stage, stage::EXECUTOR);
-    EXPECT_EQ(record.event_ts, 88U);
-    EXPECT_GT(record.time_captured, 0U);
-    EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
 
 TEST(ExecutorTest, trackedAcceptReturnsTrueWhenLatencyEmissionThrows) {
-    Executor executor(2, 8);
+    Executor executor(8);
     LatencyTracker tracker(1, 8);
     executor.attachLatenyTracker(&tracker);
 
     OrderIntent intent {};
     intent.que_idx = 1;
-    intent.event_ts = 66U;
+    intent.event_tag = 66U;
     intent.stock_locate = 0x000d;
     intent.intent.action = OrderIntentAction::Buy;
 
-    ASSERT_TRUE(executor.acceptIntent(1, intent));
+    ASSERT_TRUE(executor.acceptIntent(intent));
 
-    OrderIntent ready {};
-    ASSERT_TRUE(executor.popReadyIntent(ready));
+    OrderExecution ready {};
+    ASSERT_TRUE(executor.takeReadyExecution(ready));
     EXPECT_EQ(ready.que_idx, 1U);
-    EXPECT_EQ(ready.event_ts, 66U);
+    EXPECT_EQ(ready.event_tag, 66U);
     EXPECT_EQ(ready.stock_locate, 0x000d);
-    EXPECT_EQ(ready.intent.action, OrderIntentAction::Buy);
+    EXPECT_EQ(ready.order.action, OrderIntentAction::Buy);
 
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
-}
-
-TEST(ExecutorTest, trackedIntentMismatchProducerIndexThrows) {
-    Executor executor(2, 8);
-    LatencyTracker tracker(2, 8);
-    executor.attachLatenyTracker(&tracker);
-
-    OrderIntent intent {};
-    intent.que_idx = 1;
-    intent.event_ts = 55U;
-
-    EXPECT_THROW(executor.acceptIntent(0, intent), std::invalid_argument);
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }

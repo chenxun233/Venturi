@@ -6,7 +6,7 @@
 
 #include <gtest/gtest.h>
 
-TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyRecord) {
+TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyStartRecord) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);
     strategy.attachLatenyTracker(&tracker);
@@ -21,24 +21,24 @@ TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyRecord) {
     event.ask_shares = 100U;
 
     OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(event, intent, 0));
+    ASSERT_TRUE(strategy.evaluateEvent(0 ,event, intent));
     EXPECT_EQ(intent.stock_locate, 0x000d);
     EXPECT_EQ(intent.que_idx, 0U);
-    EXPECT_EQ(intent.event_ts, 12345U);
+    EXPECT_EQ(intent.event_tag, 12345U);
     EXPECT_EQ(intent.intent.action, OrderIntentAction::Buy);
     EXPECT_EQ(intent.intent.price, 100U);
     EXPECT_EQ(intent.intent.shares, 100U);
 
     TimeRecord record {};
-    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(record));
+    ASSERT_TRUE(tracker.m_latency_queues[0]->pop(record));
     EXPECT_EQ(record.que_idx, 0U);
-    EXPECT_EQ(record.event_stage, stage::STRATEGY);
-    EXPECT_EQ(record.event_ts, 12345U);
+    EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
+    EXPECT_EQ(record.event_tag, 12345U);
     EXPECT_GT(record.time_captured, 0U);
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
-TEST(DummyStrategyTest, acceptedFirstEventRoutesStrategyRecordToNonZeroQueue) {
+TEST(DummyStrategyTest, acceptedFirstEventRoutesStrategyStartRecordToNonZeroQueue) {
     DummyStrategy strategy;
     LatencyTracker tracker(2, 8);
     strategy.attachLatenyTracker(&tracker);
@@ -53,17 +53,17 @@ TEST(DummyStrategyTest, acceptedFirstEventRoutesStrategyRecordToNonZeroQueue) {
     event.ask_shares = 100U;
 
     OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(event, intent, 1));
+    ASSERT_TRUE(strategy.evaluateEvent(1, event, intent));
     EXPECT_EQ(intent.que_idx, 1U);
 
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
-    ASSERT_TRUE(tracker.m_trace_buffer[1]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
     EXPECT_EQ(record.que_idx, 1U);
-    EXPECT_EQ(record.event_ts, 54321U);
-    EXPECT_EQ(record.event_stage, stage::STRATEGY);
+    EXPECT_EQ(record.event_tag, 54321U);
+    EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
     EXPECT_GT(record.time_captured, 0U);
-    EXPECT_FALSE(tracker.m_trace_buffer[1]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
 
 TEST(DummyStrategyTest, acceptedNonFirstEventDoesNotPushStrategyRecord) {
@@ -81,10 +81,10 @@ TEST(DummyStrategyTest, acceptedNonFirstEventDoesNotPushStrategyRecord) {
     event.ask_shares = 100U;
 
     OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(event, intent, 0));
+    ASSERT_TRUE(strategy.evaluateEvent(0 ,event, intent));
 
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
 TEST(DummyStrategyTest, acceptedFirstEventReturnsIntentWhenLatencyEmissionThrows) {
@@ -102,16 +102,16 @@ TEST(DummyStrategyTest, acceptedFirstEventReturnsIntentWhenLatencyEmissionThrows
     event.ask_shares = 100U;
 
     OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(event, intent, 1));
+    ASSERT_TRUE(strategy.evaluateEvent(1, event, intent));
     EXPECT_EQ(intent.stock_locate, 0x000d);
     EXPECT_EQ(intent.que_idx, 1U);
-    EXPECT_EQ(intent.event_ts, 12345U);
+    EXPECT_EQ(intent.event_tag, 12345U);
     EXPECT_EQ(intent.intent.action, OrderIntentAction::Buy);
     EXPECT_EQ(intent.intent.price, 100U);
     EXPECT_EQ(intent.intent.shares, 100U);
 
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
 TEST(DummyStrategyTest, firstAcceptedEventWithZeroTimestampDoesNotPushStrategyRecord) {
@@ -129,10 +129,10 @@ TEST(DummyStrategyTest, firstAcceptedEventWithZeroTimestampDoesNotPushStrategyRe
     event.ask_shares = 100U;
 
     OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(event, intent, 0));
+    ASSERT_TRUE(strategy.evaluateEvent(0, event, intent));
 
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
 TEST(DummyStrategyTest, rejectsEventWhenNoActionIsSuggested) {
@@ -146,5 +146,5 @@ TEST(DummyStrategyTest, rejectsEventWhenNoActionIsSuggested) {
     event.ask_shares = 100U;
 
     OrderIntent intent {};
-    EXPECT_FALSE(strategy.evaluateEvent(event, intent, 0));
+    EXPECT_FALSE(strategy.evaluateEvent(0, event, intent));
 }

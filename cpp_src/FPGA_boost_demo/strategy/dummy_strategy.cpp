@@ -45,7 +45,22 @@ OrderIntentAction DummyStrategy::_readAction(const FPGAEventDesc& event) const {
     return OrderIntentAction::None;
 }
 
-bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_intent, uint16_t que_idx) {
+bool DummyStrategy::evaluateEvent(uint16_t que_idx,const FPGAEventDesc& event, OrderIntent& out_intent) {
+    if (event.is_first_event != 0 &&
+        m_latency_tracker != nullptr &&
+        event.event_tk != 0) {
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = que_idx,
+                .event_tag = event.event_tk,
+                .event_stage = stage::STRATEGY_START,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (...) {
+            // Latency tracking is best-effort and must not change strategy output.
+        }
+    }
+
     const OrderIntentAction action = _readAction(event);
     if (action == OrderIntentAction::None) {
         return false;
@@ -54,7 +69,7 @@ bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_i
     out_intent = OrderIntent {
         .stock_locate = event.stock_locate,
         .que_idx = que_idx,
-        .event_ts = event.event_tk,
+        .event_tag = event.is_first_event ? event.event_tk : 0,
         .intent = {
             .action = action,
             .price = (action == OrderIntentAction::Buy)
@@ -63,19 +78,5 @@ bool DummyStrategy::evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_i
             .shares = kIntentShares
         }
     };
-    if (event.is_first_event != 0 &&
-        m_latency_tracker != nullptr &&
-        out_intent.event_ts != 0) {
-        try {
-            m_latency_tracker->pushRecord(TimeRecord {
-                .que_idx = out_intent.que_idx,
-                .event_ts = out_intent.event_ts,
-                .event_stage = stage::STRATEGY,
-                .time_captured = readMonotonicRawNs(),
-            });
-        } catch (...) {
-            // Latency tracking is best-effort and must not change strategy output.
-        }
-    }
     return true;
 }

@@ -195,30 +195,32 @@ TEST(TxTranslatorTest, invalidExecutionActionDoesNotProduceOrderFrame) {
     EXPECT_FALSE(sender.popReadyOutbound(record));
 }
 
-TEST(TxTranslatorTest, pendingCapacityEvictionRemovesOldestRecordFromReadyQueue) {
+TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingReadyQueueRecords) {
     TxSender sender(TxSenderConfig {
         .intent_capacity = 4,
         .pending_capacity = 2,
+        .pending_slot_count = 16,
     });
 
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10)));
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x0ee8, OrderIntentAction::Sell, 100100, 11)));
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100200, 12)));
-    ASSERT_TRUE(sender.buildOutboundFrames());
+    EXPECT_FALSE(sender.buildOutboundFrames());
 
     TxOutboundRecord first {};
     TxOutboundRecord second {};
     ASSERT_TRUE(sender.popReadyOutbound(first));
     ASSERT_TRUE(sender.popReadyOutbound(second));
-    EXPECT_EQ(first.user_ref_num, 2U);
-    EXPECT_EQ(second.user_ref_num, 3U);
+    EXPECT_EQ(first.user_ref_num, 1U);
+    EXPECT_EQ(second.user_ref_num, 2U);
     EXPECT_FALSE(sender.popReadyOutbound(second));
 }
 
-TEST(TxTranslatorTest, pendingCapacityEvictionBeforeReadyHeadDoesNotSkipUnsentRecord) {
+TEST(TxTranslatorTest, pendingCapacityRejectionDoesNotSkipRemainingReadyRecord) {
     TxSender sender(TxSenderConfig {
         .intent_capacity = 4,
         .pending_capacity = 2,
+        .pending_slot_count = 16,
     });
 
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10)));
@@ -230,27 +232,25 @@ TEST(TxTranslatorTest, pendingCapacityEvictionBeforeReadyHeadDoesNotSkipUnsentRe
     EXPECT_EQ(first.user_ref_num, 1U);
 
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100200, 12)));
-    ASSERT_TRUE(sender.buildOutboundFrames());
+    EXPECT_FALSE(sender.buildOutboundFrames());
 
     TxOutboundRecord second {};
-    TxOutboundRecord third {};
     ASSERT_TRUE(sender.popReadyOutbound(second));
-    ASSERT_TRUE(sender.popReadyOutbound(third));
     EXPECT_EQ(second.user_ref_num, 2U);
-    EXPECT_EQ(third.user_ref_num, 3U);
-    EXPECT_FALSE(sender.popReadyOutbound(third));
+    EXPECT_FALSE(sender.popReadyOutbound(second));
 }
 
-TEST(TxTranslatorTest, pendingCapacityEvictionRemovesOldestRecordFromBlockedQueue) {
+TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingBlockedQueueRecords) {
     TxSender sender(TxSenderConfig {
         .intent_capacity = 4,
         .pending_capacity = 2,
+        .pending_slot_count = 16,
     });
 
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10)));
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x0ee8, OrderIntentAction::Sell, 100100, 11)));
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100200, 12)));
-    ASSERT_TRUE(sender.buildOutboundFrames());
+    EXPECT_FALSE(sender.buildOutboundFrames());
 
     sender.onTransportDisconnected();
     sender._flushBlockedRecords();
@@ -259,8 +259,8 @@ TEST(TxTranslatorTest, pendingCapacityEvictionRemovesOldestRecordFromBlockedQueu
     TxOutboundRecord second {};
     ASSERT_TRUE(sender.popReadyOutbound(first));
     ASSERT_TRUE(sender.popReadyOutbound(second));
-    EXPECT_EQ(first.user_ref_num, 2U);
-    EXPECT_EQ(second.user_ref_num, 3U);
+    EXPECT_EQ(first.user_ref_num, 1U);
+    EXPECT_EQ(second.user_ref_num, 2U);
     EXPECT_FALSE(sender.popReadyOutbound(second));
 }
 
@@ -391,7 +391,7 @@ TEST(TxTranslatorTest, rebuildBlockedRecordsRestoresAscendingUserRefOrder) {
     EXPECT_EQ(sender.m_blocked_outbound[2].user_ref_num, 11U);
 }
 
-TEST(TxTranslatorTest, trackedReadyOutboundPushesTxEnqueueRecord) {
+TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
         .pending_slot_count = 64,
@@ -405,8 +405,16 @@ TEST(TxTranslatorTest, trackedReadyOutboundPushesTxEnqueueRecord) {
         .event_tag = 0x12345678ULL,
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
+    EXPECT_EQ(record.que_idx, 1U);
+    EXPECT_EQ(record.event_tag, 0x12345678ULL);
+    EXPECT_GT(record.time_captured, 0U);
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
+
     ASSERT_TRUE(sender.buildOutboundFrames());
-    EXPECT_GT(tracker.run(), 0U);
 
     TxOutboundRecord outbound {};
     ASSERT_TRUE(sender.popReadyOutbound(outbound));
