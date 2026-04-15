@@ -148,3 +148,29 @@ TEST(DummyStrategyTest, rejectsEventWhenNoActionIsSuggested) {
     OrderIntent intent {};
     EXPECT_FALSE(strategy.evaluateEvent(0, event, intent));
 }
+
+TEST(DummyStrategyTest, firstEventWithoutActionStillPushesStrategyStartRecordBeforeRejection) {
+    DummyStrategy strategy;
+    LatencyTracker tracker(1, 8);
+    strategy.attachLatenyTracker(&tracker);
+
+    FPGAEventDesc event {};
+    event.stock_locate = 0x000d;
+    event.event_tk = 24680U;
+    event.is_first_event = 1U;
+    event.bid_price = 100U;
+    event.ask_price = 100U;
+    event.bid_shares = 100U;
+    event.ask_shares = 100U;
+
+    OrderIntent intent {};
+    EXPECT_FALSE(strategy.evaluateEvent(0, event, intent));
+
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_latency_queues[0]->pop(record));
+    EXPECT_EQ(record.que_idx, 0U);
+    EXPECT_EQ(record.event_tag, 24680U);
+    EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
+    EXPECT_GT(record.time_captured, 0U);
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
+}

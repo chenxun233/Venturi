@@ -421,3 +421,41 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
     EXPECT_EQ(outbound.que_idx, 1U);
     EXPECT_EQ(outbound.event_tag, 0x12345678ULL);
 }
+
+TEST(TxTranslatorTest, buildOutboundFramesPushesRenamedSenderLocalLatencyStages) {
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 16);
+    sender.attachLatenyTracker(&tracker);
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x10203040ULL,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
+
+    ASSERT_TRUE(sender.buildOutboundFrames());
+
+    bool saw_tx_execution_dequeue = false;
+    bool saw_tx_order_frame_built = false;
+    bool saw_tx_pending_recorded = false;
+    while (tracker.m_latency_queues[1]->pop(record)) {
+        saw_tx_execution_dequeue =
+            saw_tx_execution_dequeue || (record.event_stage == stage::TX_EXECUTION_DEQUEUE);
+        saw_tx_order_frame_built =
+            saw_tx_order_frame_built || (record.event_stage == stage::TX_ORDER_FRAME_BUILT);
+        saw_tx_pending_recorded =
+            saw_tx_pending_recorded || (record.event_stage == stage::TX_PENDING_RECORDED);
+    }
+
+    EXPECT_TRUE(saw_tx_execution_dequeue);
+    EXPECT_TRUE(saw_tx_order_frame_built);
+    EXPECT_TRUE(saw_tx_pending_recorded);
+}

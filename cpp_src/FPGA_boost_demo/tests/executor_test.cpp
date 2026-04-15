@@ -24,7 +24,7 @@ TEST(ExecutorTest, takeReadyExecutionReturnsNextExecutionWithoutCrossThreadQueue
     EXPECT_FALSE(executor.takeReadyExecution(execution));
 }
 
-TEST(ExecutorTest, acceptsIntentAndEmitsExecutionStageOutput) {
+TEST(ExecutorTest, acceptsIntentAndMakesExecutionAvailable) {
     Executor executor(8);
     OrderIntent intent {};
     intent.stock_locate = 0x000d;
@@ -87,7 +87,7 @@ TEST(ExecutorTest, successfulTrackedAcceptToNonZeroQueueDoesNotPushLatencyRecord
     EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
 
-TEST(ExecutorTest, trackedAcceptReturnsTrueWhenLatencyEmissionThrows) {
+TEST(ExecutorTest, trackedAcceptReturnsTrueAndExecutionRemainsAvailableWithoutLatencyEmission) {
     Executor executor(8);
     LatencyTracker tracker(1, 8);
     executor.attachLatenyTracker(&tracker);
