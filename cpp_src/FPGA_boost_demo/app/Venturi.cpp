@@ -6,8 +6,6 @@
 #include "../sync/FPGA_regression.h"
 #include "../tx_engine/executor.h"
 #include "../tx_engine/tx_connection.h"
-#include "../tx_engine/tx_receiver.h"
-#include "../tx_engine/tx_send_socket.h"
 #include "../tx_engine/tx_sender.h"
 #include "../../common/log.h"
 
@@ -17,9 +15,9 @@
 #include <cstdint>
 #include <ctime>
 #include <cstdio>
-#include <mutex>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 
@@ -92,53 +90,73 @@ int main() {
     FPGARxEngine rx_engine1(device, decoder1, 1);
     DummyStrategy strategy0;
     DummyStrategy strategy1;
-    Executor executor(kQueueCount, kExecutorQueueCapacity);
-    TxSender tx_sender(TxSenderConfig {
+    Executor executor0(kExecutorQueueCapacity);
+    Executor executor1(kExecutorQueueCapacity);
+    const GatewayClientConfig tx_connection_config {
+        .bind_ip = std::string(kTxBindIp),
+        .server_ip = std::string(kTxServerIp),
+        .port = kTxServerPort,
+    };
+    TxConnection tx_connection0(tx_connection_config);
+    TxConnection tx_connection1(tx_connection_config);
+    const TxSenderConfig tx_sender_config {
         .username = std::string(kTxUsername),
         .password = std::string(kTxPassword),
         .requested_session = std::string(kTxSession),
         .heartbeat_interval = std::chrono::seconds(1),
         .intent_capacity = kExecutorQueueCapacity,
         .pending_capacity = 1024,
-    });
-    TxConnection tx_connection(GatewayClientConfig {
-        .bind_ip = std::string(kTxBindIp),
-        .server_ip = std::string(kTxServerIp),
-        .port = kTxServerPort,
-    });
-    TxReceiver tx_receiver(tx_connection, tx_sender);
+        .pending_slot_count = 1024,
+        .transport_capacity = 1024,
+    };
+    TxSender tx_sender0(tx_sender_config);
+    TxSender tx_sender1(tx_sender_config);
     LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
-    LogPrinter log_printer(kLatencyLogCapacity);
+    LogPrinter log_printer(kQueueCount, kLatencyLogCapacity);
 
     rx_engine0.attachLatenyTracker(&latency_tracker);
     rx_engine1.attachLatenyTracker(&latency_tracker);
     strategy0.attachLatenyTracker(&latency_tracker);
     strategy1.attachLatenyTracker(&latency_tracker);
-    executor.attachLatenyTracker(&latency_tracker);
-    tx_sender.attachLatenyTracker(&latency_tracker);
+    executor0.attachLatenyTracker(&latency_tracker);
+    executor1.attachLatenyTracker(&latency_tracker);
+    executor0.attachQueueIdx(0);
+    executor1.attachQueueIdx(1);
     
     latency_tracker.attachLogPrinter(&log_printer);
     latency_tracker.attachRegression(&FPGA_regression);
+    executor0.attachLogPrinter(&log_printer);
+    executor1.attachLogPrinter(&log_printer);
+    tx_connection0.attachQueueIdx(0);
+    tx_connection1.attachQueueIdx(1);
+    tx_connection0.attachLogPrinter(&log_printer);
+    tx_connection1.attachLogPrinter(&log_printer);
+    tx_connection0.attachSender(&tx_sender0);
+    tx_connection1.attachSender(&tx_sender1);
+    tx_sender0.attachLogPrinter(&log_printer);
+    tx_sender1.attachLogPrinter(&log_printer);
+    tx_sender0.attachLatenyTracker(&latency_tracker);
+    tx_sender1.attachLatenyTracker(&latency_tracker);
     log_printer.start();
-    executor.attachLogPrinter(&log_printer);
-    tx_sender.attachLogPrinter(&log_printer);
-    tx_connection.attachLogPrinter(&log_printer);
-    tx_receiver.attachLogPrinter(&log_printer);
     
     
     CapSignal capture_signal {};
+    std::array<std::atomic<bool>, kQueueCount> queue_capture_requests {};
     // init sync
     if (!FPGA_regression.initSync(device, kInitSyncMaxAttempts, kMaxAcceptInterval)) {
         error("initSync failed to converge within %zu attempts", kInitSyncMaxAttempts);
         log_printer.stop();
         return 1;
     }
-    (void)log_printer.pushRegressionStatus(FPGA_regression.readStatusLogRecord());
-
-    std::thread control_thread([&]() 
-    {
+    std::thread control_thread([&]() {
         while (true) {
             FPGA_regression.run(capture_signal);
+            
+            if (capture_signal.request.exchange(false, std::memory_order_acq_rel)) {
+                for (std::size_t queue_idx = 0; queue_idx < kQueueCount; ++queue_idx) {
+                    queue_capture_requests[queue_idx].store(true, std::memory_order_release);
+                }
+            }
             const std::size_t processed = latency_tracker.run();
             if (processed == 0){
                 std::this_thread::sleep_for(kThreadSleepTime);
@@ -147,14 +165,17 @@ int main() {
     });
 
 
-    std::vector<std::thread> rx_threads; //rx_engine0
+    std::vector<std::thread> rx_threads;
     rx_threads.emplace_back([&]() {
         FpgaSyncSnapshot snapshot {};
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
+        OrderExecution execution {};
+        TxConnectionInfo connection_info {};
+
         while (true) {
             const bool get_snapshot =
-                capture_signal.request.exchange(false, std::memory_order_acq_rel);
+                queue_capture_requests[0].exchange(false, std::memory_order_acq_rel);
             const std::size_t count =
                 rx_engine0.pollDecodedBatchSync(MAX_POLL_RECORDS, get_snapshot, &snapshot, events);
             if (get_snapshot) {
@@ -164,96 +185,61 @@ int main() {
                 for (std::size_t idx = 0; idx < count; ++idx) {
                     FPGAEventDesc& event = events[idx];
                     if (strategy0.evaluateEvent(0, event, intent)) {
-                        executor.acceptIntent(0, intent);
+                        executor0.acceptIntent(intent);
                     }
                 }
             }
-            if (count == 0) {
-               continue;
+
+            while (executor0.takeReadyExecution(execution)) {
+                tx_sender0.acceptExecution(execution);
+                executor0.logExecution(execution);
             }
+            
+            tx_connection0.pollConnect();
+            while (tx_connection0.takeSenderConnectionInfo(connection_info)) {
+                tx_sender0.updateConnectionInfo(connection_info);
+            }
+            tx_sender0.runOnce();
         }
     });
 
-    rx_threads.emplace_back([&]() {//rx_engine1
+    rx_threads.emplace_back([&]() {
+        FpgaSyncSnapshot snapshot {};
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
+        OrderExecution execution {};
+        TxConnectionInfo connection_info {};
+
         while (true) {
-            const std::size_t count = rx_engine1.pollDecodedBatch(MAX_POLL_RECORDS, events);
+            const bool get_snapshot =
+                queue_capture_requests[1].exchange(false, std::memory_order_acq_rel);
+            const std::size_t count =
+                rx_engine1.pollDecodedBatchSync(MAX_POLL_RECORDS, get_snapshot, &snapshot, events);
+            if (get_snapshot) {
+                (void)FPGA_regression.tryAcceptSnapshot(snapshot, kMaxAcceptInterval);
+            }
+
             if (count > 0) {
                 for (std::size_t idx = 0; idx < count; ++idx) {
                     FPGAEventDesc& event = events[idx];
                     if (strategy1.evaluateEvent(1, event, intent)) {
-                        executor.acceptIntent(1, intent);
+                        executor1.acceptIntent(intent);
                     }
                 }
             }
-            if (count == 0) {
-                continue;
+
+            while (executor1.takeReadyExecution(execution)) {
+                tx_sender1.acceptExecution(execution);
+                executor1.logExecution(execution);
             }
+
+            tx_connection1.pollConnect();
+            while (tx_connection1.takeSenderConnectionInfo(connection_info)) {
+                tx_sender1.updateConnectionInfo(connection_info);
+            }
+            tx_sender1.runOnce();
         }
     });
-
-    std::thread executor_thread([&]() 
-    {
-        OrderIntent intent {};
-        bool has_pending_intent = false;
-        while (true) {
-            if (!has_pending_intent && executor.popReadyIntent(intent)) {
-                has_pending_intent = true;
-            }
-            if (has_pending_intent && tx_sender.acceptIntent(intent)) {
-                executor.logExecution(intent);
-                has_pending_intent = false;
-            }
-        }
-    });
-    std::thread tx_sender_thread([&]() {
-        // Transitional bridge: TxConnection is receiver-owned and now publishes TxTransportControl
-        // (including sender fd) on the receiver thread. The end-to-end transport-control plumbing
-        // into the sender thread is not yet wired, so TxSendSocket will remain inactive until a
-        // later task installs real Connected controls.
-        TxSendSocket send_socket {};
-        send_socket.attachLogPrinter(&log_printer);
-        send_socket.attachLatenyTracker(&latency_tracker);
-        while (true) {
-            bool did_work = false;
-
-            did_work = tx_sender.buildOutboundFrame() || did_work;
-            did_work = tx_sender.queueHeartbeatIfDue() || did_work;
-            did_work = tx_sender.processInboundQueues() || did_work;
-
-            if (!send_socket.hasActiveFd()) {
-                if (!did_work) {
-                    std::this_thread::sleep_for(kThreadSleepTime);
-                }
-                continue;
-            }
-
-            TxOutboundRecord outbound {};
-            while (tx_sender.popReadyOutbound(outbound)) {
-                if (!send_socket.sendPayload(outbound)) {
-                    tx_sender.restoreReadyOutbound(outbound);
-                    break;
-                }
-                tx_sender.noteOutboundSent(outbound);
-                did_work = true;
-            }
-
-            if (!did_work) {
-                std::this_thread::sleep_for(kThreadSleepTime);
-            }
-        }
-    });
-
-    std::thread tx_receiver_thread([&]() {
-        while (true) {
-            const bool did_work = tx_receiver.pollOnce();
-            if (!did_work) {
-                std::this_thread::sleep_for(kThreadSleepTime);
-            }
-        }
-    });
-    
 
     for (std::thread& rx_thread : rx_threads) {
         if (rx_thread.joinable()) {
@@ -262,15 +248,6 @@ int main() {
     }
     if (control_thread.joinable()) {
         control_thread.join();
-    }
-    if (executor_thread.joinable()) {
-        executor_thread.join();
-    }
-    if (tx_sender_thread.joinable()) {
-        tx_sender_thread.join();
-    }
-    if (tx_receiver_thread.joinable()) {
-        tx_receiver_thread.join();
     }
     log_printer.stop();
 

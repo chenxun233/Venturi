@@ -3,64 +3,47 @@
 #include "../common/time_utils.h"
 #include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
+#include "tx_connection.h"
 
 #include <algorithm>
 #include <array>
-#include <cassert>
-#include <charconv>
+#include <cerrno>
+#include <cstdio>
 #include <limits>
 #include <stdexcept>
 #include <string_view>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <utility>
 
 namespace {
 
-constexpr uint8_t kSoupLoginAcceptedType = static_cast<uint8_t>('A');
-constexpr uint8_t kSoupLoginRejectedType = static_cast<uint8_t>('J');
-constexpr uint8_t kSoupSequencedDataType = static_cast<uint8_t>('S');
-constexpr uint8_t kSoupHeartbeatType = static_cast<uint8_t>('H');
-constexpr uint8_t kSoupEndOfSessionType = static_cast<uint8_t>('Z');
 constexpr uint8_t kSoupLoginRequestType = static_cast<uint8_t>('L');
 constexpr uint8_t kSoupUnsequencedDataType = static_cast<uint8_t>('U');
 constexpr uint8_t kSoupClientHeartbeatType = static_cast<uint8_t>('R');
-
 constexpr uint8_t kOuchEnterOrderType = static_cast<uint8_t>('O');
-constexpr uint8_t kOuchAcceptedType = static_cast<uint8_t>('A');
-constexpr uint8_t kOuchExecutedType = static_cast<uint8_t>('E');
-constexpr uint8_t kOuchRejectedType = static_cast<uint8_t>('J');
 
 constexpr std::size_t kSoupHeaderSize = 3;
 constexpr std::size_t kSessionWidth = 10;
 constexpr std::size_t kSequenceWidth = 20;
 constexpr std::size_t kUsernameWidth = 6;
 constexpr std::size_t kPasswordWidth = 10;
-
 constexpr std::size_t kOuchEnterOrderSize = 16;
-constexpr std::size_t kOuchAcceptedSize = 64;
-constexpr std::size_t kOuchExecutedSize = 36;
-constexpr std::size_t kOuchRejectedSize = 31;
-constexpr int kLegacyTransportFdSentinel = -2;
 
-uint16_t readBigEndian16(const uint8_t* bytes) {
-    return static_cast<uint16_t>((static_cast<uint16_t>(bytes[0]) << 8) |
-                                 static_cast<uint16_t>(bytes[1]));
+bool isPowerOfTwo(std::size_t value) {
+    return value != 0 && (value & (value - 1U)) == 0;
 }
 
-uint32_t readBigEndian32(const uint8_t* bytes) {
-    return (static_cast<uint32_t>(bytes[0]) << 24) |
-           (static_cast<uint32_t>(bytes[1]) << 16) |
-           (static_cast<uint32_t>(bytes[2]) << 8) |
-           static_cast<uint32_t>(bytes[3]);
-}
+std::size_t roundUpToPowerOfTwo(std::size_t value) {
+    if (value <= 1U) {
+        return 1U;
+    }
 
-uint64_t readBigEndian64(const uint8_t* bytes) {
-    return (static_cast<uint64_t>(bytes[0]) << 56) |
-           (static_cast<uint64_t>(bytes[1]) << 48) |
-           (static_cast<uint64_t>(bytes[2]) << 40) |
-           (static_cast<uint64_t>(bytes[3]) << 32) |
-           (static_cast<uint64_t>(bytes[4]) << 24) |
-           (static_cast<uint64_t>(bytes[5]) << 16) |
-           (static_cast<uint64_t>(bytes[6]) << 8) |
-           static_cast<uint64_t>(bytes[7]);
+    std::size_t rounded = 1U;
+    while (rounded < value && rounded <= (std::numeric_limits<std::size_t>::max() >> 1U)) {
+        rounded <<= 1U;
+    }
+    return rounded;
 }
 
 void writeBigEndian16(uint8_t* out, uint16_t value) {
@@ -75,32 +58,12 @@ void writeBigEndian32(uint8_t* out, uint32_t value) {
     out[3] = static_cast<uint8_t>(value & 0xffU);
 }
 
-std::string trimSpaces(std::string_view text) {
-    std::size_t begin = 0;
-    while (begin < text.size() && text[begin] == ' ') {
-        ++begin;
-    }
-
-    std::size_t end = text.size();
-    while (end > begin && text[end - 1] == ' ') {
-        --end;
-    }
-
-    return std::string(text.substr(begin, end - begin));
-}
-
-bool readSequenceField(const uint8_t* data, std::size_t width, uint64_t& value) {
-    std::string_view text(reinterpret_cast<const char*>(data), width);
-    const std::size_t first_non_space = text.find_first_not_of(' ');
-    if (first_non_space == std::string_view::npos) {
-        value = 0;
-        return true;
-    }
-
-    const char* begin = text.data() + static_cast<std::ptrdiff_t>(first_non_space);
-    const char* end = text.data() + static_cast<std::ptrdiff_t>(text.size());
-    const auto [ptr, ec] = std::from_chars(begin, end, value);
-    return ec == std::errc() && ptr == end;
+void writeSoupHeader(TxOutboundRecord& record,
+                     uint8_t packet_type,
+                     std::size_t payload_size) {
+    record.payload_length = static_cast<uint8_t>(kSoupHeaderSize + payload_size);
+    writeBigEndian16(record.payload.data(), static_cast<uint16_t>(payload_size + 1U));
+    record.payload[2] = packet_type;
 }
 
 void writePaddedField(uint8_t* out,
@@ -128,40 +91,13 @@ void writeSequenceField(uint8_t* out, std::size_t width, uint64_t value) {
                 out + static_cast<std::ptrdiff_t>(width - copy_size));
 }
 
-bool parseSoupFrame(const TxInboundFrame& frame,
-                    uint8_t& packet_type,
-                    const uint8_t*& payload,
-                    std::size_t& payload_size) {
-    const std::size_t size = frame.payload_length;
-    if (size < kSoupHeaderSize) {
-        return false;
-    }
-
-    const uint16_t encoded_length = readBigEndian16(frame.payload.data());
-    if (encoded_length == 0 || size != static_cast<std::size_t>(encoded_length + 2U)) {
-        return false;
-    }
-
-    packet_type = frame.payload[2];
-    payload = frame.payload.data() + static_cast<std::ptrdiff_t>(kSoupHeaderSize);
-    payload_size = size - kSoupHeaderSize;
-    return true;
-}
-
-void writeSoupHeader(TxOutboundRecord& record,
-                     uint8_t packet_type,
-                     std::size_t payload_size) {
-    record.payload_length = static_cast<uint8_t>(kSoupHeaderSize + payload_size);
-    writeBigEndian16(record.payload.data(), static_cast<uint16_t>(payload_size + 1U));
-    record.payload[2] = packet_type;
-}
-
 void writeLoginRequestFrame(TxOutboundRecord& record,
                             std::string_view username,
                             std::string_view password,
                             std::string_view requested_session,
                             uint64_t requested_sequence) {
-    constexpr std::size_t kPayloadSize = kUsernameWidth + kPasswordWidth + kSessionWidth + kSequenceWidth;
+    constexpr std::size_t kPayloadSize =
+        kUsernameWidth + kPasswordWidth + kSessionWidth + kSequenceWidth;
     writeSoupHeader(record, kSoupLoginRequestType, kPayloadSize);
 
     uint8_t* payload = record.payload.data() + static_cast<std::ptrdiff_t>(kSoupHeaderSize);
@@ -174,7 +110,8 @@ void writeLoginRequestFrame(TxOutboundRecord& record,
                      kSessionWidth,
                      requested_session,
                      false);
-    writeSequenceField(payload + static_cast<std::ptrdiff_t>(kUsernameWidth + kPasswordWidth + kSessionWidth),
+    writeSequenceField(payload + static_cast<std::ptrdiff_t>(
+                           kUsernameWidth + kPasswordWidth + kSessionWidth),
                        kSequenceWidth,
                        requested_sequence);
 }
@@ -195,41 +132,18 @@ void writeFramePayload(TxOutboundRecord& record, char side) {
     writeBigEndian32(payload + 12, record.price);
 }
 
-std::size_t roundUpPowerOfTwo(std::size_t value) {
-    if (value <= 1) {
-        return 1;
-    }
-
-    std::size_t rounded = 1;
-    while (rounded < value) {
-        if (rounded > (std::numeric_limits<std::size_t>::max() >> 1U)) {
-            throw std::invalid_argument("TxSender merged ingress capacity overflow");
-        }
-        rounded <<= 1U;
-    }
-
-    return rounded;
-}
-
-std::size_t computeMergedIngressCapacity(const TxSenderConfig& config) {
-    if (config.inbound_capacity >
-        (std::numeric_limits<std::size_t>::max() - config.transport_capacity)) {
-        throw std::invalid_argument("TxSender merged ingress capacity overflow");
-    }
-    const std::size_t required = config.inbound_capacity + config.transport_capacity;
-    if (required == 0) {
-        throw std::invalid_argument("TxSender merged ingress capacity must be non-zero");
-    }
-    return roundUpPowerOfTwo(required);
-}
-
 } // namespace
+
+extern "C" ssize_t __attribute__((weak))
+__wrap_send(int sockfd, const void* buffer, size_t length, int flags) {
+    return ::sendto(sockfd, buffer, length, flags, nullptr, 0);
+}
 
 TxSender::TxSender(std::size_t pending_capacity)
     : TxSender(TxSenderConfig {
           .intent_capacity = pending_capacity,
           .pending_capacity = pending_capacity,
-          .inbound_capacity = pending_capacity,
+          .pending_slot_count = roundUpToPowerOfTwo(pending_capacity),
           .transport_capacity = pending_capacity,
       }) {}
 
@@ -237,127 +151,96 @@ TxSender::TxSender(TxSenderConfig config)
     : m_config(std::move(config)),
       m_pending_orders {
           .capacity = m_config.pending_capacity,
-          .order_records = {},
-          .ordered_tags = {},
+          .live_count = 0,
+          .slots = std::vector<PendingSlot>(m_config.pending_slot_count),
       },
-      m_intent_buffer(m_config.intent_capacity),
-      m_inbound_records(computeMergedIngressCapacity(m_config)),
       m_ready_outbound {},
       m_blocked_outbound {} {
-    m_pending_orders.order_records.reserve(m_config.pending_capacity);
-    m_pending_orders.ordered_tags.reserve(m_config.pending_capacity);
+    if (!isPowerOfTwo(m_config.pending_slot_count)) {
+        throw std::invalid_argument("pending_slot_count must be a non-zero power-of-two");
+    }
+
     m_ready_outbound.reserve(m_config.pending_capacity + 4U);
     m_blocked_outbound.reserve(m_config.pending_capacity);
     m_last_successful_send = std::chrono::steady_clock::now();
 }
 
+TxSender::~TxSender() {
+    _closeSendFd();
+}
+
 void TxSender::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
-    m_send_socket.attachLogPrinter(log_printer);
 }
 
 void TxSender::attachLatenyTracker(LatencyTracker* latency_tracker) {
     m_latency_tracker = latency_tracker;
-    m_send_socket.attachLatenyTracker(latency_tracker);
 }
 
-void TxSender::_assertIngressProducerThread() {
-#ifndef NDEBUG
-    thread_local uint8_t ingress_thread_token {};
-    const std::uintptr_t producer_token =
-        reinterpret_cast<std::uintptr_t>(&ingress_thread_token);
+void TxSender::attachConnection(TxConnection* connection) {
+    m_connection = connection;
+}
 
-    std::uintptr_t expected_token = 0;
-    if (m_ingress_producer_thread_token.compare_exchange_strong(expected_token,
-                                                                 producer_token,
-                                                                 std::memory_order_relaxed,
-                                                                 std::memory_order_relaxed)) {
-        return;
+bool TxSender::acceptExecution(const OrderExecution& execution) noexcept {
+    const bool pushed = m_execution_buffer.pushBack(execution);
+    if (!pushed) {
+        return false;
     }
-
-    assert(expected_token == producer_token &&
-           "TxSender ingress queue is SPSC: one producer thread for frame/event APIs");
-#endif
+    return true;
 }
 
-bool TxSender::acceptIntent(const OrderIntent& intent) {
-    return m_intent_buffer.push(intent);
-}
-
-bool TxSender::acceptInboundFrame(const TxInboundFrame& frame) {
-    _assertIngressProducerThread();
-    return m_inbound_records.push(TxSenderInboundRecord {
-        .kind = TxSenderInboundKind::Frame,
-        .frame = frame,
-    });
-}
-
-bool TxSender::acceptTransportEvent(TxTransportEvent event) {
-    const TxTransportControl control {
-        .kind = event == TxTransportEvent::Connected
-            ? TxTransportControlKind::Connected
-            : TxTransportControlKind::Disconnected,
-        .generation = 0,
-        .tx_fd = kLegacyTransportFdSentinel,
-    };
-    return acceptTransportControl(control);
-}
-
-bool TxSender::acceptTransportControl(const TxTransportControl& control) {
-    _assertIngressProducerThread();
-    return m_inbound_records.push(TxSenderInboundRecord {
-        .kind = TxSenderInboundKind::TransportEvent,
-        .transport_event = control,
-    });
-}
-
-bool TxSender::processInboundQueues() {
-    bool did_work = false;
-    const auto handle_transport_control = [this](const TxTransportControl& control) {
-        switch (control.kind) {
-            case TxTransportControlKind::Connected:
-                m_send_socket.install(control);
-                login();
-                break;
-            case TxTransportControlKind::Disconnected: {
-                const uint64_t active_generation = m_send_socket.activeGeneration();
-                if (control.generation < active_generation) {
-                    break;
-                }
-                if (control.generation != active_generation) {
-                    break;
-                }
-                m_send_socket.retireGeneration(control.generation);
+void TxSender::updateConnectionInfo(const TxConnectionInfo& info) {
+#ifdef ISO
+    (void)info;
+#else
+    switch (info.kind) {
+        case TxConnectionKind::Connected:
+            _updateConnectionInfo(info);
+            login();
+            return;
+        case TxConnectionKind::Disconnected:
+            if (info.generation == m_transport_generation) {
+                _retireGeneration(info.generation);
                 onTransportDisconnected();
-                break;
             }
-        }
-    };
+            return;
+    }
+#endif
+    return;
+}
 
-    TxSenderInboundRecord inbound {};
-    while (m_inbound_records.pop(inbound)) {
-        did_work = true;
-        switch (inbound.kind) {
-            case TxSenderInboundKind::Frame:
-                _acceptInboundFramePayload(inbound.frame);
-                break;
-            case TxSenderInboundKind::TransportEvent: {
-                TxTransportControl control = inbound.transport_event;
-                if (control.tx_fd == kLegacyTransportFdSentinel) {
-                    control.generation = m_send_socket.activeGeneration();
-                    if (control.kind == TxTransportControlKind::Connected &&
-                        control.generation < std::numeric_limits<uint64_t>::max()) {
-                        ++control.generation;
-                    }
-                    control.tx_fd = -1;
-                }
-                handle_transport_control(control);
+bool TxSender::runOnce() {
+
+    buildOutboundFrames();
+    queueHeartbeat();
+#ifndef ISO
+    if (m_send_fd < 0) {
+        return false;
+    }
+#endif
+    TxOutboundRecord record {};
+    while (popReadyOutbound(record)) {
+        if (!trySendOutbound(record)) {
+            restoreReadyOutbound(record);
+
+            const bool transport_dropped =
+                (m_transport_generation != 0) && (m_send_fd < 0);
+            if ((errno == EAGAIN || errno == EWOULDBLOCK) && !transport_dropped) {
                 break;
             }
+
+            onTransportDisconnected();
+            if (m_connection != nullptr && m_transport_generation != 0) {
+                (void)m_connection->pushSenderDisconNotice(TxDisconnectNotice {
+                    .generation = m_transport_generation,
+                });
+            }
+            break;
         }
+        noteOutboundSent(record);
     }
 
-    return did_work;
+    return true;
 }
 
 bool TxSender::popReadyOutbound(TxOutboundRecord& record) {
@@ -368,10 +251,10 @@ bool TxSender::popReadyOutbound(TxOutboundRecord& record) {
 
     record = m_ready_outbound[m_ready_head];
     ++m_ready_head;
-    if (record.payload_length >= 3 && record.payload[2] == static_cast<uint8_t>('R')) {
-        if (m_heartbeat_ready_count > 0) {
-            m_heartbeat_ready_count -= 1;
-        }
+    if (record.payload_length >= 3 &&
+        record.payload[2] == static_cast<uint8_t>('R') &&
+        m_heartbeat_ready_count > 0) {
+        m_heartbeat_ready_count -= 1;
     }
     return true;
 }
@@ -394,7 +277,7 @@ void TxSender::restoreReadyOutbound(const TxOutboundRecord& record) {
 }
 
 bool TxSender::trySendOutbound(const TxOutboundRecord& record) {
-    return m_send_socket.sendPayload(record);
+    return _sendPayload(record);
 }
 
 void TxSender::noteOutboundSent(const TxOutboundRecord& record) {
@@ -404,80 +287,101 @@ void TxSender::noteOutboundSent(const TxOutboundRecord& record) {
 
 void TxSender::login() {
     _clearReadyRecords();
-    TxOutboundRecord login {};
-    writeLoginRequestFrame(login,
+    TxOutboundRecord login_record {};
+    writeLoginRequestFrame(login_record,
                            m_config.username,
                            m_config.password,
                            m_active_session.empty() ? m_config.requested_session : m_active_session,
                            m_next_expected_sequence);
-    _queueReadyRecord(login);
+    _queueReadyRecord(login_record);
     m_login_pending = true;
     m_logged_in = false;
 }
 
-void TxSender::_acceptInboundFramePayload(const TxInboundFrame& frame) {
-    uint8_t packet_type = 0;
-    const uint8_t* frame_payload = nullptr;
-    std::size_t frame_payload_size = 0;
-    if (!parseSoupFrame(frame, packet_type, frame_payload, frame_payload_size)) {
+void TxSender::_updateConnectionInfo(const TxConnectionInfo& info) {
+    if (info.kind != TxConnectionKind::Connected) {
         return;
     }
+    if (info.generation == m_transport_generation && info.fd == m_send_fd) {
+        return;
+    }
+    _closeSendFd();
+    m_send_fd = info.fd;
+    m_transport_generation = info.generation;
+}
 
-    switch (packet_type) {
-        case kSoupLoginAcceptedType: {
-            if (frame_payload_size != kSessionWidth + kSequenceWidth) {
-                return;
-            }
+void TxSender::_retireGeneration(uint64_t generation) {
+    if (generation != m_transport_generation) {
+        return;
+    }
+    _closeSendFd();
+}
 
-            uint64_t next_sequence = 0;
-            if (!readSequenceField(frame_payload + static_cast<std::ptrdiff_t>(kSessionWidth),
-                                   kSequenceWidth,
-                                   next_sequence)) {
-                return;
-            }
-
-            m_active_session = trimSpaces(std::string_view(
-                reinterpret_cast<const char*>(frame_payload),
-                kSessionWidth));
-            m_next_expected_sequence = next_sequence == 0 ? 1 : next_sequence;
-            m_login_pending = false;
-            m_logged_in = true;
-            _flushBlockedRecords();
-            return;
+bool TxSender::_sendPayload(const TxOutboundRecord& record) {
+#ifndef ISO
+    if (record.payload_length == 0 ||
+        record.payload_length > record.payload.size() ||
+        m_send_fd < 0) {
+        return false;
+    }
+    std::size_t offset = 0;
+    while (offset < static_cast<std::size_t>(record.payload_length)) {
+        const ssize_t written = ::send(
+            m_send_fd,
+            record.payload.data() + static_cast<std::ptrdiff_t>(offset),
+            static_cast<std::size_t>(record.payload_length) - offset,
+            MSG_NOSIGNAL);
+        if (written > 0) {
+            offset += static_cast<std::size_t>(written);
+            continue;
         }
-        case kSoupLoginRejectedType:
-            m_login_pending = false;
-            m_logged_in = false;
-            return;
-        case kSoupHeartbeatType:
-            return;
-        case kSoupEndOfSessionType:
-            m_login_pending = false;
-            m_logged_in = false;
-            return;
-        case kSoupSequencedDataType:
-            break;
-        default:
-            return;
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            if (offset == 0) {
+                return false;
+            }
+            _closeSendFd(false);
+            return false;
+        }
+        _closeSendFd(false);
+        return false;
+    }
+#endif
+
+    if (record.event_tag != 0 && m_latency_tracker != nullptr) {
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = record.que_idx,
+                .event_tag = record.event_tag,
+                .event_stage = stage::TX_SEND,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (...) {
+        }
     }
 
-    ++m_next_expected_sequence;
-    if (frame_payload_size == kOuchAcceptedSize && frame_payload[0] == kOuchAcceptedType) {
-        _handleAccepted(readBigEndian32(frame_payload + 9),
-                        readBigEndian32(frame_payload + 14),
-                        static_cast<uint32_t>(readBigEndian64(frame_payload + 26)));
-        return;
+    if (record.user_ref_num != 0) {
+        _pushTxEvent(record.que_idx, TxLogRecord {
+            .event = TxEventKind::OrderSent,
+            .user_ref_num = record.user_ref_num,
+            .stock_locate = record.stock_locate,
+            .price = record.price,
+            .shares = record.shares,
+        });
     }
-    if (frame_payload_size == kOuchExecutedSize && frame_payload[0] == kOuchExecutedType) {
-        _handleExecuted(readBigEndian32(frame_payload + 9),
-                        readBigEndian32(frame_payload + 13),
-                        static_cast<uint32_t>(readBigEndian64(frame_payload + 17)),
-                        readBigEndian64(frame_payload + 26));
-        return;
+
+    return true;
+}
+
+void TxSender::_closeSendFd(bool clear_generation) {
+    if (m_send_fd >= 0) {
+        ::close(m_send_fd);
+        m_send_fd = -1;
     }
-    if (frame_payload_size == kOuchRejectedSize && frame_payload[0] == kOuchRejectedType) {
-        _handleRejected(readBigEndian32(frame_payload + 9),
-                        readBigEndian16(frame_payload + 13));
+    if (clear_generation) {
+        m_transport_generation = 0;
     }
 }
 
@@ -488,11 +392,10 @@ void TxSender::onTransportDisconnected() {
     _rebuildBlockedRecords();
 }
 
-bool TxSender::queueHeartbeatIfDue() {
+bool TxSender::queueHeartbeat() {
     if (!m_logged_in) {
         return false;
     }
-
     if (m_heartbeat_ready_count > 0) {
         return false;
     }
@@ -509,31 +412,44 @@ bool TxSender::queueHeartbeatIfDue() {
     return true;
 }
 
-bool TxSender::buildOutboundFrame() {
+bool TxSender::buildOutboundFrames() {
     bool did_work = false;
-    OrderIntent intent {};
+    bool did_reject_pending = false;
     TxOutboundRecord record {};
-    while (m_intent_buffer.pop(intent)) {
-        if (!_buildOrderFrame(intent, record)) {
+    while (!m_execution_buffer.isEmpty()) {
+        OrderExecution execution = m_execution_buffer.readFront();
+        (void)m_execution_buffer.eraseFront();
+        if (execution.event_tag != 0 && m_latency_tracker != nullptr) {
+            try {
+                m_latency_tracker->pushRecord(TimeRecord {
+                    .que_idx = execution.que_idx,
+                    .event_tag = execution.event_tag,
+                    .event_stage = stage::EXECUTION_DEQUEUE,
+                    .time_captured = readMonotonicRawNs(),
+                });
+            } catch (...) {
+            }
+        }
+
+        if (!_buildOrderFrame(execution, record)) {
+            continue;
+        }
+
+        if (!_recordPendingOrder(record)) {
+            did_reject_pending = true;
             continue;
         }
 
         did_work = true;
-        _recordPendingOrder(record);
-        if (m_logged_in && !m_login_pending) {
-            _queueReadyRecord(record);
-            continue;
-        }
-
-        _queueBlockedRecord(record);
+        _queueReadyRecord(record);
     }
 
-    return did_work;
+    return did_work && !did_reject_pending;
 }
 
-bool TxSender::_buildOrderFrame(const OrderIntent& intent, TxOutboundRecord& record) {
+bool TxSender::_buildOrderFrame(const OrderExecution& execution, TxOutboundRecord& record) {
     char side = '\0';
-    switch (intent.intent.action) {
+    switch (execution.order.action) {
         case OrderIntentAction::Buy:
             side = 'B';
             break;
@@ -543,13 +459,27 @@ bool TxSender::_buildOrderFrame(const OrderIntent& intent, TxOutboundRecord& rec
         default:
             return false;
     }
-    record.user_ref_num     = m_next_tag++;
-    record.stock_locate     = intent.stock_locate;
-    record.que_idx          = intent.que_idx;
-    record.event_tag        = intent.event_tag;
-    record.shares           = intent.intent.shares;
-    record.price            = intent.intent.price;
+
+    record = TxOutboundRecord {};
+    record.user_ref_num = m_next_tag++;
+    record.stock_locate = execution.stock_locate;
+    record.que_idx = execution.que_idx;
+    record.event_tag = execution.event_tag;
+    record.shares = execution.order.shares;
+    record.price = execution.order.price;
     writeFramePayload(record, side);
+    if (execution.event_tag != 0 && m_latency_tracker != nullptr) {
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = execution.que_idx,
+                .event_tag = execution.event_tag,
+                .event_stage = stage::ORDER_FRAME_BUILT,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (...) {
+        }
+    }
+
     return true;
 }
 
@@ -565,7 +495,6 @@ void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
                 .time_captured = readMonotonicRawNs(),
             });
         } catch (...) {
-            // Latency tracking failure must not affect enqueue success.
         }
     }
 }
@@ -583,109 +512,151 @@ void TxSender::_flushBlockedRecords() {
 
 void TxSender::_rebuildBlockedRecords() {
     m_blocked_outbound.clear();
-    for (uint32_t user_ref_num : m_pending_orders.ordered_tags) {
-        const auto it = m_pending_orders.order_records.find(user_ref_num);
-        if (it != m_pending_orders.order_records.end()) {
-            m_blocked_outbound.push_back(it->second);
+    m_blocked_outbound.reserve(m_pending_orders.live_count);
+    for (const PendingSlot& slot : m_pending_orders.slots) {
+        if (slot.occupied) {
+            m_blocked_outbound.push_back(slot.record);
         }
     }
+
+    std::sort(m_blocked_outbound.begin(),
+              m_blocked_outbound.end(),
+              [](const TxOutboundRecord& lhs, const TxOutboundRecord& rhs) {
+                  return lhs.user_ref_num < rhs.user_ref_num;
+              });
 }
 
-void TxSender::_dropQueuedRecordByTag(uint32_t user_ref_num) {
-    if (!m_ready_outbound.empty()) {
-        const std::size_t old_head = std::min(m_ready_head, m_ready_outbound.size());
-        std::vector<TxOutboundRecord> filtered_ready {};
-        filtered_ready.reserve(m_ready_outbound.size());
+std::size_t TxSender::_computePendingSlotIndex(uint32_t user_ref_num) const noexcept {
+    if (m_pending_orders.slots.empty()) {
+        return 0;
+    }
+    return static_cast<std::size_t>(user_ref_num) & (m_pending_orders.slots.size() - 1U);
+}
 
-        std::size_t new_head = 0;
-        for (std::size_t idx = 0; idx < m_ready_outbound.size(); ++idx) {
-            const TxOutboundRecord& record = m_ready_outbound[idx];
-            if (record.user_ref_num == user_ref_num) {
-                continue;
-            }
-            filtered_ready.push_back(record);
-            if (idx < old_head) {
-                ++new_head;
-            }
-        }
-
-        m_ready_outbound = std::move(filtered_ready);
-        m_ready_head = std::min(new_head, m_ready_outbound.size());
-        _normalizeReadyRecords();
+TxSender::PendingSlot* TxSender::_lookupPendingSlot(uint32_t user_ref_num) noexcept {
+    if (m_pending_orders.slots.empty()) {
+        return nullptr;
     }
 
-    m_blocked_outbound.erase(std::remove_if(m_blocked_outbound.begin(),
-                                            m_blocked_outbound.end(),
-                                            [user_ref_num](const TxOutboundRecord& record) {
-                                                return record.user_ref_num == user_ref_num;
-                                            }),
-                             m_blocked_outbound.end());
+    PendingSlot& slot = m_pending_orders.slots[_computePendingSlotIndex(user_ref_num)];
+    if (!slot.occupied || slot.record.user_ref_num != user_ref_num) {
+        return nullptr;
+    }
+
+    return &slot;
 }
 
-void TxSender::_recordPendingOrder(const TxOutboundRecord& record) {
-    if (m_pending_orders.capacity == 0) {
+const TxSender::PendingSlot* TxSender::_lookupPendingSlot(uint32_t user_ref_num) const noexcept {
+    if (m_pending_orders.slots.empty()) {
+        return nullptr;
+    }
+
+    const PendingSlot& slot = m_pending_orders.slots[_computePendingSlotIndex(user_ref_num)];
+    if (!slot.occupied || slot.record.user_ref_num != user_ref_num) {
+        return nullptr;
+    }
+
+    return &slot;
+}
+
+void TxSender::_clearPendingSlot(PendingSlot& slot) noexcept {
+    if (!slot.occupied) {
         return;
     }
 
-    if (m_pending_orders.ordered_tags.size() == m_pending_orders.capacity &&
-        !m_pending_orders.ordered_tags.empty()) {
-        const uint32_t dropped_tag = m_pending_orders.ordered_tags.front();
-        m_pending_orders.ordered_tags.erase(m_pending_orders.ordered_tags.begin());
-        _dropQueuedRecordByTag(dropped_tag);
-        m_pending_orders.order_records.erase(dropped_tag);
-        _logOrderDropped(dropped_tag);
+    slot.occupied = false;
+    slot.record = TxOutboundRecord {};
+    if (m_pending_orders.live_count > 0) {
+        --m_pending_orders.live_count;
+    }
+}
+
+bool TxSender::_recordPendingOrder(const TxOutboundRecord& record) {
+    if (m_pending_orders.capacity == 0 || m_pending_orders.slots.empty()) {
+        return false;
     }
 
-    m_pending_orders.ordered_tags.push_back(record.user_ref_num);
-    m_pending_orders.order_records[record.user_ref_num] = record;
+    const auto push_pending_stage = [this, &record](stage event_stage) {
+        if (record.event_tag == 0 || m_latency_tracker == nullptr) {
+            return;
+        }
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = record.que_idx,
+                .event_tag = record.event_tag,
+                .event_stage = event_stage,
+                .time_captured = readMonotonicRawNs(),
+            });
+        } catch (...) {
+        }
+    };
+
+    push_pending_stage(stage::PENDING_CAPACITY_HANDLED);
+    if (m_pending_orders.live_count >= m_pending_orders.capacity) {
+        return false;
+    }
+
+    PendingSlot& slot = m_pending_orders.slots[_computePendingSlotIndex(record.user_ref_num)];
+    if (slot.occupied) {
+        return false;
+    }
+
+    push_pending_stage(stage::PENDING_TAG_RECORDED);
+    slot.occupied = true;
+    slot.record = record;
+    m_pending_orders.live_count += 1U;
+    push_pending_stage(stage::PENDING_RECORDED);
+    return true;
 }
 
 void TxSender::_erasePendingOrder(uint32_t user_ref_num) {
-    m_pending_orders.order_records.erase(user_ref_num);
-    const auto it = std::find(m_pending_orders.ordered_tags.begin(),
-                              m_pending_orders.ordered_tags.end(),
-                              user_ref_num);
-    if (it != m_pending_orders.ordered_tags.end()) {
-        m_pending_orders.ordered_tags.erase(it);
-    }
-}
-
-void TxSender::_handleAccepted(uint32_t user_ref_num,
-                               uint32_t shares,
-                               uint32_t price) {
-    const auto found = m_pending_orders.order_records.find(user_ref_num);
-    if (found == m_pending_orders.order_records.end()) {
+    PendingSlot* slot = _lookupPendingSlot(user_ref_num);
+    if (slot == nullptr) {
         return;
     }
-    const uint16_t stock_locate = found->second.stock_locate;
-    _erasePendingOrder(user_ref_num);
-    _logOrderAccepted(user_ref_num, stock_locate, shares, price);
+    _clearPendingSlot(*slot);
+}
+
+void TxSender::_handleAccepted(uint32_t user_ref_num, uint32_t shares, uint32_t price) {
+    PendingSlot* found = _lookupPendingSlot(user_ref_num);
+    if (found == nullptr) {
+        return;
+    }
+    const uint16_t queue_idx = found->record.que_idx;
+    const uint16_t stock_locate = found->record.stock_locate;
+    _clearPendingSlot(*found);
+    _logOrderAccepted(queue_idx, user_ref_num, stock_locate, shares, price);
 }
 
 void TxSender::_handleExecuted(uint32_t user_ref_num,
                                uint32_t executed_shares,
                                uint32_t price,
                                uint64_t match_number) {
-    if (m_pending_orders.order_records.find(user_ref_num) == m_pending_orders.order_records.end()) {
+    PendingSlot* found = _lookupPendingSlot(user_ref_num);
+    if (found == nullptr) {
         return;
     }
-    _erasePendingOrder(user_ref_num);
-    _logOrderFilled(user_ref_num, executed_shares, price, match_number);
+    const uint16_t queue_idx = found->record.que_idx;
+    _clearPendingSlot(*found);
+    _logOrderFilled(queue_idx, user_ref_num, executed_shares, price, match_number);
 }
 
 void TxSender::_handleRejected(uint32_t user_ref_num, uint16_t reason) {
-    if (m_pending_orders.order_records.find(user_ref_num) == m_pending_orders.order_records.end()) {
+    PendingSlot* found = _lookupPendingSlot(user_ref_num);
+    if (found == nullptr) {
         return;
     }
-    _erasePendingOrder(user_ref_num);
-    _logOrderRejected(user_ref_num, reason);
+    const uint16_t queue_idx = found->record.que_idx;
+    _clearPendingSlot(*found);
+    _logOrderRejected(queue_idx, user_ref_num, reason);
 }
 
-void TxSender::_logOrderAccepted(uint32_t user_ref_num,
+void TxSender::_logOrderAccepted(uint16_t queue_idx,
+                                 uint32_t user_ref_num,
                                  uint16_t stock_locate,
                                  uint32_t shares,
                                  uint32_t price) {
-    _pushTxEvent(TxLogRecord {
+    _pushTxEvent(queue_idx, TxLogRecord {
         .event = TxEventKind::OrderAccepted,
         .user_ref_num = user_ref_num,
         .stock_locate = stock_locate,
@@ -694,19 +665,20 @@ void TxSender::_logOrderAccepted(uint32_t user_ref_num,
     });
 }
 
-void TxSender::_logOrderRejected(uint32_t user_ref_num, uint16_t reason) {
-    _pushTxEvent(TxLogRecord {
+void TxSender::_logOrderRejected(uint16_t queue_idx, uint32_t user_ref_num, uint16_t reason) {
+    _pushTxEvent(queue_idx, TxLogRecord {
         .event = TxEventKind::OrderRejected,
         .user_ref_num = user_ref_num,
         .reason = reason,
     });
 }
 
-void TxSender::_logOrderFilled(uint32_t user_ref_num,
+void TxSender::_logOrderFilled(uint16_t queue_idx,
+                               uint32_t user_ref_num,
                                uint32_t shares,
                                uint32_t price,
                                uint64_t match_number) {
-    _pushTxEvent(TxLogRecord {
+    _pushTxEvent(queue_idx, TxLogRecord {
         .event = TxEventKind::OrderFilled,
         .user_ref_num = user_ref_num,
         .price = price,
@@ -715,17 +687,27 @@ void TxSender::_logOrderFilled(uint32_t user_ref_num,
     });
 }
 
-void TxSender::_logOrderDropped(uint32_t user_ref_num) {
-    _pushTxEvent(TxLogRecord {
+void TxSender::_logOrderDropped(uint16_t queue_idx,
+                                uint32_t user_ref_num,
+                                uint16_t stock_locate,
+                                uint32_t shares,
+                                uint32_t price) {
+    _pushTxEvent(queue_idx, TxLogRecord {
         .event = TxEventKind::OrderDropped,
         .user_ref_num = user_ref_num,
+        .stock_locate = stock_locate,
+        .price = price,
+        .shares = shares,
     });
 }
 
-void TxSender::_pushTxEvent(const TxLogRecord& record) {
-    if (m_log_printer != nullptr) {
-        (void)m_log_printer->pushTxEvent(record);
+void TxSender::_pushTxEvent(uint16_t queue_idx, const TxLogRecord& record) {
+    if (m_log_printer == nullptr) {
+        return;
     }
+    TxLogRecord queued_record = record;
+    queued_record.queue_idx = queue_idx;
+    (void)m_log_printer->pushTxLog(queued_record);
 }
 
 void TxSender::_clearReadyRecords() {
@@ -735,7 +717,16 @@ void TxSender::_clearReadyRecords() {
 }
 
 void TxSender::_normalizeReadyRecords() {
-    if (m_ready_head >= m_ready_outbound.size()) {
-        _clearReadyRecords();
+    if (m_ready_head == 0) {
+        return;
     }
+    if (m_ready_head >= m_ready_outbound.size()) {
+        m_ready_outbound.clear();
+        m_ready_head = 0;
+        return;
+    }
+
+    m_ready_outbound.erase(m_ready_outbound.begin(),
+                           m_ready_outbound.begin() + static_cast<std::ptrdiff_t>(m_ready_head));
+    m_ready_head = 0;
 }
