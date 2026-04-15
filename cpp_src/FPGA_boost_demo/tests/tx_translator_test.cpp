@@ -406,6 +406,7 @@ TEST(TxTranslatorTest, trackedReadyOutboundPushesTxEnqueueRecord) {
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
     ASSERT_TRUE(sender.buildOutboundFrames());
+    EXPECT_GT(tracker.run(), 0U);
 
     TxOutboundRecord outbound {};
     ASSERT_TRUE(sender.popReadyOutbound(outbound));
