@@ -1,9 +1,3 @@
-#include "../common/shared_types.h"
-#define private public
-#include "../tx_engine/tx_sender.h"
-#undef private
-#include "../latency/latency_tracker.h"
-
 #include <gtest/gtest.h>
 
 #include <array>
@@ -13,6 +7,12 @@
 #include <type_traits>
 #include <unistd.h>
 #include <vector>
+
+#include "../common/shared_types.h"
+#define private public
+#include "../tx_engine/tx_sender.h"
+#undef private
+#include "../latency/latency_tracker.h"
 
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptIntent)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptInboundFrame)>);
