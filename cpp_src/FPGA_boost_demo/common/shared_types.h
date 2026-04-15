@@ -25,6 +25,11 @@ typedef struct  {
     int64_t b_ns {0};
 }   RegressionPara;
 
+struct RegressionStatusLogRecord {
+    bool has_para {false};
+    double a_ns_per_tick {0.0};
+};
+
 struct FPGAEventDesc {
     uint8_t  is_first_event {0};
     uint32_t ask_price      {0};
@@ -37,13 +42,20 @@ struct FPGAEventDesc {
 };
 
 enum stage {
-    FRAME_START,
-    DMA_EMIT,
-    DECODE,
-    STRATEGY,
-    EXECUTOR,
-    TX_ENQUEUE,
-    TX_SEND
+    FRAME_START = 0,
+    DMA_EMIT = 1,
+    DECODE = 2,
+    STRATEGY_START = 3,
+    EXECUTOR = 4,
+    EXECUTION_TAKEN = 5,
+    TX_EXECUTION_ACCEPTED = 6,
+    TX_EXECUTION_DEQUEUE = 7,
+    TX_ORDER_FRAME_BUILT = 8,
+    TX_PENDING_RECORDED = 9,
+    TX_ENQUEUE = 10,
+    TX_SEND = 11,
+    BATCH_START = 12,
+    BATCH_END = 13
 };
 
 struct TimeRecord {
@@ -76,16 +88,14 @@ struct LatencyLogRecord {
     uint16_t    que_idx {0};
     uint64_t    event_tag {0};
     uint64_t    frame_start_to_dma_emit_ns {0};
-    int64_t     dma_emit_to_decode_ns {0};
-    int64_t     decode_to_strategy_ns {0};
-    int64_t     strategy_to_executor_ns {0};
-    int64_t     executor_to_tx_enqueue_ns {0};
+    int64_t     batch_duration_ns {0};
+    int64_t     batch_end_to_strategy_start_ns {0};
+    int64_t     strategy_start_to_tx_execution_accepted_ns {0};
+    int64_t     tx_execution_accepted_to_tx_execution_dequeue_ns {0};
+    int64_t     tx_execution_dequeue_to_tx_order_frame_built_ns {0};
+    int64_t     tx_order_frame_built_to_tx_pending_recorded_ns {0};
+    int64_t     tx_pending_recorded_to_tx_enqueue_ns {0};
     int64_t     tx_enqueue_to_tx_send_ns {0};
-};
-
-struct RegressionStatusLogRecord {
-    bool has_para {false};
-    double a_ns_per_tick {0.0};
 };
 
 enum class OrderIntentAction : uint8_t {
@@ -107,14 +117,17 @@ struct OrderIntent {
     OrderIntentPayload intent {};
 };
 
-struct ExecutionLogRecord {
+struct OrderExecution {
     uint16_t stock_locate {0};
-    OrderIntentPayload intent {};
+    uint16_t que_idx {0};
+    uint64_t event_tag {0};
+    OrderIntentPayload order {};
 };
 
 enum class TxEventKind : uint8_t {
     ConnectionEstablished,
     ConnectionLost,
+    ConnectionIssue,
     OrderSent,
     OrderAccepted,
     OrderRejected,
@@ -135,6 +148,7 @@ struct TxOutboundRecord {
 };
 
 struct TxLogRecord {
+    uint16_t queue_idx {0};
     TxEventKind event       {TxEventKind::ConnectionEstablished};
     uint32_t user_ref_num   {0};
     uint16_t stock_locate   {0};
@@ -149,7 +163,7 @@ struct TxInboundFrame {
     uint8_t payload_length {0};
 };
 
-enum class TxTransportControlKind : uint8_t {
+enum class TxConnectionKind : uint8_t {
     Connected,
     Disconnected,
 };
@@ -159,10 +173,15 @@ enum class TxTransportEvent : uint8_t {
     Disconnected,
 };
 
-struct TxTransportControl {
-    TxTransportControlKind kind {TxTransportControlKind::Disconnected};
+struct TxConnectionInfo {
+    TxConnectionKind kind {TxConnectionKind::Disconnected};
     uint64_t generation {0};
-    int tx_fd {-1};
+    int fd {-1};
+};
+
+struct TxDisconnectNotice {
+    uint64_t generation {0};
+    uint16_t reason {0};
 };
 
 enum class TxSenderInboundKind : uint8_t {
@@ -173,22 +192,5 @@ enum class TxSenderInboundKind : uint8_t {
 struct TxSenderInboundRecord {
     TxSenderInboundKind kind {TxSenderInboundKind::Frame};
     TxInboundFrame frame {};
-    TxTransportControl transport_event {};
-};
-
-enum class AsyncLogKind : uint8_t {
-    Latency,
-    Snapshot,
-    RegressionStatus,
-    Execution,
-    Tx
-};
-
-struct AsyncLogRecord {
-    AsyncLogKind kind {AsyncLogKind::Latency};
-    LatencyLogRecord latency {};
-    FpgaSyncSnapshot snapshot {};
-    RegressionStatusLogRecord regression_status {};
-    ExecutionLogRecord execution {};
-    TxLogRecord tx {};
+    TxConnectionInfo transport_event {};
 };
