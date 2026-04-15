@@ -37,8 +37,8 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     const uint64_t tx_enqueue_ns = 1540ULL;
     const uint64_t tx_send_ns = 1550ULL;
 
-    testing::internal::CaptureStdout();
     printer.start();
+    testing::internal::CaptureStdout();
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::FRAME_START, frame_start_tick));
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::DMA_EMIT, dma_emit_tick));
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::BATCH_START, batch_start_ns));
@@ -49,6 +49,13 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_ORDER_FRAME_BUILT, tx_order_frame_built_ns));
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_PENDING_RECORDED, tx_pending_recorded_ns));
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_ENQUEUE, tx_enqueue_ns));
+    tracker.run();
+    printer.stop();
+    const std::string pre_tx_send_output = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(pre_tx_send_output.empty());
+
+    printer.start();
+    testing::internal::CaptureStdout();
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_SEND, tx_send_ns));
     tracker.run();
     printer.stop();
