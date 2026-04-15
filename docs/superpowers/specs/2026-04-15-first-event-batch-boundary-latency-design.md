@@ -2,7 +2,7 @@
 
 ## Summary
 
-Replace the current regression-based FPGA-to-host latency conversion in the Venturi RX path with a simpler first-event-only latency model. The new model keeps latency tracking scoped to records where `is_first_event != 0`, removes runtime dependence on `FPGARegression`, and reports three timings:
+Replace the current regression-based FPGA-to-host latency conversion in the Venturi RX path with a simpler first-event-only latency model. The new model keeps latency tracking scoped to records where `is_first_event != 0`, removes runtime dependence on `FPGARegression`, uses only `pollDecodedBatch()`, and reports three timings:
 
 1. `frame_start_to_dma_emit_ns`
 2. `batch_start_ns`
@@ -13,6 +13,8 @@ Replace the current regression-based FPGA-to-host latency conversion in the Vent
 ## Goals
 
 - Remove runtime use of regression from the current RX latency pipeline.
+- Remove regression-driven control flow from `Venturi.cpp`, including capture requests, sync initialization, and the regression thread.
+- Stop using `pollDecodedBatchSync()` in the app path.
 - Keep the existing first-event-only latency ownership model.
 - Make the remaining latency numbers explicit and easy to reason about.
 - Preserve the rest of the RX, strategy, executor, and TX behavior.
@@ -81,9 +83,11 @@ Inside `pollDecodedBatchImpl()`:
 
 The function should return enough information for the caller to know whether a tracked first event existed in the batch and which `event_tag` owns the batch-boundary timestamps.
 
+`pollDecodedBatchSync()` is not part of the active runtime design after this change. The RX path should use `pollDecodedBatch()` only.
+
 ### RX thread
 
-Immediately after `pollDecodedBatchSync()` returns:
+Immediately after `pollDecodedBatch()` returns:
 
 - if the returned batch contains a tracked first event, capture `batch_end_ns`
 - push it against that tracked event's `event_tag`
@@ -123,7 +127,13 @@ If the current `stage` enum is no longer a good fit for these boundaries, it may
 In `Venturi.cpp`:
 
 - stop attaching regression to `LatencyTracker`
-- stop running regression-driven snapshot capture for latency purposes
+- remove `CapSignal capture_signal {}`
+- remove `std::atomic<bool> rx0_capture_request {false}`
+- remove regression-driven snapshot capture for latency purposes
+- remove the regression worker thread entirely
+- remove `FPGA_regression.initSync(...)`
+- comment out `device.setSync(kSyncEnabled);`
+- use `pollDecodedBatch()` in both RX threads
 - keep the rest of the RX thread flow unchanged except for pushing `batch_end_ns`
 
 `FPGARegression` remains in the repository but is no longer part of the active latency pipeline for this app.
@@ -153,6 +163,8 @@ Update or add tests for:
 - first-event-only batch end capture
 - no latency output for batches without a first event
 - fixed-tick conversion for `frame_start_to_dma_emit_ns`
+- `Venturi.cpp` no longer references regression-driven snapshot control
+- RX flow uses `pollDecodedBatch()` rather than `pollDecodedBatchSync()`
 - removal or absence of `dma_emit_to_decode_ns` in logs and tracker outputs
 
 ## Risks
@@ -166,3 +178,5 @@ Update or add tests for:
 - Use integer math for the FPGA tick conversion.
 - Keep the hot path simple and avoid floating-point arithmetic.
 - Do not delete regression code in this change; only remove its runtime wiring from the current latency path.
+- `frame_start_to_dma_emit_ns` is calculated directly from the decoded event fields:
+  - `frame_start_to_dma_emit_ns = (event_tk - frame_start_tk) * 64 / 10`
