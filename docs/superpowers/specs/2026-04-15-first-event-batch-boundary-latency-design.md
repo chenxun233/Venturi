@@ -1,0 +1,168 @@
+# First-Event Batch Boundary Latency Design
+
+## Summary
+
+Replace the current regression-based FPGA-to-host latency conversion in the Venturi RX path with a simpler first-event-only latency model. The new model keeps latency tracking scoped to records where `is_first_event != 0`, removes runtime dependence on `FPGARegression`, and reports three timings:
+
+1. `frame_start_to_dma_emit_ns`
+2. `batch_start_ns`
+3. `batch_end_ns`
+
+`frame_start_to_dma_emit_ns` is derived directly from FPGA ticks using a fixed conversion of `6.4 ns/tick`. `batch_start_ns` and `batch_end_ns` are host timestamps around batch decode processing.
+
+## Goals
+
+- Remove runtime use of regression from the current RX latency pipeline.
+- Keep the existing first-event-only latency ownership model.
+- Make the remaining latency numbers explicit and easy to reason about.
+- Preserve the rest of the RX, strategy, executor, and TX behavior.
+
+## Non-Goals
+
+- Delete `FPGARegression` from the repository.
+- Track latency for non-first events.
+- Rework the broader strategy, executor, or TX stage timing model in this change.
+- Infer or report a trusted `dma_emit_to_decode_ns` value.
+
+## Existing Problem
+
+The current `dma_emit_to_decode_ns` path mixes FPGA-domain timestamps with host-domain timestamps through regression. In practice, the regression anchor and sync snapshot midpoint noise make the converted values unstable enough that the metric is not useful for tuning.
+
+The current implementation already treats latency as first-event-only:
+
+- RX-side latency records are only pushed when `out[record_count].is_first_event != 0`.
+- Strategy-side latency records are only pushed for first events with a non-zero `event_tag`.
+
+That first-event-only contract should remain unchanged.
+
+## Proposed Model
+
+### 1. FPGA-derived metric
+
+Keep `frame_start_to_dma_emit_ns`, but compute it directly from the FPGA record fields:
+
+- start tick: `frame_start_tk`
+- end tick: `event_tk`
+- conversion: `(event_tk - frame_start_tk) * 64 / 10`
+
+This remains a per-first-event metric.
+
+### 2. Host-side batch boundary metrics
+
+Add two host timestamps for the tracked first event in a decoded batch:
+
+- `batch_start_ns`
+- `batch_end_ns`
+
+Definitions:
+
+- `batch_start_ns` is captured inside `pollDecodedBatchImpl()` when the first tracked event in the current batch begins decode handling.
+- `batch_end_ns` is captured immediately after `pollDecodedBatchSync()` returns in the RX thread and is attached to that same tracked event.
+
+If a batch contains no tracked first event, no batch-boundary latency records are emitted for that batch.
+
+### 3. Removed metric
+
+Stop reporting `dma_emit_to_decode_ns` as a runtime latency metric.
+
+Once regression is removed from the runtime path, there is no trustworthy mixed-domain conversion for that interval. The tracker and log output should no longer treat it as a valid number.
+
+## Data Flow
+
+### RX engine
+
+Inside `pollDecodedBatchImpl()`:
+
+- Detect first-event records using the existing `is_first_event != 0` condition.
+- For the first tracked event in the batch:
+  - compute and push `frame_start_to_dma_emit_ns` input data
+  - capture and push `batch_start_ns`
+- Preserve the current decode loop behavior for all records.
+
+The function should return enough information for the caller to know whether a tracked first event existed in the batch and which `event_tag` owns the batch-boundary timestamps.
+
+### RX thread
+
+Immediately after `pollDecodedBatchSync()` returns:
+
+- if the returned batch contains a tracked first event, capture `batch_end_ns`
+- push it against that tracked event's `event_tag`
+
+This keeps `batch_end_ns` outside the decode loop and makes it an explicit end-of-batch boundary.
+
+### Latency tracker
+
+`LatencyTracker` should be simplified to reflect the new model:
+
+- remove runtime dependency on `FPGARegression`
+- remove `FRAME_START` and `DMA_EMIT` stage handling that exists only to support regression conversion
+- remove `dma_emit_to_decode_ns` state, stats updates, and drop handling
+- keep first-event keyed pending-state tracking
+- add handling for:
+  - FPGA-derived `frame_start_to_dma_emit_ns`
+  - host `batch_start_ns`
+  - host `batch_end_ns`
+
+The tracker should only compute metrics that are explicitly valid under the new model.
+
+## API and Type Changes
+
+The shared latency types should be adjusted so they describe the remaining valid fields only.
+
+Expected changes:
+
+- add explicit record support for `batch_start_ns`
+- add explicit record support for `batch_end_ns`
+- remove or stop emitting `dma_emit_to_decode_ns`
+- keep log records aligned with the new metric set
+
+If the current `stage` enum is no longer a good fit for these boundaries, it may be reduced or renamed as part of the cleanup, as long as behavior stays first-event-only and the write path remains clear.
+
+## Runtime Wiring
+
+In `Venturi.cpp`:
+
+- stop attaching regression to `LatencyTracker`
+- stop running regression-driven snapshot capture for latency purposes
+- keep the rest of the RX thread flow unchanged except for pushing `batch_end_ns`
+
+`FPGARegression` remains in the repository but is no longer part of the active latency pipeline for this app.
+
+## Logging
+
+Per-event latency logs should report:
+
+- `frame_start_to_dma_emit_ns`
+- `batch_start_ns`
+- `batch_end_ns`
+- any downstream fields that remain valid after the tracker cleanup
+
+The log output should not print removed metrics as if they are meaningful.
+
+## Error Handling
+
+- If a batch has no first event, do nothing.
+- If the batch-start owner cannot be matched at batch end, drop only that batch-end record.
+- Latency tracking remains best-effort and must not change trading behavior.
+
+## Testing
+
+Update or add tests for:
+
+- first-event-only batch start capture
+- first-event-only batch end capture
+- no latency output for batches without a first event
+- fixed-tick conversion for `frame_start_to_dma_emit_ns`
+- removal or absence of `dma_emit_to_decode_ns` in logs and tracker outputs
+
+## Risks
+
+- The batch-start definition must stay precise. It is the start of decode handling for the tracked first event, not the start of polling the queue.
+- Batches with multiple first-event records need one explicit ownership rule. This design assigns the batch-boundary timestamps to the first tracked event encountered in the batch.
+- Existing tests and log consumers may assume the old metric names and will need coordinated updates.
+
+## Implementation Notes
+
+- Use integer math for the FPGA tick conversion.
+- Keep the hot path simple and avoid floating-point arithmetic.
+- Do not delete regression code in this change; only remove its runtime wiring from the current latency path.
