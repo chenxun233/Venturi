@@ -25,11 +25,6 @@ typedef struct  {
     int64_t b_ns {0};
 }   RegressionPara;
 
-struct RegressionStatusLogRecord {
-    bool has_para {false};
-    double a_ns_per_tick {0.0};
-};
-
 struct FPGAEventDesc {
     uint8_t  is_first_event {0};
     uint32_t ask_price      {0};
@@ -98,6 +93,11 @@ struct LatencyLogRecord {
     int64_t     tx_enqueue_to_tx_send_ns {0};
 };
 
+struct RegressionStatusLogRecord {
+    bool has_para {false};
+    double a_ns_per_tick {0.0};
+};
+
 enum class OrderIntentAction : uint8_t {
     None,
     Buy,
@@ -117,17 +117,14 @@ struct OrderIntent {
     OrderIntentPayload intent {};
 };
 
-struct OrderExecution {
+struct ExecutionLogRecord {
     uint16_t stock_locate {0};
-    uint16_t que_idx {0};
-    uint64_t event_tag {0};
-    OrderIntentPayload order {};
+    OrderIntentPayload intent {};
 };
 
 enum class TxEventKind : uint8_t {
     ConnectionEstablished,
     ConnectionLost,
-    ConnectionIssue,
     OrderSent,
     OrderAccepted,
     OrderRejected,
@@ -148,7 +145,6 @@ struct TxOutboundRecord {
 };
 
 struct TxLogRecord {
-    uint16_t queue_idx {0};
     TxEventKind event       {TxEventKind::ConnectionEstablished};
     uint32_t user_ref_num   {0};
     uint16_t stock_locate   {0};
@@ -163,7 +159,7 @@ struct TxInboundFrame {
     uint8_t payload_length {0};
 };
 
-enum class TxConnectionKind : uint8_t {
+enum class TxTransportControlKind : uint8_t {
     Connected,
     Disconnected,
 };
@@ -173,15 +169,10 @@ enum class TxTransportEvent : uint8_t {
     Disconnected,
 };
 
-struct TxConnectionInfo {
-    TxConnectionKind kind {TxConnectionKind::Disconnected};
+struct TxTransportControl {
+    TxTransportControlKind kind {TxTransportControlKind::Disconnected};
     uint64_t generation {0};
-    int fd {-1};
-};
-
-struct TxDisconnectNotice {
-    uint64_t generation {0};
-    uint16_t reason {0};
+    int tx_fd {-1};
 };
 
 enum class TxSenderInboundKind : uint8_t {
@@ -192,5 +183,22 @@ enum class TxSenderInboundKind : uint8_t {
 struct TxSenderInboundRecord {
     TxSenderInboundKind kind {TxSenderInboundKind::Frame};
     TxInboundFrame frame {};
-    TxConnectionInfo transport_event {};
+    TxTransportControl transport_event {};
+};
+
+enum class AsyncLogKind : uint8_t {
+    Latency,
+    Snapshot,
+    RegressionStatus,
+    Execution,
+    Tx
+};
+
+struct AsyncLogRecord {
+    AsyncLogKind kind {AsyncLogKind::Latency};
+    LatencyLogRecord latency {};
+    FpgaSyncSnapshot snapshot {};
+    RegressionStatusLogRecord regression_status {};
+    ExecutionLogRecord execution {};
+    TxLogRecord tx {};
 };
