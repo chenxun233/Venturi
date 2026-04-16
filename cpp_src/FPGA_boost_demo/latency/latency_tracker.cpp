@@ -80,6 +80,12 @@ void LatencyTracker::_processRecord(const TimeRecord& record) {
         case stage::TX_ENQUEUE:
             _handleTxEnqueue(record, it);
             return;
+        case stage::TX_SEND_ENTER:
+            _handleTxSendEnter(record, it);
+            return;
+        case stage::TX_SEND_SYSCALL_ENTER:
+            _handleTxSendSyscallEnter(record, it);
+            return;
         case stage::TX_SEND:
             _handleTxSend(record, it);
             return;
@@ -114,8 +120,14 @@ void LatencyTracker::_handleMissingPendingRecord(const TimeRecord& record) {
         case stage::TX_ENQUEUE:
             _incrementDrop(record.que_idx, stage::TX_EXECUTION_ACCEPTED, stage::TX_ENQUEUE);
             return;
+        case stage::TX_SEND_ENTER:
+            _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND_ENTER);
+            return;
+        case stage::TX_SEND_SYSCALL_ENTER:
+            _incrementDrop(record.que_idx, stage::TX_SEND_ENTER, stage::TX_SEND_SYSCALL_ENTER);
+            return;
         case stage::TX_SEND:
-            _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND);
+            _incrementDrop(record.que_idx, stage::TX_SEND_SYSCALL_ENTER, stage::TX_SEND);
             return;
         default:
             return;
@@ -265,6 +277,7 @@ void LatencyTracker::_handleTxEnqueue(const TimeRecord& record, PendingIterator 
     }
 
     state.tx_enqueue_tick = record.time_captured;
+    state.tx_enqueue_backlog_depth = record.sender_backlog_depth;
     state.tx_execution_accepted_to_tx_enqueue_ns =
         _readSignedHostDeltaNs(record.time_captured, state.tx_execution_accepted_tick);
     if (state.tx_execution_accepted_to_tx_enqueue_ns >= 0) {
@@ -280,23 +293,76 @@ void LatencyTracker::_handleTxEnqueue(const TimeRecord& record, PendingIterator 
     state.has_tx_enqueue = true;
 }
 
-void LatencyTracker::_handleTxSend(const TimeRecord& record, PendingIterator it) {
+void LatencyTracker::_handleTxSendEnter(const TimeRecord& record, PendingIterator it) {
     PendingEventState& state = it->second;
     if (!state.has_tx_enqueue) {
-        _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND);
+        _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND_ENTER);
         m_pending_records.erase(it);
         return;
     }
 
-    state.tx_enqueue_to_tx_send_ns =
+    state.tx_send_enter_tick = record.time_captured;
+    state.tx_send_enter_backlog_depth = record.sender_backlog_depth;
+    state.tx_enqueue_to_tx_send_enter_ns =
         _readSignedHostDeltaNs(record.time_captured, state.tx_enqueue_tick);
-    if (state.tx_enqueue_to_tx_send_ns >= 0) {
+    if (state.tx_enqueue_to_tx_send_enter_ns >= 0) {
         _updateStats(StageLatency {
             .que_idx = record.que_idx,
             .event_tag = record.event_tag,
             .prev_stage = stage::TX_ENQUEUE,
+            .curr_stage = stage::TX_SEND_ENTER,
+            .latency = static_cast<uint64_t>(state.tx_enqueue_to_tx_send_enter_ns)
+        });
+    }
+
+    state.has_tx_send_enter = true;
+}
+
+void LatencyTracker::_handleTxSendSyscallEnter(const TimeRecord& record, PendingIterator it) {
+    PendingEventState& state = it->second;
+    if (!state.has_tx_send_enter) {
+        _incrementDrop(record.que_idx, stage::TX_SEND_ENTER, stage::TX_SEND_SYSCALL_ENTER);
+        m_pending_records.erase(it);
+        return;
+    }
+
+    state.tx_send_syscall_enter_tick = record.time_captured;
+    state.tx_send_enter_to_tx_send_syscall_enter_ns =
+        _readSignedHostDeltaNs(record.time_captured, state.tx_send_enter_tick);
+    if (state.tx_send_enter_to_tx_send_syscall_enter_ns >= 0) {
+        _updateStats(StageLatency {
+            .que_idx = record.que_idx,
+            .event_tag = record.event_tag,
+            .prev_stage = stage::TX_SEND_ENTER,
+            .curr_stage = stage::TX_SEND_SYSCALL_ENTER,
+            .latency = static_cast<uint64_t>(state.tx_send_enter_to_tx_send_syscall_enter_ns)
+        });
+    }
+
+    state.has_tx_send_syscall_enter = true;
+}
+
+void LatencyTracker::_handleTxSend(const TimeRecord& record, PendingIterator it) {
+    PendingEventState& state = it->second;
+    if (!state.has_tx_send_syscall_enter) {
+        _incrementDrop(record.que_idx, stage::TX_SEND_SYSCALL_ENTER, stage::TX_SEND);
+        m_pending_records.erase(it);
+        return;
+    }
+
+    state.tx_send_syscall_enter_to_tx_send_ns =
+        _readSignedHostDeltaNs(record.time_captured, state.tx_send_syscall_enter_tick);
+    state.tx_send_call_count = record.tx_send_call_count;
+    state.tx_send_bytes_total = record.tx_send_bytes_total;
+    state.tx_send_eintr_retry_count = record.tx_send_eintr_retry_count;
+    state.tx_send_had_partial_write = record.tx_send_had_partial_write;
+    if (state.tx_send_syscall_enter_to_tx_send_ns >= 0) {
+        _updateStats(StageLatency {
+            .que_idx = record.que_idx,
+            .event_tag = record.event_tag,
+            .prev_stage = stage::TX_SEND_SYSCALL_ENTER,
             .curr_stage = stage::TX_SEND,
-            .latency = static_cast<uint64_t>(state.tx_enqueue_to_tx_send_ns)
+            .latency = static_cast<uint64_t>(state.tx_send_syscall_enter_to_tx_send_ns)
         });
     }
 
@@ -309,7 +375,15 @@ void LatencyTracker::_handleTxSend(const TimeRecord& record, PendingIterator it)
             .batch_end_to_strategy_start_ns = state.batch_end_to_strategy_start_ns,
             .strategy_start_to_tx_execution_accepted_ns = state.strategy_start_to_tx_execution_accepted_ns,
             .tx_execution_accepted_to_tx_enqueue_ns = state.tx_execution_accepted_to_tx_enqueue_ns,
-            .tx_enqueue_to_tx_send_ns = state.tx_enqueue_to_tx_send_ns
+            .tx_enqueue_to_tx_send_enter_ns = state.tx_enqueue_to_tx_send_enter_ns,
+            .tx_send_enter_to_tx_send_syscall_enter_ns = state.tx_send_enter_to_tx_send_syscall_enter_ns,
+            .tx_send_syscall_enter_to_tx_send_ns = state.tx_send_syscall_enter_to_tx_send_ns,
+            .tx_enqueue_backlog_depth = state.tx_enqueue_backlog_depth,
+            .tx_send_enter_backlog_depth = state.tx_send_enter_backlog_depth,
+            .tx_send_call_count = state.tx_send_call_count,
+            .tx_send_bytes_total = state.tx_send_bytes_total,
+            .tx_send_eintr_retry_count = state.tx_send_eintr_retry_count,
+            .tx_send_had_partial_write = state.tx_send_had_partial_write
         });
     }
     m_pending_records.erase(it);

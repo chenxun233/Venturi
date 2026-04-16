@@ -48,9 +48,11 @@ enum stage {
     TX_ORDER_FRAME_BUILT = 8,
     TX_PENDING_RECORDED = 9,
     TX_ENQUEUE = 10,
-    TX_SEND = 11,
-    BATCH_START = 12,
-    BATCH_END = 13
+    TX_SEND_ENTER = 11,
+    TX_SEND_SYSCALL_ENTER = 12,
+    TX_SEND = 13,
+    BATCH_START = 14,
+    BATCH_END = 15
 };
 
 struct TimeRecord {
@@ -58,6 +60,11 @@ struct TimeRecord {
     uint64_t    event_tag {0};
     stage       event_stage {stage::DECODE};
     uint64_t    time_captured {0};
+    uint32_t    sender_backlog_depth {0};
+    uint32_t    tx_send_call_count {0};
+    uint32_t    tx_send_bytes_total {0};
+    uint32_t    tx_send_eintr_retry_count {0};
+    uint32_t    tx_send_had_partial_write {0};
 };
 
 struct StageLatency{
@@ -87,7 +94,15 @@ struct LatencyLogRecord {
     int64_t     batch_end_to_strategy_start_ns {0};
     int64_t     strategy_start_to_tx_execution_accepted_ns {0};
     int64_t     tx_execution_accepted_to_tx_enqueue_ns {0};
-    int64_t     tx_enqueue_to_tx_send_ns {0};
+    int64_t     tx_enqueue_to_tx_send_enter_ns {0};
+    int64_t     tx_send_enter_to_tx_send_syscall_enter_ns {0};
+    int64_t     tx_send_syscall_enter_to_tx_send_ns {0};
+    uint32_t    tx_enqueue_backlog_depth {0};
+    uint32_t    tx_send_enter_backlog_depth {0};
+    uint32_t    tx_send_call_count {0};
+    uint32_t    tx_send_bytes_total {0};
+    uint32_t    tx_send_eintr_retry_count {0};
+    uint32_t    tx_send_had_partial_write {0};
 };
 
 struct RegressionStatusLogRecord {

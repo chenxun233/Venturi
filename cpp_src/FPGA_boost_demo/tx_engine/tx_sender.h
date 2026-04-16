@@ -104,6 +104,7 @@ private:
     void _pushTxEvent(uint16_t queue_idx, const TxLogRecord& record);
     void _clearReadyRecords();
     void _normalizeReadyRecords();
+    std::size_t _readReadyBacklogDepth() const noexcept;
 
     TxSenderConfig m_config {};
     PendingOrderState m_pending_orders {};

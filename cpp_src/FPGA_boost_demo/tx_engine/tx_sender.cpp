@@ -326,24 +326,64 @@ void TxSender::_retireGeneration(uint64_t generation) {
 }
 
 bool TxSender::_sendPayload(const TxOutboundRecord& record) {
+    uint32_t tx_send_call_count = 0;
+    uint32_t tx_send_bytes_total = 0;
+    uint32_t tx_send_eintr_retry_count = 0;
+    uint32_t tx_send_had_partial_write = 0;
 #ifndef ISO
     if (record.payload_length == 0 ||
         record.payload_length > record.payload.size() ||
         m_send_fd < 0) {
         return false;
     }
+
+    const uint32_t send_enter_backlog_depth =
+        static_cast<uint32_t>(_readReadyBacklogDepth());
+    if (record.event_tag != 0 && m_latency_tracker != nullptr) {
+        try {
+            m_latency_tracker->pushRecord(TimeRecord {
+                .que_idx = record.que_idx,
+                .event_tag = record.event_tag,
+                .event_stage = stage::TX_SEND_ENTER,
+                .time_captured = readMonotonicRawNs(),
+                .sender_backlog_depth = send_enter_backlog_depth,
+            });
+        } catch (...) {
+        }
+    }
+
     std::size_t offset = 0;
     while (offset < static_cast<std::size_t>(record.payload_length)) {
+        if (offset == 0 && record.event_tag != 0 && m_latency_tracker != nullptr) {
+            try {
+                m_latency_tracker->pushRecord(TimeRecord {
+                    .que_idx = record.que_idx,
+                    .event_tag = record.event_tag,
+                    .event_stage = stage::TX_SEND_SYSCALL_ENTER,
+                    .time_captured = readMonotonicRawNs(),
+                });
+            } catch (...) {
+            }
+        }
+        tx_send_call_count += 1U;
+        const std::size_t bytes_remaining =
+            static_cast<std::size_t>(record.payload_length) - offset;
         const ssize_t written = ::send(
             m_send_fd,
             record.payload.data() + static_cast<std::ptrdiff_t>(offset),
-            static_cast<std::size_t>(record.payload_length) - offset,
+            bytes_remaining,
             MSG_NOSIGNAL);
         if (written > 0) {
+            const std::size_t bytes_written = static_cast<std::size_t>(written);
+            tx_send_bytes_total += static_cast<uint32_t>(bytes_written);
+            if (bytes_written < bytes_remaining) {
+                tx_send_had_partial_write = 1U;
+            }
             offset += static_cast<std::size_t>(written);
             continue;
         }
         if (written < 0 && errno == EINTR) {
+            tx_send_eintr_retry_count += 1U;
             continue;
         }
         if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
@@ -365,19 +405,13 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
                 .event_tag = record.event_tag,
                 .event_stage = stage::TX_SEND,
                 .time_captured = readMonotonicRawNs(),
+                .tx_send_call_count = tx_send_call_count,
+                .tx_send_bytes_total = tx_send_bytes_total,
+                .tx_send_eintr_retry_count = tx_send_eintr_retry_count,
+                .tx_send_had_partial_write = tx_send_had_partial_write,
             });
         } catch (...) {
         }
-    }
-
-    if (record.user_ref_num != 0) {
-        _pushTxEvent(record.que_idx, TxLogRecord {
-            .event = TxEventKind::OrderSent,
-            .user_ref_num = record.user_ref_num,
-            .stock_locate = record.stock_locate,
-            .price = record.price,
-            .shares = record.shares,
-        });
     }
 
     return true;
@@ -471,6 +505,8 @@ bool TxSender::_buildOrderFrame(const OrderExecution& execution, TxOutboundRecor
 
 void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
     _normalizeReadyRecords();
+    const uint32_t enqueue_backlog_depth =
+        static_cast<uint32_t>(_readReadyBacklogDepth());
     m_ready_outbound.push_back(record);
     if (record.event_tag != 0 && m_latency_tracker != nullptr) {
         try {
@@ -479,6 +515,7 @@ void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
                 .event_tag = record.event_tag,
                 .event_stage = stage::TX_ENQUEUE,
                 .time_captured = readMonotonicRawNs(),
+                .sender_backlog_depth = enqueue_backlog_depth,
             });
         } catch (...) {
         }
@@ -699,4 +736,11 @@ void TxSender::_normalizeReadyRecords() {
     m_ready_outbound.erase(m_ready_outbound.begin(),
                            m_ready_outbound.begin() + static_cast<std::ptrdiff_t>(m_ready_head));
     m_ready_head = 0;
+}
+
+std::size_t TxSender::_readReadyBacklogDepth() const noexcept {
+    if (m_ready_head >= m_ready_outbound.size()) {
+        return 0;
+    }
+    return m_ready_outbound.size() - m_ready_head;
 }

@@ -9,12 +9,25 @@
 
 namespace {
 
-TimeRecord makeRecord(uint16_t que_idx, uint64_t event_tag, stage event_stage, uint64_t time_captured) {
+TimeRecord makeRecord(uint16_t que_idx,
+                      uint64_t event_tag,
+                      stage event_stage,
+                      uint64_t time_captured,
+                      uint32_t sender_backlog_depth = 0,
+                      uint32_t tx_send_call_count = 0,
+                      uint32_t tx_send_bytes_total = 0,
+                      uint32_t tx_send_eintr_retry_count = 0,
+                      uint32_t tx_send_had_partial_write = 0) {
     return TimeRecord {
         .que_idx = que_idx,
         .event_tag = event_tag,
         .event_stage = event_stage,
         .time_captured = time_captured,
+        .sender_backlog_depth = sender_backlog_depth,
+        .tx_send_call_count = tx_send_call_count,
+        .tx_send_bytes_total = tx_send_bytes_total,
+        .tx_send_eintr_retry_count = tx_send_eintr_retry_count,
+        .tx_send_had_partial_write = tx_send_had_partial_write,
     };
 }
 
@@ -61,7 +74,9 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     const uint64_t strategy_start_tick = hostNsToTick(1400ULL);
     const uint64_t tx_execution_accepted_tick = hostNsToTick(1500ULL);
     const uint64_t tx_enqueue_tick = hostNsToTick(1540ULL);
-    const uint64_t tx_send_tick = hostNsToTick(1550ULL);
+    const uint64_t tx_send_enter_tick = hostNsToTick(1550ULL);
+    const uint64_t tx_send_syscall_enter_tick = hostNsToTick(1552ULL);
+    const uint64_t tx_send_tick = hostNsToTick(1555ULL);
 
     printer.start();
     testing::internal::CaptureStdout();
@@ -74,7 +89,11 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
                                   event_tag,
                                   stage::TX_EXECUTION_ACCEPTED,
                                   tx_execution_accepted_tick));
-    tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_ENQUEUE, tx_enqueue_tick));
+    tracker.pushRecord(makeRecord(que_idx,
+                                  event_tag,
+                                  stage::TX_ENQUEUE,
+                                  tx_enqueue_tick,
+                                  7U));
     tracker.run();
     printer.stop();
     const std::string pre_tx_send_output = testing::internal::GetCapturedStdout();
@@ -82,7 +101,24 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
 
     printer.start();
     testing::internal::CaptureStdout();
-    tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_SEND, tx_send_tick));
+    tracker.pushRecord(makeRecord(que_idx,
+                                  event_tag,
+                                  stage::TX_SEND_ENTER,
+                                  tx_send_enter_tick,
+                                  3U));
+    tracker.pushRecord(makeRecord(que_idx,
+                                  event_tag,
+                                  stage::TX_SEND_SYSCALL_ENTER,
+                                  tx_send_syscall_enter_tick));
+    tracker.pushRecord(makeRecord(que_idx,
+                                  event_tag,
+                                  stage::TX_SEND,
+                                  tx_send_tick,
+                                  0U,
+                                  2U,
+                                  64U,
+                                  1U,
+                                  1U));
     tracker.run();
     printer.stop();
 
@@ -98,7 +134,7 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
         return std::string(line);
     };
 
-    std::string expected = "LatencyNs queue=0 event_tag=1234\n";
+    std::string expected = "\nLatencyNs queue=0 event_tag=1234\n";
     expected += formatUnsignedLine("frame_start -> dma_emit_ns", frame_start_to_dma_emit_ns);
     expected += formatSignedLine("batch_duration_ns",
                                  hostTickDeltaToNs(batch_end_tick, batch_start_tick));
@@ -109,13 +145,26 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
         hostTickDeltaToNs(tx_execution_accepted_tick, strategy_start_tick));
     expected += formatSignedLine("tx_execution_accepted -> tx_enqueue_ns",
                                  hostTickDeltaToNs(tx_enqueue_tick, tx_execution_accepted_tick));
-    expected += formatSignedLine("tx_enqueue -> tx_send_ns",
-                                 hostTickDeltaToNs(tx_send_tick, tx_enqueue_tick));
+    expected += formatSignedLine("tx_enqueue -> tx_send_enter_ns",
+                                 hostTickDeltaToNs(tx_send_enter_tick, tx_enqueue_tick));
+    expected += formatSignedLine("tx_send_enter -> tx_send_syscall_enter_ns",
+                                 hostTickDeltaToNs(tx_send_syscall_enter_tick,
+                                                   tx_send_enter_tick));
+    expected += formatSignedLine("tx_send_syscall_enter -> tx_send_ns",
+                                 hostTickDeltaToNs(tx_send_tick,
+                                                   tx_send_syscall_enter_tick));
+    expected += formatUnsignedLine("tx_enqueue_backlog_depth", 7ULL);
+    expected += formatUnsignedLine("tx_send_enter_backlog_depth", 3ULL);
+    expected += formatUnsignedLine("tx_send_call_count", 2ULL);
+    expected += formatUnsignedLine("tx_send_bytes_total", 64ULL);
+    expected += formatUnsignedLine("tx_send_eintr_retry_count", 1ULL);
+    expected += formatUnsignedLine("tx_send_had_partial_write", 1ULL);
 
     EXPECT_EQ(output, expected);
     EXPECT_EQ(output.find("tx_execution_accepted -> tx_execution_dequeue_ns"), std::string::npos);
     EXPECT_EQ(output.find("tx_execution_dequeue -> tx_order_frame_built_ns"), std::string::npos);
     EXPECT_EQ(output.find("tx_order_frame_built -> tx_pending_recorded_ns"), std::string::npos);
     EXPECT_EQ(output.find("tx_pending_recorded -> tx_enqueue_ns"), std::string::npos);
+    EXPECT_EQ(output.find("tx_enqueue -> tx_send_ns"), std::string::npos);
     EXPECT_NE(output.find("tx_execution_accepted -> tx_enqueue_ns"), std::string::npos);
 }

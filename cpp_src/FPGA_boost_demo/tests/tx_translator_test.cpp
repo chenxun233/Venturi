@@ -1,11 +1,13 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <type_traits>
 #include <unistd.h>
+#include <vector>
 
 #include "../common/shared_types.h"
 #define private public
@@ -455,4 +457,220 @@ TEST(TxTranslatorTest, buildOutboundFramesPushesOnlyEnqueueSenderLocalLatencySta
     }
 
     EXPECT_TRUE(saw_tx_enqueue);
+}
+
+TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 16);
+    sender.attachLatenyTracker(&tracker);
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x55667788ULL,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
+
+    ASSERT_TRUE(sender.buildOutboundFrames());
+
+    TxOutboundRecord outbound {};
+    ASSERT_TRUE(sender.popReadyOutbound(outbound));
+    ASSERT_TRUE(sender.trySendOutbound(outbound) == false);
+
+    std::vector<stage> failed_send_stages;
+    while (tracker.m_latency_queues[1]->pop(record)) {
+        failed_send_stages.push_back(record.event_stage);
+    }
+
+    EXPECT_NE(std::find(failed_send_stages.begin(), failed_send_stages.end(), stage::TX_ENQUEUE),
+              failed_send_stages.end());
+    EXPECT_EQ(std::find(failed_send_stages.begin(),
+                        failed_send_stages.end(),
+                        stage::TX_SEND_ENTER),
+              failed_send_stages.end());
+    EXPECT_EQ(std::find(failed_send_stages.begin(),
+                        failed_send_stages.end(),
+                        stage::TX_SEND_SYSCALL_ENTER),
+              failed_send_stages.end());
+    EXPECT_EQ(std::find(failed_send_stages.begin(), failed_send_stages.end(), stage::TX_SEND),
+              failed_send_stages.end());
+
+    connectSender(sender, 42, sockets[0]);
+    ASSERT_TRUE(sender.trySendOutbound(outbound));
+
+    std::vector<stage> successful_send_stages;
+    while (tracker.m_latency_queues[1]->pop(record)) {
+        successful_send_stages.push_back(record.event_stage);
+    }
+
+    EXPECT_EQ(std::find(successful_send_stages.begin(),
+                        successful_send_stages.end(),
+                        stage::TX_ENQUEUE),
+              successful_send_stages.end());
+
+    std::vector<stage> all_seen_stages = failed_send_stages;
+    all_seen_stages.insert(all_seen_stages.end(),
+                           successful_send_stages.begin(),
+                           successful_send_stages.end());
+
+    const auto tx_enqueue_it =
+        std::find(all_seen_stages.begin(), all_seen_stages.end(), stage::TX_ENQUEUE);
+    const auto tx_send_enter_it =
+        std::find(all_seen_stages.begin(), all_seen_stages.end(), stage::TX_SEND_ENTER);
+    const auto tx_send_syscall_enter_it =
+        std::find(all_seen_stages.begin(), all_seen_stages.end(), stage::TX_SEND_SYSCALL_ENTER);
+    const auto tx_send_it =
+        std::find(all_seen_stages.begin(), all_seen_stages.end(), stage::TX_SEND);
+
+    EXPECT_NE(tx_enqueue_it, all_seen_stages.end());
+    EXPECT_NE(tx_send_enter_it, all_seen_stages.end());
+    EXPECT_NE(tx_send_syscall_enter_it, all_seen_stages.end());
+    EXPECT_NE(tx_send_it, all_seen_stages.end());
+    EXPECT_LT(tx_enqueue_it, tx_send_enter_it);
+    EXPECT_LT(tx_send_enter_it, tx_send_syscall_enter_it);
+    EXPECT_LT(tx_send_syscall_enter_it, tx_send_it);
+
+    std::array<uint8_t, 2> received {};
+    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
+              static_cast<ssize_t>(received.size()));
+
+    ::close(sockets[1]);
+}
+
+TEST(TxTranslatorTest, senderBacklogDepthIsCapturedAtEnqueueAndSendEnter) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 16);
+    sender.attachLatenyTracker(&tracker);
+    sender.m_send_fd = sockets[0];
+    sender.m_transport_generation = 42;
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x1001ULL,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x1002ULL,
+        .order = {.action = OrderIntentAction::Sell, .price = 223451, .shares = 200},
+    }));
+
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
+
+    ASSERT_TRUE(sender.buildOutboundFrames());
+
+    std::vector<TimeRecord> enqueue_records;
+    while (tracker.m_latency_queues[1]->pop(record)) {
+        if (record.event_stage == stage::TX_ENQUEUE) {
+            enqueue_records.push_back(record);
+        }
+    }
+
+    ASSERT_EQ(enqueue_records.size(), 2U);
+    EXPECT_EQ(enqueue_records[0].sender_backlog_depth, 0U);
+    EXPECT_EQ(enqueue_records[1].sender_backlog_depth, 1U);
+
+    TxOutboundRecord outbound {};
+    ASSERT_TRUE(sender.popReadyOutbound(outbound));
+    ASSERT_TRUE(sender.trySendOutbound(outbound));
+
+    bool saw_tx_send_enter = false;
+    while (tracker.m_latency_queues[1]->pop(record)) {
+        if (record.event_stage != stage::TX_SEND_ENTER) {
+            continue;
+        }
+        saw_tx_send_enter = true;
+        EXPECT_EQ(record.event_tag, 0x1001ULL);
+        EXPECT_EQ(record.sender_backlog_depth, 1U);
+    }
+
+    EXPECT_TRUE(saw_tx_send_enter);
+
+    std::array<uint8_t, 2> received {};
+    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
+              static_cast<ssize_t>(received.size()));
+
+    ::close(sockets[1]);
+}
+
+TEST(TxTranslatorTest, sendLoopStatsAreCapturedOnTxSendRecord) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 16);
+    sender.attachLatenyTracker(&tracker);
+    sender.m_send_fd = sockets[0];
+    sender.m_transport_generation = 42;
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x2001ULL,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
+
+    ASSERT_TRUE(sender.buildOutboundFrames());
+    while (tracker.m_latency_queues[1]->pop(record)) {
+    }
+
+    TxOutboundRecord outbound {};
+    ASSERT_TRUE(sender.popReadyOutbound(outbound));
+    ASSERT_TRUE(sender.trySendOutbound(outbound));
+
+    bool saw_tx_send_syscall_enter = false;
+    bool saw_tx_send = false;
+    while (tracker.m_latency_queues[1]->pop(record)) {
+        if (record.event_stage == stage::TX_SEND_SYSCALL_ENTER) {
+            saw_tx_send_syscall_enter = true;
+            EXPECT_EQ(record.event_tag, 0x2001ULL);
+        }
+        if (record.event_stage != stage::TX_SEND) {
+            continue;
+        }
+        saw_tx_send = true;
+        EXPECT_EQ(record.event_tag, 0x2001ULL);
+        EXPECT_EQ(record.tx_send_call_count, 1U);
+        EXPECT_EQ(record.tx_send_bytes_total, outbound.payload_length);
+        EXPECT_EQ(record.tx_send_eintr_retry_count, 0U);
+        EXPECT_EQ(record.tx_send_had_partial_write, 0U);
+    }
+
+    EXPECT_TRUE(saw_tx_send_syscall_enter);
+    EXPECT_TRUE(saw_tx_send);
+
+    std::array<uint8_t, 2> received {};
+    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
+              static_cast<ssize_t>(received.size()));
+
+    ::close(sockets[1]);
 }

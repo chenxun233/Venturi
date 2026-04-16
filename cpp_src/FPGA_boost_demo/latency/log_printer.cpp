@@ -233,11 +233,10 @@ void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
     const bool has_negative = (record.batch_duration_ns < 0) ||
                               (record.batch_end_to_strategy_start_ns < 0) ||
                               (record.strategy_start_to_tx_execution_accepted_ns < 0) ||
-                              (record.tx_execution_accepted_to_tx_execution_dequeue_ns < 0) ||
-                              (record.tx_execution_dequeue_to_tx_order_frame_built_ns < 0) ||
-                              (record.tx_order_frame_built_to_tx_pending_recorded_ns < 0) ||
-                              (record.tx_pending_recorded_to_tx_enqueue_ns < 0) ||
-                              (record.tx_enqueue_to_tx_send_ns < 0);
+                              (record.tx_execution_accepted_to_tx_enqueue_ns < 0) ||
+                              (record.tx_enqueue_to_tx_send_enter_ns < 0) ||
+                              (record.tx_send_enter_to_tx_send_syscall_enter_ns < 0) ||
+                              (record.tx_send_syscall_enter_to_tx_send_ns < 0);
     auto printSignedLatency = [kLatencyLabelWidth](const char* label, long long value) {
         std::printf("%-*s = %lld\n", kLatencyLabelWidth, label, value);
     };
@@ -245,7 +244,7 @@ void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
                                                      unsigned long long value) {
         std::printf("%-*s = %llu\n", kLatencyLabelWidth, label, value);
     };
-    std::printf("LatencyNs%s queue=%u event_tag=%llu\n",
+    std::printf("\nLatencyNs%s queue=%u event_tag=%llu\n",
                 has_negative ? "[NEG]" : "",
                 static_cast<unsigned int>(record.que_idx),
                 static_cast<unsigned long long>(record.event_tag));
@@ -256,19 +255,26 @@ void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
                        static_cast<long long>(record.batch_end_to_strategy_start_ns));
     printSignedLatency("strategy_start -> tx_execution_accepted_ns",
                        static_cast<long long>(record.strategy_start_to_tx_execution_accepted_ns));
-    printSignedLatency("tx_execution_accepted -> tx_execution_dequeue_ns",
-                       static_cast<long long>(
-                           record.tx_execution_accepted_to_tx_execution_dequeue_ns));
-    printSignedLatency("tx_execution_dequeue -> tx_order_frame_built_ns",
-                       static_cast<long long>(
-                           record.tx_execution_dequeue_to_tx_order_frame_built_ns));
-    printSignedLatency("tx_order_frame_built -> tx_pending_recorded_ns",
-                       static_cast<long long>(
-                           record.tx_order_frame_built_to_tx_pending_recorded_ns));
-    printSignedLatency("tx_pending_recorded -> tx_enqueue_ns",
-                       static_cast<long long>(record.tx_pending_recorded_to_tx_enqueue_ns));
-    printSignedLatency("tx_enqueue -> tx_send_ns",
-                       static_cast<long long>(record.tx_enqueue_to_tx_send_ns));
+    printSignedLatency("tx_execution_accepted -> tx_enqueue_ns",
+                       static_cast<long long>(record.tx_execution_accepted_to_tx_enqueue_ns));
+    printSignedLatency("tx_enqueue -> tx_send_enter_ns",
+                       static_cast<long long>(record.tx_enqueue_to_tx_send_enter_ns));
+    printSignedLatency("tx_send_enter -> tx_send_syscall_enter_ns",
+                       static_cast<long long>(record.tx_send_enter_to_tx_send_syscall_enter_ns));
+    printSignedLatency("tx_send_syscall_enter -> tx_send_ns",
+                       static_cast<long long>(record.tx_send_syscall_enter_to_tx_send_ns));
+    printUnsignedLatency("tx_enqueue_backlog_depth",
+                         static_cast<unsigned long long>(record.tx_enqueue_backlog_depth));
+    printUnsignedLatency("tx_send_enter_backlog_depth",
+                         static_cast<unsigned long long>(record.tx_send_enter_backlog_depth));
+    printUnsignedLatency("tx_send_call_count",
+                         static_cast<unsigned long long>(record.tx_send_call_count));
+    printUnsignedLatency("tx_send_bytes_total",
+                         static_cast<unsigned long long>(record.tx_send_bytes_total));
+    printUnsignedLatency("tx_send_eintr_retry_count",
+                         static_cast<unsigned long long>(record.tx_send_eintr_retry_count));
+    printUnsignedLatency("tx_send_had_partial_write",
+                         static_cast<unsigned long long>(record.tx_send_had_partial_write));
     std::fflush(stdout);
 }
 
