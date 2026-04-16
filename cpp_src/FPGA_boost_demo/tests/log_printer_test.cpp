@@ -15,10 +15,7 @@ static_assert(std::is_same_v<decltype(LatencyLogRecord{}.frame_start_to_dma_emit
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.batch_duration_ns), int64_t>);
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.batch_end_to_strategy_start_ns), int64_t>);
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.strategy_start_to_tx_execution_accepted_ns), int64_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_execution_accepted_to_tx_execution_dequeue_ns), int64_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_execution_dequeue_to_tx_order_frame_built_ns), int64_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_order_frame_built_to_tx_pending_recorded_ns), int64_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_pending_recorded_to_tx_enqueue_ns), int64_t>);
+static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_execution_accepted_to_tx_enqueue_ns), int64_t>);
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_enqueue_to_tx_send_ns), int64_t>);
 
 TEST(LogPrinterTest, latencyRecordPrintsRenamedLatencyFields) {
@@ -30,10 +27,7 @@ TEST(LogPrinterTest, latencyRecordPrintsRenamedLatencyFields) {
         .batch_duration_ns = -5,
         .batch_end_to_strategy_start_ns = -11,
         .strategy_start_to_tx_execution_accepted_ns = 13,
-        .tx_execution_accepted_to_tx_execution_dequeue_ns = -19,
-        .tx_execution_dequeue_to_tx_order_frame_built_ns = 41,
-        .tx_order_frame_built_to_tx_pending_recorded_ns = 101,
-        .tx_pending_recorded_to_tx_enqueue_ns = 47,
+        .tx_execution_accepted_to_tx_enqueue_ns = -19,
         .tx_enqueue_to_tx_send_ns = 23,
     };
 
@@ -59,10 +53,7 @@ TEST(LogPrinterTest, latencyRecordPrintsRenamedLatencyFields) {
     expected += formatSignedLine("batch_duration_ns", -5LL);
     expected += formatSignedLine("batch_end -> strategy_start_ns", -11LL);
     expected += formatSignedLine("strategy_start -> tx_execution_accepted_ns", 13LL);
-    expected += formatSignedLine("tx_execution_accepted -> tx_execution_dequeue_ns", -19LL);
-    expected += formatSignedLine("tx_execution_dequeue -> tx_order_frame_built_ns", 41LL);
-    expected += formatSignedLine("tx_order_frame_built -> tx_pending_recorded_ns", 101LL);
-    expected += formatSignedLine("tx_pending_recorded -> tx_enqueue_ns", 47LL);
+    expected += formatSignedLine("tx_execution_accepted -> tx_enqueue_ns", -19LL);
     expected += formatSignedLine("tx_enqueue -> tx_send_ns", 23LL);
 
     EXPECT_EQ(output, expected);

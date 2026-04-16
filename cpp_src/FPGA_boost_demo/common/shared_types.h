@@ -86,10 +86,7 @@ struct LatencyLogRecord {
     int64_t     batch_duration_ns {0};
     int64_t     batch_end_to_strategy_start_ns {0};
     int64_t     strategy_start_to_tx_execution_accepted_ns {0};
-    int64_t     tx_execution_accepted_to_tx_execution_dequeue_ns {0};
-    int64_t     tx_execution_dequeue_to_tx_order_frame_built_ns {0};
-    int64_t     tx_order_frame_built_to_tx_pending_recorded_ns {0};
-    int64_t     tx_pending_recorded_to_tx_enqueue_ns {0};
+    int64_t     tx_execution_accepted_to_tx_enqueue_ns {0};
     int64_t     tx_enqueue_to_tx_send_ns {0};
 };
 
