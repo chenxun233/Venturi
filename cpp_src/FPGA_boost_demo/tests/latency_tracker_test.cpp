@@ -1,5 +1,6 @@
 #include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
+#include "../common/time_utils.h"
 
 #include <gtest/gtest.h>
 
@@ -19,6 +20,15 @@ TimeRecord makeRecord(uint16_t que_idx, uint64_t event_tag, stage event_stage, u
 
 } // namespace
 
+TEST(LatencyTrackerTest, monotonicRawReadRemainsMonotonic) {
+    const uint64_t first = readMonotonicRawNs();
+    const uint64_t second = readMonotonicRawNs();
+
+    EXPECT_GT(first, 0U);
+    EXPECT_GT(second, 0U);
+    EXPECT_LE(first, second);
+}
+
 TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     LatencyTracker tracker(1, 32);
     LogPrinter printer(1, 32);
@@ -34,9 +44,6 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     const uint64_t batch_end_ns = 1300ULL;
     const uint64_t strategy_start_ns = 1400ULL;
     const uint64_t tx_execution_accepted_ns = 1500ULL;
-    const uint64_t tx_execution_dequeue_ns = 1510ULL;
-    const uint64_t tx_order_frame_built_ns = 1520ULL;
-    const uint64_t tx_pending_recorded_ns = 1530ULL;
     const uint64_t tx_enqueue_ns = 1540ULL;
     const uint64_t tx_send_ns = 1550ULL;
 
@@ -48,9 +55,6 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::BATCH_END, batch_end_ns));
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::STRATEGY_START, strategy_start_ns));
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_EXECUTION_ACCEPTED, tx_execution_accepted_ns));
-    tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_EXECUTION_DEQUEUE, tx_execution_dequeue_ns));
-    tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_ORDER_FRAME_BUILT, tx_order_frame_built_ns));
-    tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_PENDING_RECORDED, tx_pending_recorded_ns));
     tracker.pushRecord(makeRecord(que_idx, event_tag, stage::TX_ENQUEUE, tx_enqueue_ns));
     tracker.run();
     printer.stop();
