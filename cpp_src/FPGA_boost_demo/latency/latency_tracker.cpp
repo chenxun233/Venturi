@@ -1,6 +1,8 @@
 #include "latency_tracker.h"
 #include "log_printer.h"
 
+#include "../common/time_utils.h"
+
 #include <cstdio>
 #include <limits>
 #include <stdexcept>
@@ -75,15 +77,6 @@ void LatencyTracker::_processRecord(const TimeRecord& record) {
             return;
         case stage::EXECUTION_TAKEN:
             return;
-        case stage::TX_EXECUTION_DEQUEUE:
-            _handleTxExecutionDequeue(record, it);
-            return;
-        case stage::TX_ORDER_FRAME_BUILT:
-            _handleTxOrderFrameBuilt(record, it);
-            return;
-        case stage::TX_PENDING_RECORDED:
-            _handleTxPendingRecorded(record, it);
-            return;
         case stage::TX_ENQUEUE:
             _handleTxEnqueue(record, it);
             return;
@@ -118,17 +111,8 @@ void LatencyTracker::_handleMissingPendingRecord(const TimeRecord& record) {
         case stage::TX_EXECUTION_ACCEPTED:
             _incrementDrop(record.que_idx, stage::STRATEGY_START, stage::TX_EXECUTION_ACCEPTED);
             return;
-        case stage::TX_EXECUTION_DEQUEUE:
-            _incrementDrop(record.que_idx, stage::TX_EXECUTION_ACCEPTED, stage::TX_EXECUTION_DEQUEUE);
-            return;
-        case stage::TX_ORDER_FRAME_BUILT:
-            _incrementDrop(record.que_idx, stage::TX_EXECUTION_DEQUEUE, stage::TX_ORDER_FRAME_BUILT);
-            return;
-        case stage::TX_PENDING_RECORDED:
-            _incrementDrop(record.que_idx, stage::TX_ORDER_FRAME_BUILT, stage::TX_PENDING_RECORDED);
-            return;
         case stage::TX_ENQUEUE:
-            _incrementDrop(record.que_idx, stage::TX_PENDING_RECORDED, stage::TX_ENQUEUE);
+            _incrementDrop(record.que_idx, stage::TX_EXECUTION_ACCEPTED, stage::TX_ENQUEUE);
             return;
         case stage::TX_SEND:
             _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND);
@@ -180,7 +164,7 @@ void LatencyTracker::_handleBatchStart(const TimeRecord& record, PendingIterator
         return;
     }
 
-    state.batch_start_ns = record.time_captured;
+    state.batch_start_tick = record.time_captured;
     state.has_batch_start = true;
 }
 
@@ -196,14 +180,14 @@ void LatencyTracker::_handleBatchEnd(const TimeRecord& record, PendingIterator i
         m_pending_records.erase(it);
         return;
     }
-    if (record.time_captured < state.batch_start_ns) {
+    if (record.time_captured < state.batch_start_tick) {
         _incrementDrop(record.que_idx, stage::BATCH_START, stage::BATCH_END);
         m_pending_records.erase(it);
         return;
     }
 
     const int64_t batch_duration_ns =
-        _readSignedDelta(record.time_captured, state.batch_start_ns);
+        _readSignedHostDeltaNs(record.time_captured, state.batch_start_tick);
     if (batch_duration_ns >= 0) {
         _updateStats(StageLatency {
             .que_idx = record.que_idx,
@@ -214,7 +198,7 @@ void LatencyTracker::_handleBatchEnd(const TimeRecord& record, PendingIterator i
         });
     }
 
-    state.batch_end_ns = record.time_captured;
+    state.batch_end_tick = record.time_captured;
     state.batch_duration_ns = batch_duration_ns;
     state.has_batch_end = true;
 }
@@ -226,15 +210,15 @@ void LatencyTracker::_handleStrategyStart(const TimeRecord& record, PendingItera
         m_pending_records.erase(it);
         return;
     }
-    if (record.time_captured < state.batch_end_ns) {
+    if (record.time_captured < state.batch_end_tick) {
         _incrementDrop(record.que_idx, stage::BATCH_END, stage::STRATEGY_START);
         m_pending_records.erase(it);
         return;
     }
 
-    state.strategy_start_ns = record.time_captured;
+    state.strategy_start_tick = record.time_captured;
     state.batch_end_to_strategy_start_ns =
-        _readSignedDelta(record.time_captured, state.batch_end_ns);
+        _readSignedHostDeltaNs(record.time_captured, state.batch_end_tick);
     if (state.batch_end_to_strategy_start_ns >= 0) {
         _updateStats(StageLatency {
             .que_idx = record.que_idx,
@@ -256,9 +240,9 @@ void LatencyTracker::_handleTxExecutionAccepted(const TimeRecord& record, Pendin
         return;
     }
 
-    state.tx_execution_accepted_ns = record.time_captured;
+    state.tx_execution_accepted_tick = record.time_captured;
     state.strategy_start_to_tx_execution_accepted_ns =
-        _readSignedDelta(record.time_captured, state.strategy_start_ns);
+        _readSignedHostDeltaNs(record.time_captured, state.strategy_start_tick);
     if (state.strategy_start_to_tx_execution_accepted_ns >= 0) {
         _updateStats(StageLatency {
             .que_idx = record.que_idx,
@@ -272,96 +256,24 @@ void LatencyTracker::_handleTxExecutionAccepted(const TimeRecord& record, Pendin
     state.has_tx_execution_accepted = true;
 }
 
-void LatencyTracker::_handleTxExecutionDequeue(const TimeRecord& record, PendingIterator it) {
+void LatencyTracker::_handleTxEnqueue(const TimeRecord& record, PendingIterator it) {
     PendingEventState& state = it->second;
     if (!state.has_tx_execution_accepted) {
-        _incrementDrop(record.que_idx, stage::TX_EXECUTION_ACCEPTED, stage::TX_EXECUTION_DEQUEUE);
+        _incrementDrop(record.que_idx, stage::TX_EXECUTION_ACCEPTED, stage::TX_ENQUEUE);
         m_pending_records.erase(it);
         return;
     }
 
-    state.tx_execution_dequeue_ns = record.time_captured;
-    state.tx_execution_accepted_to_tx_execution_dequeue_ns =
-        _readSignedDelta(record.time_captured, state.tx_execution_accepted_ns);
-    if (state.tx_execution_accepted_to_tx_execution_dequeue_ns >= 0) {
+    state.tx_enqueue_tick = record.time_captured;
+    state.tx_execution_accepted_to_tx_enqueue_ns =
+        _readSignedHostDeltaNs(record.time_captured, state.tx_execution_accepted_tick);
+    if (state.tx_execution_accepted_to_tx_enqueue_ns >= 0) {
         _updateStats(StageLatency {
             .que_idx = record.que_idx,
             .event_tag = record.event_tag,
             .prev_stage = stage::TX_EXECUTION_ACCEPTED,
-            .curr_stage = stage::TX_EXECUTION_DEQUEUE,
-            .latency = static_cast<uint64_t>(state.tx_execution_accepted_to_tx_execution_dequeue_ns)
-        });
-    }
-
-    state.has_tx_execution_dequeue = true;
-}
-
-void LatencyTracker::_handleTxOrderFrameBuilt(const TimeRecord& record, PendingIterator it) {
-    PendingEventState& state = it->second;
-    if (!state.has_tx_execution_dequeue) {
-        _incrementDrop(record.que_idx, stage::TX_EXECUTION_DEQUEUE, stage::TX_ORDER_FRAME_BUILT);
-        m_pending_records.erase(it);
-        return;
-    }
-
-    state.tx_order_frame_built_ns = record.time_captured;
-    state.tx_execution_dequeue_to_tx_order_frame_built_ns =
-        _readSignedDelta(record.time_captured, state.tx_execution_dequeue_ns);
-    if (state.tx_execution_dequeue_to_tx_order_frame_built_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::TX_EXECUTION_DEQUEUE,
-            .curr_stage = stage::TX_ORDER_FRAME_BUILT,
-            .latency = static_cast<uint64_t>(state.tx_execution_dequeue_to_tx_order_frame_built_ns)
-        });
-    }
-
-    state.has_tx_order_frame_built = true;
-}
-
-void LatencyTracker::_handleTxPendingRecorded(const TimeRecord& record, PendingIterator it) {
-    PendingEventState& state = it->second;
-    if (!state.has_tx_order_frame_built) {
-        _incrementDrop(record.que_idx, stage::TX_ORDER_FRAME_BUILT, stage::TX_PENDING_RECORDED);
-        m_pending_records.erase(it);
-        return;
-    }
-
-    state.tx_pending_recorded_ns = record.time_captured;
-    state.tx_order_frame_built_to_tx_pending_recorded_ns =
-        _readSignedDelta(record.time_captured, state.tx_order_frame_built_ns);
-    if (state.tx_order_frame_built_to_tx_pending_recorded_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::TX_ORDER_FRAME_BUILT,
-            .curr_stage = stage::TX_PENDING_RECORDED,
-            .latency = static_cast<uint64_t>(state.tx_order_frame_built_to_tx_pending_recorded_ns)
-        });
-    }
-
-    state.has_tx_pending_recorded = true;
-}
-
-void LatencyTracker::_handleTxEnqueue(const TimeRecord& record, PendingIterator it) {
-    PendingEventState& state = it->second;
-    if (!state.has_tx_pending_recorded) {
-        _incrementDrop(record.que_idx, stage::TX_PENDING_RECORDED, stage::TX_ENQUEUE);
-        m_pending_records.erase(it);
-        return;
-    }
-
-    state.tx_enqueue_ns = record.time_captured;
-    state.tx_pending_recorded_to_tx_enqueue_ns =
-        _readSignedDelta(record.time_captured, state.tx_pending_recorded_ns);
-    if (state.tx_pending_recorded_to_tx_enqueue_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::TX_PENDING_RECORDED,
             .curr_stage = stage::TX_ENQUEUE,
-            .latency = static_cast<uint64_t>(state.tx_pending_recorded_to_tx_enqueue_ns)
+            .latency = static_cast<uint64_t>(state.tx_execution_accepted_to_tx_enqueue_ns)
         });
     }
 
@@ -376,7 +288,8 @@ void LatencyTracker::_handleTxSend(const TimeRecord& record, PendingIterator it)
         return;
     }
 
-    state.tx_enqueue_to_tx_send_ns = _readSignedDelta(record.time_captured, state.tx_enqueue_ns);
+    state.tx_enqueue_to_tx_send_ns =
+        _readSignedHostDeltaNs(record.time_captured, state.tx_enqueue_tick);
     if (state.tx_enqueue_to_tx_send_ns >= 0) {
         _updateStats(StageLatency {
             .que_idx = record.que_idx,
@@ -395,10 +308,7 @@ void LatencyTracker::_handleTxSend(const TimeRecord& record, PendingIterator it)
             .batch_duration_ns = state.batch_duration_ns,
             .batch_end_to_strategy_start_ns = state.batch_end_to_strategy_start_ns,
             .strategy_start_to_tx_execution_accepted_ns = state.strategy_start_to_tx_execution_accepted_ns,
-            .tx_execution_accepted_to_tx_execution_dequeue_ns = state.tx_execution_accepted_to_tx_execution_dequeue_ns,
-            .tx_execution_dequeue_to_tx_order_frame_built_ns = state.tx_execution_dequeue_to_tx_order_frame_built_ns,
-            .tx_order_frame_built_to_tx_pending_recorded_ns = state.tx_order_frame_built_to_tx_pending_recorded_ns,
-            .tx_pending_recorded_to_tx_enqueue_ns = state.tx_pending_recorded_to_tx_enqueue_ns,
+            .tx_execution_accepted_to_tx_enqueue_ns = state.tx_execution_accepted_to_tx_enqueue_ns,
             .tx_enqueue_to_tx_send_ns = state.tx_enqueue_to_tx_send_ns
         });
     }
@@ -409,6 +319,23 @@ int64_t LatencyTracker::_readSignedDelta(uint64_t later_ns, uint64_t earlier_ns)
     return (later_ns >= earlier_ns)
         ? static_cast<int64_t>(later_ns - earlier_ns)
         : -static_cast<int64_t>(earlier_ns - later_ns);
+}
+
+int64_t LatencyTracker::_readSignedHostDeltaNs(uint64_t later_tick, uint64_t earlier_tick) {
+    const int64_t signed_tick_delta = _readSignedDelta(later_tick, earlier_tick);
+    const HostTickScale& scale = readHostTickScale();
+    if (scale.use_clock_fallback || scale.tsc_hz == 0) {
+        return signed_tick_delta;
+    }
+
+    const uint64_t abs_tick_delta = (signed_tick_delta >= 0)
+        ? static_cast<uint64_t>(signed_tick_delta)
+        : static_cast<uint64_t>(-signed_tick_delta);
+    const uint64_t delta_ns = static_cast<uint64_t>(
+        (static_cast<__uint128_t>(abs_tick_delta) * 1000000000ULL) / scale.tsc_hz);
+    return (signed_tick_delta >= 0)
+        ? static_cast<int64_t>(delta_ns)
+        : -static_cast<int64_t>(delta_ns);
 }
 
 void LatencyTracker::_updateStats(const StageLatency& latency) {
