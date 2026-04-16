@@ -25,6 +25,7 @@ public:
 private:
     std::size_t pollDecodedBatchImpl(std::size_t max_count,
                                      bool get_snapshot,
+                                     bool emit_batch_start,
                                      FpgaSyncSnapshot* snapshot,
                                      FPGAEventDesc* out);
 

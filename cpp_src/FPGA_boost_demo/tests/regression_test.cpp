@@ -123,6 +123,25 @@ TEST(RegressionTest, frozenSlopeStaysFixedWhileAnchorRefreshes) {
                 10.0);
 }
 
+TEST(RegressionTest, rejectsConversionForTickOlderThanPublishedAnchor) {
+    SequencedSyncDevice device {};
+    appendStableSnapshots(device, 256);
+    FPGARegression regression;
+
+    ASSERT_TRUE(regression.initSync(device, device.snapshots.size(), kAcceptedIntervalNs));
+
+    const uint64_t later_tick = device.snapshots.back().fpga_tick + 400ULL;
+    const FpgaSyncSnapshot later_snapshot {
+        .fpga_tick = later_tick,
+        .host_time_ns = readHostNs(later_tick),
+        .interval_ns = 1000ULL
+    };
+    ASSERT_TRUE(regression.tryAcceptSnapshot(later_snapshot, kAcceptedIntervalNs));
+
+    uint64_t host_time_ns = 0;
+    EXPECT_FALSE(regression.convertFpgaToHostTime(later_tick - 200ULL, host_time_ns));
+}
+
 TEST(RegressionTest, rejectsInvalidIntervalsAndAcceptsQualifiedOnes) {
     FPGARegression regression;
 

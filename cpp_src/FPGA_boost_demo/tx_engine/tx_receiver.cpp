@@ -4,9 +4,21 @@
 #include "tx_connection.h"
 #include "tx_sender.h"
 
+#include <unistd.h>
+
 TxReceiver::TxReceiver(TxConnection& connection, TxSender& sender)
     : m_connection(connection),
       m_sender(sender) {}
+
+TxReceiver::~TxReceiver() {
+    if (m_has_retained_record &&
+        m_retained_record.kind == TxSenderInboundKind::TransportEvent &&
+        m_retained_record.transport_event.kind == TxConnectionKind::Connected &&
+        m_retained_record.transport_event.fd >= 0) {
+        ::close(m_retained_record.transport_event.fd);
+        m_retained_record.transport_event.fd = -1;
+    }
+}
 
 void TxReceiver::attachLogPrinter(LogPrinter* log_printer) {
     // Receiver is the inbound orchestrator in the split runtime. Forward the attachment so a user
@@ -46,10 +58,10 @@ bool TxReceiver::pollOnce() {
 
     bool did_work = had_retained_record;
 
-    did_work = m_connection.pollConnectStep() || did_work;
+    did_work = m_connection.pollConnect() || did_work;
 
-    TxTransportControl transport_control {};
-    if (m_connection.takeTransportControl(transport_control)) {
+    TxConnectionInfo transport_control {};
+    if (m_connection.takeConnectionInfo(transport_control)) {
         if (!m_sender.acceptTransportControl(transport_control)) {
             m_retained_record = TxSenderInboundRecord {
                 .kind = TxSenderInboundKind::TransportEvent,
@@ -76,7 +88,7 @@ bool TxReceiver::pollOnce() {
         did_work = true;
     }
 
-    if (m_connection.takeTransportControl(transport_control)) {
+    if (m_connection.takeConnectionInfo(transport_control)) {
         if (!m_sender.acceptTransportControl(transport_control)) {
             m_retained_record = TxSenderInboundRecord {
                 .kind = TxSenderInboundKind::TransportEvent,

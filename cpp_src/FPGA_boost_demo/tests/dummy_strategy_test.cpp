@@ -22,6 +22,7 @@ TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyStartRecord) {
 
     OrderIntent intent {};
     ASSERT_TRUE(strategy.evaluateEvent(0 ,event, intent));
+    EXPECT_EQ(static_cast<int>(stage::STRATEGY_START), 3);
     EXPECT_EQ(intent.stock_locate, 0x000d);
     EXPECT_EQ(intent.que_idx, 0U);
     EXPECT_EQ(intent.event_tag, 12345U);

@@ -117,6 +117,13 @@ struct OrderIntent {
     OrderIntentPayload intent {};
 };
 
+struct OrderExecution {
+    uint16_t stock_locate {0};
+    uint16_t que_idx {0};
+    uint64_t event_tag {0};
+    OrderIntentPayload order {};
+};
+
 struct ExecutionLogRecord {
     uint16_t stock_locate {0};
     OrderIntentPayload intent {};
@@ -124,6 +131,7 @@ struct ExecutionLogRecord {
 
 enum class TxEventKind : uint8_t {
     ConnectionEstablished,
+    ConnectionIssue,
     ConnectionLost,
     OrderSent,
     OrderAccepted,
@@ -145,6 +153,7 @@ struct TxOutboundRecord {
 };
 
 struct TxLogRecord {
+    uint16_t queue_idx     {0};
     TxEventKind event       {TxEventKind::ConnectionEstablished};
     uint32_t user_ref_num   {0};
     uint16_t stock_locate   {0};
@@ -159,7 +168,7 @@ struct TxInboundFrame {
     uint8_t payload_length {0};
 };
 
-enum class TxTransportControlKind : uint8_t {
+enum class TxConnectionKind : uint8_t {
     Connected,
     Disconnected,
 };
@@ -169,10 +178,15 @@ enum class TxTransportEvent : uint8_t {
     Disconnected,
 };
 
-struct TxTransportControl {
-    TxTransportControlKind kind {TxTransportControlKind::Disconnected};
+struct TxConnectionInfo {
+    TxConnectionKind kind {TxConnectionKind::Disconnected};
     uint64_t generation {0};
-    int tx_fd {-1};
+    int fd {-1};
+};
+
+struct TxDisconnectNotice {
+    uint64_t generation {0};
+    uint16_t reason {0};
 };
 
 enum class TxSenderInboundKind : uint8_t {
@@ -183,7 +197,7 @@ enum class TxSenderInboundKind : uint8_t {
 struct TxSenderInboundRecord {
     TxSenderInboundKind kind {TxSenderInboundKind::Frame};
     TxInboundFrame frame {};
-    TxTransportControl transport_event {};
+    TxConnectionInfo transport_event {};
 };
 
 enum class AsyncLogKind : uint8_t {

@@ -67,7 +67,7 @@ The intended TX-side thread progression is:
 - Stage 1: 1 TX-related thread
   - `TxConnection` only
 - Stage 2: 1 TX-related thread
-  - `TxConnection` and `TxReceiver` colocated on the receiver/control side
+  - `TxConnection` and `TxSender` colocated temporarily
 - Stage 3 and later: 2 TX-related threads
   - receiver/control thread: `TxConnection` + `TxReceiver`
   - sender thread: `TxSender`
@@ -163,66 +163,7 @@ Do not move on until you can explain:
 - how reconnect changes generation
 - what happens if connection is published but not yet consumed
 
-### Stage 2: `TxReceiver` Wired Into `Venturi`
-
-#### Responsibility
-
-Now introduce `TxReceiver` as the true receive-side owner:
-
-- install receiver-side fd from connection control
-- call `recv()`
-- assemble Soup frames
-- detect read-side disconnect
-- produce parsed receive-side outputs
-
-Connection-control handoff should use a dedicated per-consumer SPSC queue:
-
-- `TxConnection -> TxReceiver`: one `SpscRingQueue<TxTransportControl>`
-
-At this stage `TxReceiver` still should not own sender/session/pending state.
-
-If the current `TxReceiver` is only a forwarding shell around `TxConnection`, that is not good enough for this staged design. This stage is where `TxReceiver` becomes the actual receive-side owner.
-
-#### Venturi Wiring
-
-`Venturi.cpp` should:
-
-- create `TxReceiver`
-- pass connection controls to it
-- run a receiver loop or thread
-- route received outputs to a temporary debug sink if `TxSender` is not wired yet
-
-Threading for Stage 2:
-
-- still one TX-related thread
-- `TxConnection` and `TxReceiver` run together on the receiver/control side
-
-#### Expected Observation
-
-You should be able to observe:
-
-- receiver becomes active only after `Connected`
-- inbound Soup frames are assembled correctly
-- receiver-side disconnect is detected from read path
-- `Venturi` visibly contains a real receiver loop, not just a stub
-
-#### Acceptable Incompleteness
-
-At this stage it is acceptable that:
-
-- there is still no sender
-- feedback is only logged or buffered temporarily
-- no replay or pending-order state exists yet
-
-#### Stop Condition
-
-Do not move on until you can explain:
-
-- where inbound partial-frame state lives
-- why that state belongs to receiver, not connection
-- how a read failure turns into a disconnect signal
-
-### Stage 3: `TxSender` Wired Into `Venturi`
+### Stage 2: `TxSender` Wired Into `Venturi`
 
 #### Responsibility
 
@@ -231,12 +172,19 @@ Now introduce `TxSender` as the send-side owner:
 - install sender-side fd from connection control
 - encode outbound Soup/OUCH messages
 - allocate identifiers
+- perform login immediately after sender-side fd installation
 - send test/login/heartbeat traffic
 - own sender-side send helper
 
-Connection-control handoff should also use its own dedicated per-consumer SPSC queue:
+Connection-control handoff should use a dedicated per-consumer SPSC queue:
 
-- `TxConnection -> TxSender`: one `SpscRingQueue<TxTransportControl>`
+- `TxConnection -> TxSender`: one `SpscRingQueue<TxConnectionInfo>`
+- `TxSender -> TxConnection`: one `SpscRingQueue<TxDisconnectNotice>`
+
+Queue ownership rule:
+
+- the consumer owns the SPSC queue object
+- the producer writes through the consumer-facing push API
 
 At this stage it can still be incomplete on feedback-driven completion.
 
@@ -250,28 +198,16 @@ If the current `TxSender` does not clearly own sender-side fd, send path, and pe
 - route sender-side connection controls into it
 - run sender loop or sender-owned processing in the actual runtime
 
-Threading for Stage 3:
+Threading for Stage 2:
 
-- two TX-related threads
-- receiver/control thread:
-  - `TxConnection`
-  - `TxReceiver`
-- sender thread:
-  - `TxSender`
-
-Fan-out rule:
-
-- do not use one shared multi-consumer queue for connection publication
-- `TxConnection` should publish into two separate `SpscRingQueue<TxTransportControl>` instances
-  - one consumed only by `TxReceiver`
-  - one consumed only by `TxSender`
-
-This keeps the publication model simple and preserves single-producer/single-consumer ownership.
+- still one TX-related thread
+- `TxConnection` and `TxSender` run together temporarily
 
 #### Expected Observation
 
 You should be able to observe:
 
+- login is sent immediately after sender-side fd installation
 - login request sent after connect
 - heartbeats sent on schedule
 - sender-side `send()` path active
@@ -290,6 +226,88 @@ Do not move on until you can explain:
 - why sender owns `send()`
 - why sender owns `UserRefNum` allocation
 - why sender should be the authority on pending state
+
+### Stage 3: `TxReceiver` Wired Into `Venturi`
+
+#### Responsibility
+
+Now introduce `TxReceiver` as the true receive-side owner:
+
+- install receiver-side fd from connection control
+- call `recv()`
+- assemble Soup frames
+- detect read-side disconnect
+- produce parsed receive-side outputs
+- receive the session/login context that sender established in Stage 2
+- send login-accepted/session-established info back to `TxSender`
+
+Connection-control handoff should use a dedicated per-consumer SPSC queue:
+
+- `TxConnection -> TxReceiver`: one `SpscRingQueue<TxConnectionInfo>`
+- `TxReceiver -> TxConnection`: one `SpscRingQueue<TxDisconnectNotice>`
+
+Queue ownership rule:
+
+- the consumer owns the SPSC queue object
+- the producer writes through the consumer-facing push API
+
+At this stage `TxReceiver` still should not own sender/session/pending state.
+
+If the current `TxReceiver` is only a forwarding shell around `TxConnection`, that is not good enough for this staged design. This stage is where `TxReceiver` becomes the actual receive-side owner.
+
+#### Venturi Wiring
+
+`Venturi.cpp` should:
+
+- create `TxReceiver`
+- pass connection controls to it
+- wire sender-established login/session info into it
+- wire receiver feedback, including login-accepted/session-established info, back into `TxSender`
+- run a receiver loop or thread
+- route received outputs to a temporary debug sink if `TxSender` is not wired yet
+
+Threading for Stage 3:
+
+- now two TX-related threads
+- receiver/control thread:
+  - `TxConnection`
+  - `TxReceiver`
+- sender thread:
+  - `TxSender`
+
+Failure-notification rule:
+
+- `TxReceiver` and `TxSender` may each hold a reference to `TxConnection`
+- but they should not call reconnect logic directly
+- they should report detected breakage through their own dedicated SPSC notice queues
+- `TxConnection` remains the only reconnect authority
+
+#### Expected Observation
+
+You should be able to observe:
+
+- receiver becomes active only after `Connected`
+- receiver has the login/session context needed to parse the live stream correctly
+- inbound Soup frames are assembled correctly
+- receiver-side disconnect is detected from read path
+- receiver pushes login-accepted/session-established feedback to `TxSender`
+- `TxSender` only starts releasing outbound order frames after that feedback arrives
+- `Venturi` visibly contains a real receiver loop, not just a stub
+
+#### Acceptable Incompleteness
+
+At this stage it is acceptable that:
+
+- there is still no feedback-driven completion path into sender-owned state
+- receive outputs may still go to a temporary debug sink
+
+#### Stop Condition
+
+Do not move on until you can explain:
+
+- where inbound partial-frame state lives
+- why that state belongs to receiver, not connection
+- how a read failure turns into a disconnect signal
 
 ### Stage 4: `TxReceiver -> TxSender` Feedback Wiring
 

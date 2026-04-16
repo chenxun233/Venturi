@@ -123,18 +123,20 @@ add_executable(Venturi
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp
     ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
     ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
+    ${FPGA_COMMON_DIR}/thread_affinity.cpp
     ${FPGA_LATENCY_DIR}/log_printer.cpp
     ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
     ${FPGA_LATENCY_DIR}/latency_tracker.cpp
     ${FPGA_SYNC_DIR}/FPGA_regression.cpp
     ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
     ${FPGA_TUNER_DIR}/tuner.cpp
-    ${FPGA_TX_DIR}/tx_translator.cpp
     ${FPGA_TX_DIR}/executor.cpp
-    ${FPGA_TX_DIR}/tx_engine.cpp
+    ${FPGA_TX_DIR}/tx_connection.cpp
+    ${FPGA_TX_DIR}/tx_sender.cpp
     ${FPGA_VALIDATION_DIR}/runtime_payload_validator.cpp
     ${FPGA_APP_DIR}/Venturi.cpp
 )
+# target_compile_definitions(Venturi PRIVATE ISO=1)
 target_include_directories(Venturi PRIVATE
     ${COMMON_INCLUDES}
     ${INTEL_DRIVER_DIR}
@@ -182,6 +184,7 @@ if(TARGET GTest::gtest_main)
         ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
         ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
         ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
@@ -226,7 +229,9 @@ if(TARGET GTest::gtest_main)
     )
 
     add_executable(tx_translator_test
-        ${FPGA_TX_DIR}/tx_translator.cpp
+        ${FPGA_TX_DIR}/tx_connection.cpp
+        ${FPGA_TX_DIR}/tx_sender.cpp
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
@@ -242,9 +247,13 @@ if(TARGET GTest::gtest_main)
     target_link_libraries(tx_translator_test PRIVATE
         GTest::gtest_main
     )
+    target_link_options(tx_translator_test PRIVATE
+        -Wl,--wrap=send
+    )
 
     add_executable(dummy_strategy_test
         ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
@@ -263,6 +272,7 @@ if(TARGET GTest::gtest_main)
 
     add_executable(executor_test
         ${FPGA_TX_DIR}/executor.cpp
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
@@ -321,7 +331,9 @@ if(TARGET GTest::gtest_main)
     )
 
     add_executable(tx_log_record_test
-        ${FPGA_TX_DIR}/tx_engine.cpp
+        ${FPGA_TX_DIR}/tx_connection.cpp
+        ${FPGA_TX_DIR}/tx_sender.cpp
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
@@ -339,6 +351,7 @@ if(TARGET GTest::gtest_main)
     )
 
     add_executable(log_printer_test
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_TEST_DIR}/log_printer_test.cpp
     )
@@ -352,6 +365,7 @@ if(TARGET GTest::gtest_main)
     )
 
     add_executable(latency_tracker_test
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
@@ -380,14 +394,26 @@ if(TARGET GTest::gtest_main)
         GTest::gtest_main
     )
 
-    add_executable(fixed_ring_buffer_test
-        ${FPGA_TEST_DIR}/fixed_ring_buffer_test.cpp
+    add_executable(fixed_circular_buffer_test
+        ${FPGA_TEST_DIR}/fixed_circular_buffer_test.cpp
     )
-    target_include_directories(fixed_ring_buffer_test PRIVATE
+    target_include_directories(fixed_circular_buffer_test PRIVATE
         ${FPGA_ROOT}/common
         ${FPGA_TEST_DIR}
     )
-    target_link_libraries(fixed_ring_buffer_test PRIVATE
+    target_link_libraries(fixed_circular_buffer_test PRIVATE
+        GTest::gtest_main
+    )
+
+    add_executable(thread_affinity_test
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
+        ${FPGA_TEST_DIR}/thread_affinity_test.cpp
+    )
+    target_include_directories(thread_affinity_test PRIVATE
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(thread_affinity_test PRIVATE
         GTest::gtest_main
     )
 
@@ -406,7 +432,8 @@ if(TARGET GTest::gtest_main)
     gtest_discover_tests(log_printer_test)
     gtest_discover_tests(latency_tracker_test)
     gtest_discover_tests(spsc_ring_queue_overwrite_test)
-    gtest_discover_tests(fixed_ring_buffer_test)
+    gtest_discover_tests(fixed_circular_buffer_test)
+    gtest_discover_tests(thread_affinity_test)
 endif()
 
 ###############################################################################

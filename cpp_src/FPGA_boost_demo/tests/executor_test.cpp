@@ -47,6 +47,7 @@ TEST(ExecutorTest, successfulTrackedAcceptDoesNotPushLatencyRecord) {
     intent.event_tag = 77U;
 
     ASSERT_TRUE(executor.acceptIntent(intent));
+    EXPECT_EQ(static_cast<int>(stage::TX_EXECUTION_ACCEPTED), 6);
 
     TimeRecord record {};
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));

@@ -1,11 +1,23 @@
 #pragma once
 
-#include "tx_engine.h"
+#include "../common/shared_types.h"
+#include "../common/spsc_ring_queue.h"
 
-#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+
+struct GatewayClientConfig {
+    std::string bind_ip                         {"192.168.51.1"};
+    std::string server_ip                       {"192.168.51.2"};
+    uint16_t port                               {9000};
+    std::chrono::milliseconds reconnect_delay   {250};
+    std::chrono::microseconds idle_sleep        {100};
+};
+
+class TxSender;
+class LogPrinter;
 
 class TxConnection {
 public:
@@ -19,29 +31,35 @@ public:
     TxConnection& operator=(TxConnection&&) = delete;
 
     void attachLogPrinter(LogPrinter* log_printer);
-    bool pollConnectStep();
-    bool readInboundFrame(TxInboundFrame& frame);
-    bool takeTransportControl(TxTransportControl& control);
+    void attachQueueIdx(uint16_t queue_idx);
+    void attachSender(TxSender* sender);
+    bool pollConnect();
+    bool pushSenderDisconNotice(const TxDisconnectNotice& notice);
     bool isConnected() const;
+    bool takeSenderConnectionInfo(TxConnectionInfo& info);
 
 private:
-    bool _enableLowLatencySocketOptions();
-    bool _publishConnectedControlForCurrentSocket();
-    void _publishDisconnectedControl(uint64_t generation);
+    bool _enableNonBlocking();
+    bool _enableTCP_NODELAY();
+    bool _updateConnectedInfo();
+    bool _drainDisconNotices();
+    void _updateDisconInfo(uint64_t generation);
+    void _logConnectionIssue(uint16_t reason);
     void _closeConnection();
-    void _handleDisconnect(const char* reason);
+    void _handleDisconnect();
     void _logConnectionEstablished();
     void _logConnectionLost();
     void _pushTxEvent(const TxLogRecord& record);
 
     GatewayClientConfig m_config {};
     LogPrinter* m_log_printer {nullptr};
+    uint16_t m_queue_idx {0};
+    bool m_has_queue_idx {false};
+    TxSender* m_sender {nullptr};
+    SpscRingQueue<TxDisconnectNotice> m_sender_disconnect_notices{8};
     int m_socket_fd {-1};
-    uint64_t m_generation {0};
-    bool m_has_pending_transport_control {false};
-    TxTransportControl m_pending_transport_control {};
-    std::chrono::steady_clock::time_point m_next_connect_attempt_at {};
-    std::array<uint8_t, 67> m_inbound_buffer {};
-    std::size_t m_inbound_size {0};
-    std::size_t m_inbound_expected {0};
+    uint64_t m_socket_generation {0};
+    bool m_has_sender_connection_info {false};
+    TxConnectionInfo m_sender_connection_info {};
+    std::chrono::steady_clock::time_point m_next_connect_attempt_time {};
 };

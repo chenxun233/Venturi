@@ -130,24 +130,24 @@ The latency log output should print one logical event record as a short block:
 - first line contains the event identity header
 - each following line contains exactly one latency metric
 - stage-pair labels use ` -> ` instead of `_to_`
-- latency values are aligned using tabs
+- latency values in the columns are aligned using tabs
 
 Example shape:
 
 ```text
 LatencyNs queue=1 event_tag=767284787
-frame_start -> dma_emit_ns			185
-batch_duration_ns				183
-batch_end -> strategy_start_ns		119
-strategy_start -> tx_execution_accepted_ns	154
-tx_execution_accepted -> tx_execution_dequeue_ns	339
-tx_execution_dequeue -> tx_order_frame_built_ns	130
-tx_order_frame_built -> tx_pending_recorded_ns	177
-tx_pending_recorded -> tx_enqueue_ns	265
-tx_enqueue -> tx_send_ns			9712
+frame_start -> dma_emit_ns			                = 185
+batch_duration_ns				                    = 183
+batch_end -> strategy_start_ns		                = 119
+strategy_start -> tx_execution_accepted_ns	        = 154
+tx_execution_accepted -> tx_execution_dequeue_ns	= 339
+tx_execution_dequeue -> tx_order_frame_built_ns	    = 130
+tx_order_frame_built -> tx_pending_recorded_ns	    = 177
+tx_pending_recorded -> tx_enqueue_ns	            = 265
+tx_enqueue -> tx_send_ns			                = 9712
 ```
 
-The exact tab count can be chosen to keep the values visually aligned in the current logger implementation, but values must not share a single long line anymore.
+The exact tab count can be chosen to keep the values visually aligned vertically in the current logger implementation, but values must not share a single long line anymore.
 
 ## Testing
 

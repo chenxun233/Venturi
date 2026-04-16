@@ -10,8 +10,8 @@
 #include "../common/shared_types.h"
 #define private public
 #include "../tx_engine/tx_sender.h"
-#undef private
 #include "../latency/latency_tracker.h"
+#undef private
 
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptExecution)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::updateConnectionInfo)>);
@@ -405,6 +405,9 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
         .event_tag = 0x12345678ULL,
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
+    EXPECT_EQ(static_cast<int>(stage::TX_EXECUTION_DEQUEUE), 7);
+    EXPECT_EQ(static_cast<int>(stage::TX_ORDER_FRAME_BUILT), 8);
+    EXPECT_EQ(static_cast<int>(stage::TX_PENDING_RECORDED), 9);
     TimeRecord record {};
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
     ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));

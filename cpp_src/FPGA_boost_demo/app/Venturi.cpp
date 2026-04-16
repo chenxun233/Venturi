@@ -2,8 +2,8 @@
 #include "../rx_engine/fpga_rx_engine.h"
 #include "../latency/log_printer.h"
 #include "../latency/latency_tracker.h"
+#include "../common/thread_affinity.h"
 #include "../strategy/dummy_strategy.h"
-#include "../sync/FPGA_regression.h"
 #include "../tx_engine/executor.h"
 #include "../tx_engine/tx_connection.h"
 #include "../tx_engine/tx_sender.h"
@@ -42,18 +42,19 @@ constexpr std::array<uint32_t, kQueueCount> kPriceBases = {
 constexpr bool kSyncEnabled = true;
 constexpr auto kSnapshotPrintInterval = std::chrono::seconds(1);
 constexpr auto kThreadSleepTime = std::chrono::microseconds(100);
-constexpr uint64_t kSnapshotSamplePeriod =10000;
-constexpr std::size_t kInitSyncMaxAttempts = 100000;
 constexpr std::size_t kLatencyQueueCapacity = 1024;
 constexpr std::size_t kLatencyLogCapacity = 4096;
 constexpr std::size_t kExecutorQueueCapacity = 1024;
-constexpr uint64_t    kMaxAcceptInterval = 2000;
 constexpr std::string_view kTxBindIp = "192.168.51.1";
 constexpr std::string_view kTxServerIp = "192.168.51.2";
 constexpr uint16_t kTxServerPort = 9000;
 constexpr std::string_view kTxUsername = "client";
 constexpr std::string_view kTxPassword = "secret";
 constexpr std::string_view kTxSession = "SESSION01";
+constexpr int kRxThread0Cpu = 2;
+constexpr int kRxThread1Cpu = 4;
+constexpr int kLatencyThreadCpu = 6;
+constexpr int kMainAndLogPrinterCpu = 8;
 
 } // namespace
 
@@ -80,11 +81,10 @@ int main() {
         }
     }
 
-    device.setSync(kSyncEnabled);
+    // device.setSync(kSyncEnabled);
 
     FPGARxDecoder decoder0;
     FPGARxDecoder decoder1;
-    FPGARegression FPGA_regression;
     
     FPGARxEngine rx_engine0(device, decoder0, 0);
     FPGARxEngine rx_engine1(device, decoder1, 1);
@@ -124,7 +124,6 @@ int main() {
     executor1.attachQueueIdx(1);
     
     latency_tracker.attachLogPrinter(&log_printer);
-    latency_tracker.attachRegression(&FPGA_regression);
     executor0.attachLogPrinter(&log_printer);
     executor1.attachLogPrinter(&log_printer);
     tx_connection0.attachQueueIdx(0);
@@ -137,50 +136,29 @@ int main() {
     tx_sender1.attachLogPrinter(&log_printer);
     tx_sender0.attachLatenyTracker(&latency_tracker);
     tx_sender1.attachLatenyTracker(&latency_tracker);
+    log_printer.setWorkerCpu(kMainAndLogPrinterCpu);
     log_printer.start();
-    
-    
-    CapSignal capture_signal {};
-    std::array<std::atomic<bool>, kQueueCount> queue_capture_requests {};
-    // init sync
-    if (!FPGA_regression.initSync(device, kInitSyncMaxAttempts, kMaxAcceptInterval)) {
-        error("initSync failed to converge within %zu attempts", kInitSyncMaxAttempts);
-        log_printer.stop();
-        return 1;
-    }
-    std::thread control_thread([&]() {
+
+    std::thread latency_thread([&]() {
+        pinCurrentThreadToCpu(kLatencyThreadCpu);
         while (true) {
-            FPGA_regression.run(capture_signal);
-            
-            if (capture_signal.request.exchange(false, std::memory_order_acq_rel)) {
-                for (std::size_t queue_idx = 0; queue_idx < kQueueCount; ++queue_idx) {
-                    queue_capture_requests[queue_idx].store(true, std::memory_order_release);
-                }
-            }
             const std::size_t processed = latency_tracker.run();
-            if (processed == 0){
-                std::this_thread::sleep_for(kThreadSleepTime);
-            }
+            (void)processed;
         }
     });
 
 
     std::vector<std::thread> rx_threads;
     rx_threads.emplace_back([&]() {
-        FpgaSyncSnapshot snapshot {};
+        pinCurrentThreadToCpu(kRxThread0Cpu);
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
         OrderExecution execution {};
         TxConnectionInfo connection_info {};
 
         while (true) {
-            const bool get_snapshot =
-                queue_capture_requests[0].exchange(false, std::memory_order_acq_rel);
             const std::size_t count =
-                rx_engine0.pollDecodedBatchSync(MAX_POLL_RECORDS, get_snapshot, &snapshot, events);
-            if (get_snapshot) {
-                (void)FPGA_regression.tryAcceptSnapshot(snapshot, kMaxAcceptInterval);
-            }
+                rx_engine0.pollDecodedBatch(MAX_POLL_RECORDS, events);
             if (count > 0) {
                 for (std::size_t idx = 0; idx < count; ++idx) {
                     FPGAEventDesc& event = events[idx];
@@ -192,7 +170,6 @@ int main() {
 
             while (executor0.takeReadyExecution(execution)) {
                 tx_sender0.acceptExecution(execution);
-                executor0.logExecution(execution);
             }
             
             tx_connection0.pollConnect();
@@ -204,20 +181,15 @@ int main() {
     });
 
     rx_threads.emplace_back([&]() {
-        FpgaSyncSnapshot snapshot {};
+        pinCurrentThreadToCpu(kRxThread1Cpu);
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
         OrderExecution execution {};
         TxConnectionInfo connection_info {};
 
         while (true) {
-            const bool get_snapshot =
-                queue_capture_requests[1].exchange(false, std::memory_order_acq_rel);
             const std::size_t count =
-                rx_engine1.pollDecodedBatchSync(MAX_POLL_RECORDS, get_snapshot, &snapshot, events);
-            if (get_snapshot) {
-                (void)FPGA_regression.tryAcceptSnapshot(snapshot, kMaxAcceptInterval);
-            }
+                rx_engine1.pollDecodedBatch(MAX_POLL_RECORDS,  events);
 
             if (count > 0) {
                 for (std::size_t idx = 0; idx < count; ++idx) {
@@ -230,7 +202,7 @@ int main() {
 
             while (executor1.takeReadyExecution(execution)) {
                 tx_sender1.acceptExecution(execution);
-                executor1.logExecution(execution);
+                // executor1.logExecution(execution);
             }
 
             tx_connection1.pollConnect();
@@ -241,13 +213,15 @@ int main() {
         }
     });
 
+    pinCurrentThreadToCpu(kMainAndLogPrinterCpu);
+
     for (std::thread& rx_thread : rx_threads) {
         if (rx_thread.joinable()) {
             rx_thread.join();
         }
     }
-    if (control_thread.joinable()) {
-        control_thread.join();
+    if (latency_thread.joinable()) {
+        latency_thread.join();
     }
     log_printer.stop();
 

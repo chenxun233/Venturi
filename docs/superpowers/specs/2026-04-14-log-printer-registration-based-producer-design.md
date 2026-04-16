@@ -73,7 +73,7 @@ Introduce a lightweight producer handle type associated with exactly one interna
 
 The handle should expose typed methods equivalent to the current producer API, for example:
 
-- `pushLatency(...)`
+- `pushLatencyLog(...)`
 - `pushRegressionStatus(...)`
 - `pushExecution(...)`
 - `pushTxEvent(...)`

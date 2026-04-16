@@ -7,7 +7,7 @@ public:
     DummyStrategy() = default;
     ~DummyStrategy() override = default;
 
-    bool evaluateEvent(const FPGAEventDesc& event, OrderIntent& out_intent, uint16_t que_idx) override;
+    bool evaluateEvent(uint16_t que_idx,const FPGAEventDesc& event, OrderIntent& out_intent) override;
 
 private:
     static constexpr uint32_t kMaxSpread = 100;

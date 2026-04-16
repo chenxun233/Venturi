@@ -19,6 +19,7 @@ FPGARxEngine::FPGARxEngine(BasicRxDev& source,
 std::size_t FPGARxEngine::pollDecodedBatchImpl(
                                                std::size_t max_count,
                                                bool get_snapshot,
+                                               bool emit_batch_start,
                                                FpgaSyncSnapshot* snapshot,
                                                FPGAEventDesc* out) {
 
@@ -54,22 +55,24 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
             const uint64_t decode_time_ns = readMonotonicRawNs();
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = m_que_idx,
-                .event_ts = out[record_count].event_tk,
+                .event_tag = out[record_count].event_tk,
                 .event_stage = stage::FRAME_START,
                 .time_captured = out[record_count].frame_start_tk,
             });
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = m_que_idx,
-                .event_ts = out[record_count].event_tk,
+                .event_tag = out[record_count].event_tk,
                 .event_stage = stage::DMA_EMIT,
                 .time_captured = out[record_count].event_tk,
             });
-            m_latency_tracker->pushRecord(TimeRecord {
-                .que_idx = m_que_idx,
-                .event_ts = out[record_count].event_tk,
-                .event_stage = stage::DECODE,
-                .time_captured = decode_time_ns,
-            });
+            if (emit_batch_start) {
+                m_latency_tracker->pushRecord(TimeRecord {
+                    .que_idx = m_que_idx,
+                    .event_tag = out[record_count].event_tk,
+                    .event_stage = stage::BATCH_START,
+                    .time_captured = decode_time_ns,
+                });
+            }
         }
         ++record_count;
         ++cons_ptr;
@@ -84,7 +87,24 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
 std::size_t FPGARxEngine::pollDecodedBatch(
                                            std::size_t max_count,
                                            FPGAEventDesc* out) {
-    return pollDecodedBatchImpl(max_count, false, nullptr, out);
+    const std::size_t count = pollDecodedBatchImpl(max_count, false, true, nullptr, out);
+    if (m_latency_tracker == nullptr || count == 0) {
+        return count;
+    }
+
+    for (std::size_t idx = 0; idx < count; ++idx) {
+        if (out[idx].is_first_event == 0) {
+            continue;
+        }
+
+        m_latency_tracker->pushRecord(TimeRecord {
+            .que_idx = m_que_idx,
+            .event_tag = out[idx].event_tk,
+            .event_stage = stage::BATCH_END,
+            .time_captured = readMonotonicRawNs(),
+        });
+    }
+    return count;
 }
 
 std::size_t FPGARxEngine::pollDecodedBatchSync(
@@ -92,7 +112,7 @@ std::size_t FPGARxEngine::pollDecodedBatchSync(
                                                bool get_snapshot,
                                                FpgaSyncSnapshot* snapshot,
                                                FPGAEventDesc* out) {
-    return pollDecodedBatchImpl(max_count, get_snapshot, snapshot, out);
+    return pollDecodedBatchImpl(max_count, get_snapshot, false, snapshot, out);
 }
 
 void FPGARxEngine::attachLatenyTracker(LatencyTracker* latency_tracker) {

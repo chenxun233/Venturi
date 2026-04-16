@@ -9,6 +9,11 @@ class TxSender;
 class TxReceiver {
 public:
     TxReceiver(TxConnection& connection, TxSender& sender);
+    ~TxReceiver();
+    TxReceiver(const TxReceiver&) = delete;
+    TxReceiver& operator=(const TxReceiver&) = delete;
+    TxReceiver(TxReceiver&&) = delete;
+    TxReceiver& operator=(TxReceiver&&) = delete;
 
     void attachLogPrinter(LogPrinter* log_printer);
     // pollOnce() runs on the single receiver thread, which is the sole producer for TxSender

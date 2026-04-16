@@ -8,6 +8,7 @@
 #include "../common/time_utils.h"
 
 #include <gtest/gtest.h>
+#include <vector>
 
 namespace {
 
@@ -106,7 +107,7 @@ TEST(FpgaRxEngineTest, pollDecodedBatchReturnsPlainEventsWithoutDecodedWrapper) 
     EXPECT_EQ(out[2].ask_shares, 24U);
 }
 
-TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitAndDecodeRecords) {
+TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitBatchStartAndBatchEndRecords) {
     FakeFPGADev dev(1);
     dev.setRawSlots(0, {
         makeRawSlot(0x000d, 2000ULL, 1900ULL, 12U, 102U, 22U, 107U, 1U),
@@ -126,25 +127,105 @@ TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitAndDecodeRecords) {
     TimeRecord first {};
     TimeRecord second {};
     TimeRecord third {};
-    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(first));
-    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(second));
-    ASSERT_TRUE(tracker.m_trace_buffer[0]->pop(third));
+    TimeRecord fourth {};
+    ASSERT_TRUE(tracker.m_latency_queues[0]->pop(first));
+    ASSERT_TRUE(tracker.m_latency_queues[0]->pop(second));
+    ASSERT_TRUE(tracker.m_latency_queues[0]->pop(third));
+    ASSERT_TRUE(tracker.m_latency_queues[0]->pop(fourth));
     EXPECT_EQ(first.que_idx, 0U);
-    EXPECT_EQ(first.event_ts, 2000U);
+    EXPECT_EQ(first.event_tag, 2000U);
     EXPECT_EQ(first.event_stage, stage::FRAME_START);
     EXPECT_EQ(first.time_captured, 1900U);
     EXPECT_EQ(second.que_idx, 0U);
-    EXPECT_EQ(second.event_ts, 2000U);
+    EXPECT_EQ(second.event_tag, 2000U);
     EXPECT_EQ(second.event_stage, stage::DMA_EMIT);
     EXPECT_EQ(second.time_captured, 2000U);
     EXPECT_EQ(third.que_idx, 0U);
-    EXPECT_EQ(third.event_ts, 2000U);
-    EXPECT_EQ(third.event_stage, stage::DECODE);
+    EXPECT_EQ(third.event_tag, 2000U);
+    EXPECT_EQ(third.event_stage, stage::BATCH_START);
     EXPECT_GT(third.time_captured, 0U);
     EXPECT_GE(third.time_captured, before_ns);
     EXPECT_LE(third.time_captured, after_ns);
+    EXPECT_EQ(fourth.que_idx, 0U);
+    EXPECT_EQ(fourth.event_tag, 2000U);
+    EXPECT_EQ(fourth.event_stage, stage::BATCH_END);
+    EXPECT_GT(fourth.time_captured, 0U);
+    EXPECT_GE(fourth.time_captured, before_ns);
+    EXPECT_LE(fourth.time_captured, after_ns);
     TimeRecord extra {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(extra));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(extra));
+}
+
+TEST(FpgaRxEngineTest, pollDecodedBatchPushesBatchEndForEachFirstEvent) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 2000ULL, 1900ULL, 12U, 102U, 22U, 107U, 1U),
+        makeRawSlot(0x000d, 2001ULL, 1900ULL, 13U, 103U, 23U, 108U, 0U),
+        makeRawSlot(0x000d, 2002ULL, 1900ULL, 14U, 104U, 24U, 109U, 1U),
+    });
+    dev.setProdPtr(0, 3U);
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    LatencyTracker tracker(1, 16);
+    engine.attachLatenyTracker(&tracker);
+    FPGAEventDesc out[3] {};
+
+    const uint64_t before_ns = readMonotonicRawNs();
+    ASSERT_EQ(engine.pollDecodedBatch(3, out), 3U);
+    const uint64_t after_ns = readMonotonicRawNs();
+
+    std::vector<TimeRecord> records;
+    TimeRecord record {};
+    while (tracker.m_latency_queues[0]->pop(record)) {
+        records.push_back(record);
+    }
+
+    ASSERT_EQ(records.size(), 8U);
+    EXPECT_EQ(records[0].event_stage, stage::FRAME_START);
+    EXPECT_EQ(records[1].event_stage, stage::DMA_EMIT);
+    EXPECT_EQ(records[2].event_stage, stage::BATCH_START);
+    EXPECT_EQ(records[3].event_stage, stage::FRAME_START);
+    EXPECT_EQ(records[4].event_stage, stage::DMA_EMIT);
+    EXPECT_EQ(records[5].event_stage, stage::BATCH_START);
+    EXPECT_EQ(records[6].event_stage, stage::BATCH_END);
+    EXPECT_EQ(records[7].event_stage, stage::BATCH_END);
+    EXPECT_EQ(records[2].event_tag, 2000U);
+    EXPECT_EQ(records[5].event_tag, 2002U);
+    EXPECT_EQ(records[6].event_tag, 2000U);
+    EXPECT_EQ(records[7].event_tag, 2002U);
+    EXPECT_GE(records[6].time_captured, before_ns);
+    EXPECT_LE(records[6].time_captured, after_ns);
+    EXPECT_GE(records[7].time_captured, before_ns);
+    EXPECT_LE(records[7].time_captured, after_ns);
+}
+
+TEST(FpgaRxEngineTest, pollDecodedBatchSyncDoesNotPushBatchBoundaryRecords) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 2100ULL, 2000ULL, 12U, 102U, 22U, 107U, 1U),
+    });
+    dev.setProdPtr(0, 1U);
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    LatencyTracker tracker(1, 8);
+    engine.attachLatenyTracker(&tracker);
+    FPGAEventDesc out[1] {};
+
+    ASSERT_EQ(engine.pollDecodedBatchSync(1, false, nullptr, out), 1U);
+
+    std::vector<TimeRecord> records;
+    TimeRecord record {};
+    while (tracker.m_latency_queues[0]->pop(record)) {
+        records.push_back(record);
+    }
+
+    ASSERT_EQ(records.size(), 2U);
+    EXPECT_EQ(records[0].event_stage, stage::FRAME_START);
+    EXPECT_EQ(records[1].event_stage, stage::DMA_EMIT);
+    EXPECT_EQ(records[0].event_tag, 2100U);
+    EXPECT_EQ(records[1].event_tag, 2100U);
 }
 
 TEST(FpgaRxEngineTest, firstEventWithoutTrackerDoesNotEmitLatencyRecords) {
@@ -161,10 +242,10 @@ TEST(FpgaRxEngineTest, firstEventWithoutTrackerDoesNotEmitLatencyRecords) {
 
     ASSERT_EQ(engine.pollDecodedBatch(1, out), 1U);
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
-TEST(FpgaRxEngineTest, nonFirstEventDoesNotPushLatencyRecords) {
+TEST(FpgaRxEngineTest, nonFirstEventDoesNotpushLatencyLogRecords) {
     FakeFPGADev dev(1);
     dev.setRawSlots(0, {
         makeRawSlot(0x000d, 2001ULL, 1900ULL, 13U, 103U, 23U, 108U, 0U),
@@ -179,5 +260,5 @@ TEST(FpgaRxEngineTest, nonFirstEventDoesNotPushLatencyRecords) {
 
     ASSERT_EQ(engine.pollDecodedBatch(1, out), 1U);
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_trace_buffer[0]->pop(record));
+    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }

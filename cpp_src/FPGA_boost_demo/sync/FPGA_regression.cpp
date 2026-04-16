@@ -60,6 +60,9 @@ bool FPGARegression::convertFpgaToHostTime(uint64_t fpga_tick, uint64_t& host_ti
     if (!published->regression_para.has_para || published->anchor_snapshot.interval_ns == 0) {
         return false;
     }
+    if (fpga_tick < published->anchor_snapshot.fpga_tick) {
+        return false;
+    }
 
     const uint64_t delta_ns =
         _scaleTicksToNs(fpga_tick - published->anchor_snapshot.fpga_tick,

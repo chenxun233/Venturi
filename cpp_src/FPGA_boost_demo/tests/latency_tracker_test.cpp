@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <string>
 
 namespace {
@@ -27,6 +28,8 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     const uint64_t event_tag = 1234ULL;
     const uint64_t frame_start_tick = 100ULL;
     const uint64_t dma_emit_tick = 110ULL;
+    const uint64_t frame_start_to_dma_emit_ns =
+        ((dma_emit_tick - frame_start_tick) * 64ULL) / 10ULL;
     const uint64_t batch_start_ns = 1000ULL;
     const uint64_t batch_end_ns = 1300ULL;
     const uint64_t strategy_start_ns = 1400ULL;
@@ -61,12 +64,30 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     printer.stop();
 
     const std::string output = testing::internal::GetCapturedStdout();
-    EXPECT_NE(output.find("batch_end_to_strategy_start_ns=100"), std::string::npos);
-    EXPECT_NE(output.find("strategy_start_to_tx_execution_accepted_ns=100"), std::string::npos);
-    EXPECT_NE(output.find("tx_execution_accepted_to_tx_execution_dequeue_ns=10"), std::string::npos);
-    EXPECT_NE(output.find("tx_execution_dequeue_to_tx_order_frame_built_ns=10"), std::string::npos);
-    EXPECT_NE(output.find("tx_order_frame_built_to_tx_pending_recorded_ns=10"), std::string::npos);
-    EXPECT_NE(output.find("tx_pending_recorded_to_tx_enqueue_ns=10"), std::string::npos);
-    EXPECT_NE(output.find("tx_enqueue_to_tx_send_ns=10"), std::string::npos);
+    auto formatSignedLine = [](const char* label, long long value) {
+        char line[128];
+        std::snprintf(line, sizeof(line), "%-48s = %lld\n", label, value);
+        return std::string(line);
+    };
+    auto formatUnsignedLine = [](const char* label, unsigned long long value) {
+        char line[128];
+        std::snprintf(line, sizeof(line), "%-48s = %llu\n", label, value);
+        return std::string(line);
+    };
+
+    std::string expected = "LatencyNs queue=0 event_tag=1234\n";
+    expected += formatUnsignedLine("frame_start -> dma_emit_ns", frame_start_to_dma_emit_ns);
+    expected += formatSignedLine("batch_duration_ns", 300LL);
+    expected += formatSignedLine("batch_end -> strategy_start_ns", 100LL);
+    expected += formatSignedLine("strategy_start -> tx_execution_accepted_ns", 100LL);
+    expected += formatSignedLine("tx_execution_accepted -> tx_execution_dequeue_ns", 10LL);
+    expected += formatSignedLine("tx_execution_dequeue -> tx_order_frame_built_ns", 10LL);
+    expected += formatSignedLine("tx_order_frame_built -> tx_pending_recorded_ns", 10LL);
+    expected += formatSignedLine("tx_pending_recorded -> tx_enqueue_ns", 10LL);
+    expected += formatSignedLine("tx_enqueue -> tx_send_ns", 10LL);
+
+    EXPECT_EQ(output, expected);
+    EXPECT_EQ(output.find("strategy_to_executor_ns="), std::string::npos);
+    EXPECT_EQ(output.find("executor_to_execution_dequeue_ns="), std::string::npos);
     EXPECT_EQ(output.find("executor_to_tx_enqueue_ns="), std::string::npos);
 }

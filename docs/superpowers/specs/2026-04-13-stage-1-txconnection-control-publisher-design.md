@@ -26,7 +26,7 @@ Chosen approach:
 
 - keep `TxConnection` only
 - wire it into `Venturi.cpp`
-- add a tiny control-drain loop/thread in `Venturi`
+- add a tiny connection lifecycle loop/thread in `Venturi`
 - do not instantiate `TxReceiver`
 - do not instantiate `TxSender`
 - do not add login or order flow
@@ -46,7 +46,7 @@ Rejected alternatives:
 - socket creation
 - socket option setup
 - connection generation tracking
-- publication of `TxTransportControl`
+- publication of `TxConnectionInfo`
 - cleanup of unpublished fds on teardown
 
 ### `TxConnection` Does Not Own
@@ -73,8 +73,8 @@ public:
     ~TxConnection();
 
     void attachLogPrinter(LogPrinter* log_printer);
-    bool pollConnectStep();
-    bool takeTransportControl(TxTransportControl& control);
+    bool pollConnect();
+    bool takeConnectionInfo(TxConnectionInfo& control);
     bool isConnected() const;
 };
 ```
@@ -93,10 +93,11 @@ Stage 1 should prefer the final ownership direction, but it does not need to ful
 `Venturi.cpp` should be changed only enough to make Stage 1 visible:
 
 - construct `TxConnection`
-- start a small connection-control thread or loop
-- repeatedly call `pollConnectStep()`
-- drain `takeTransportControl()`
-- store the latest observed control in local Stage 1 runtime state only
+- start a small connection lifecycle thread or loop
+- repeatedly call `pollConnect()`
+- do not interpret published transport-control state in `Venturi`
+- do not close published transport-control fds in `Venturi`
+- keep TX lifecycle state internal to the TX module boundary
 
 No other TX modules should be instantiated in this stage.
 In particular, `Venturi.cpp` should remove or temporarily omit:
@@ -114,14 +115,9 @@ That means Stage 1 `Venturi.cpp` is allowed to have a temporary shape like:
 TxConnection tx_connection(...);
 
 std::thread tx_connection_thread([&]() {
-    TxTransportControl control {};
     while (true) {
         bool did_work = false;
-        did_work = tx_connection.pollConnectStep() || did_work;
-        while (tx_connection.takeTransportControl(control)) {
-            // Stage 1 local observation only
-            did_work = true;
-        }
+        did_work = tx_connection.pollConnect() || did_work;
         if (!did_work) {
             std::this_thread::sleep_for(kThreadSleepTime);
         }
@@ -130,6 +126,13 @@ std::thread tx_connection_thread([&]() {
 ```
 
 The exact local observation container can be simple. No separate observer object is required.
+Published controls remain observable through tests in Stage 1, not through local `Venturi` variables or local connection-state mirrors.
+
+## Logging
+
+Stage 1 `TxConnection` should not print directly from the connection thread.
+
+Connection lifecycle issues should be emitted through the TX log path into `LogPrinter`, not through `std::printf` inside the module.
 
 ## Expected Observation
 
@@ -210,3 +213,4 @@ Stage 1 is complete when:
 3. `TxConnection` publishes connection controls that can be observed locally in `Venturi`
 4. no sender/receiver/protocol behavior is required for the stage to run
 5. Stage 1 tests cover only connection lifecycle and control publication
+6. `Venturi.cpp` does not manually own TX lifecycle state or published TX fds

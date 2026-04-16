@@ -20,7 +20,7 @@ struct TxSenderConfig {
     std::chrono::steady_clock::duration heartbeat_interval {std::chrono::seconds(1)};
     std::size_t intent_capacity {1024};
     std::size_t pending_capacity {1024};
-    std::size_t pending_slot_count {1024};
+    std::size_t pending_slot_count {65536};
     std::size_t transport_capacity {1024};
 };
 

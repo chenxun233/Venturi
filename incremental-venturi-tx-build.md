@@ -30,7 +30,7 @@ Important:
 - Stage 1: 1 TX-related thread
   - `TxConnection` only
 - Stage 2: 1 TX-related thread
-  - `TxConnection` + `TxReceiver`
+  - `TxConnection` + `TxSender`
 - Stage 3 and later: 2 TX-related threads
   - receiver/control thread: `TxConnection` + `TxReceiver`
   - sender thread: `TxSender`
@@ -74,45 +74,20 @@ Also for Stage 1:
 - do not close published TX fds in `Venturi`
 - push connection issues to `LogPrinter`, not `printf` from the connection thread
 
-### 2. `TxReceiver`
-
-Build only:
-
-- install receiver-side fd
-- `recv()`
-- Soup frame assembly
-- read-side disconnect detection
-- consume connection controls from its own `SpscRingQueue<TxTransportControl>`
-
-Observe:
-
-- receiver becomes active after connect
-- inbound frames are assembled
-- read-side disconnect is detected
-
-Do not require yet:
-
-- sender-side completion logic
-
-Threading:
-
-- `TxConnection` and `TxReceiver` should share the same receiver/control thread in this stage
-- `TxConnection -> TxReceiver` should use one dedicated `SpscRingQueue<TxTransportControl>`
-
-If current `TxReceiver` is only a bridge/wrapper, this stage is where it stops being acceptable.
-
-### 3. `TxSender`
+### 2. `TxSender`
 
 Build only:
 
 - install sender-side fd
 - outbound encoding
+- send login immediately after fd install
 - login / heartbeat send
 - sender-side socket ownership
-- consume connection controls from its own `SpscRingQueue<TxTransportControl>`
+- consume connection controls from its own `SpscRingQueue<TxConnectionInfo>`
 
 Observe:
 
+- login is sent as soon as sender gets the updated fd
 - login frame is sent
 - heartbeat path works
 - sender loop is live in `Venturi.cpp`
@@ -121,14 +96,52 @@ Do not require yet:
 
 - full feedback-driven completion
 
+Threading:
+
+- this stage still uses 1 TX-related thread
+- `TxConnection` and `TxSender` may share that thread temporarily
+- `TxConnection -> TxSender` should use one dedicated `SpscRingQueue<TxConnectionInfo>`
+- `TxSender` should own that queue
+- `TxConnection` should publish through the sender-facing push API
+
 If current `TxSender` does not clearly own send-side authority, rewrite it in place.
+
+### 3. `TxReceiver`
+
+Build only:
+
+- install receiver-side fd
+- `recv()`
+- Soup frame assembly
+- read-side disconnect detection
+- consume connection controls from its own `SpscRingQueue<TxConnectionInfo>`
+- receive the login/session info established by sender in Stage 2
+- send login-accepted/session-established info back to `TxSender`
+
+Observe:
+
+- receiver becomes active after connect
+- receiver has the login/session context needed for live receive-side parsing
+- inbound frames are assembled
+- read-side disconnect is detected
+- receiver pushes login-accepted/session-established info back to sender
+- sender does not release outbound order frames until that feedback arrives
+
+Do not require yet:
+
+- sender-side completion logic
+
+If current `TxReceiver` is only a bridge/wrapper, this stage is where it stops being acceptable.
 
 Threading:
 
-- this is the first stage with 2 TX-related threads
+- this is now the first stage with 2 TX-related threads
 - receiver/control thread: `TxConnection` + `TxReceiver`
 - sender thread: `TxSender`
-- `TxConnection -> TxSender` should use a second dedicated `SpscRingQueue<TxTransportControl>`
+- `TxConnection -> TxReceiver` should use one dedicated `SpscRingQueue<TxConnectionInfo>`
+- `TxReceiver` should own that queue
+- `TxConnection` should publish through the receiver-facing push API
+- `TxReceiver -> TxConnection` should use one dedicated `SpscRingQueue<TxDisconnectNotice>`
 - do not use one shared multi-consumer queue
 
 ### 4. Receiver To Sender Feedback

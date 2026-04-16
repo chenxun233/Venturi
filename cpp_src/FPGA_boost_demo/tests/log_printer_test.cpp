@@ -66,5 +66,7 @@ TEST(LogPrinterTest, latencyRecordPrintsRenamedLatencyFields) {
     expected += formatSignedLine("tx_enqueue -> tx_send_ns", 23LL);
 
     EXPECT_EQ(output, expected);
+    EXPECT_EQ(output.find("strategy_to_executor_ns="), std::string::npos);
+    EXPECT_EQ(output.find("executor_to_execution_dequeue_ns="), std::string::npos);
     EXPECT_EQ(output.find("executor_to_tx_enqueue_ns"), std::string::npos);
 }
