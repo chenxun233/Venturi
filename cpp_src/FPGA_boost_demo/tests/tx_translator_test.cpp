@@ -425,7 +425,7 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
     EXPECT_EQ(outbound.event_tag, 0x12345678ULL);
 }
 
-TEST(TxTranslatorTest, buildOutboundFramesPushesRenamedSenderLocalLatencyStages) {
+TEST(TxTranslatorTest, buildOutboundFramesPushesOnlyEnqueueSenderLocalLatencyStage) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
         .pending_slot_count = 64,
@@ -446,19 +446,13 @@ TEST(TxTranslatorTest, buildOutboundFramesPushesRenamedSenderLocalLatencyStages)
 
     ASSERT_TRUE(sender.buildOutboundFrames());
 
-    bool saw_tx_execution_dequeue = false;
-    bool saw_tx_order_frame_built = false;
-    bool saw_tx_pending_recorded = false;
+    bool saw_tx_enqueue = false;
     while (tracker.m_latency_queues[1]->pop(record)) {
-        saw_tx_execution_dequeue =
-            saw_tx_execution_dequeue || (record.event_stage == stage::TX_EXECUTION_DEQUEUE);
-        saw_tx_order_frame_built =
-            saw_tx_order_frame_built || (record.event_stage == stage::TX_ORDER_FRAME_BUILT);
-        saw_tx_pending_recorded =
-            saw_tx_pending_recorded || (record.event_stage == stage::TX_PENDING_RECORDED);
+        saw_tx_enqueue = saw_tx_enqueue || (record.event_stage == stage::TX_ENQUEUE);
+        EXPECT_NE(record.event_stage, stage::TX_EXECUTION_DEQUEUE);
+        EXPECT_NE(record.event_stage, stage::TX_ORDER_FRAME_BUILT);
+        EXPECT_NE(record.event_stage, stage::TX_PENDING_RECORDED);
     }
 
-    EXPECT_TRUE(saw_tx_execution_dequeue);
-    EXPECT_TRUE(saw_tx_order_frame_built);
-    EXPECT_TRUE(saw_tx_pending_recorded);
+    EXPECT_TRUE(saw_tx_enqueue);
 }

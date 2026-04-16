@@ -427,17 +427,6 @@ bool TxSender::buildOutboundFrames() {
     while (!m_execution_buffer.isEmpty()) {
         OrderExecution execution = m_execution_buffer.readFront();
         (void)m_execution_buffer.eraseFront();
-        if (execution.event_tag != 0 && m_latency_tracker != nullptr) {
-            try {
-                m_latency_tracker->pushRecord(TimeRecord {
-                    .que_idx = execution.que_idx,
-                    .event_tag = execution.event_tag,
-                    .event_stage = stage::TX_EXECUTION_DEQUEUE,
-                    .time_captured = readMonotonicRawNs(),
-                });
-            } catch (...) {
-            }
-        }
 
         if (!_buildOrderFrame(execution, record)) {
             continue;
@@ -476,17 +465,6 @@ bool TxSender::_buildOrderFrame(const OrderExecution& execution, TxOutboundRecor
     record.shares = execution.order.shares;
     record.price = execution.order.price;
     writeFramePayload(record, side);
-    if (execution.event_tag != 0 && m_latency_tracker != nullptr) {
-        try {
-            m_latency_tracker->pushRecord(TimeRecord {
-                .que_idx = execution.que_idx,
-                .event_tag = execution.event_tag,
-                .event_stage = stage::TX_ORDER_FRAME_BUILT,
-                .time_captured = readMonotonicRawNs(),
-            });
-        } catch (...) {
-        }
-    }
 
     return true;
 }
@@ -598,18 +576,6 @@ bool TxSender::_recordPendingOrder(const TxOutboundRecord& record) {
     slot.occupied = true;
     slot.record = record;
     m_pending_orders.live_count += 1U;
-    if (record.event_tag == 0 || m_latency_tracker == nullptr) {
-            return true;
-        }
-        try {
-            m_latency_tracker->pushRecord(TimeRecord {
-                .que_idx = record.que_idx,
-                .event_tag = record.event_tag,
-                .event_stage = stage::TX_PENDING_RECORDED,
-                .time_captured = readMonotonicRawNs(),
-            });
-        } catch (...) {
-        }
     return true;
 }
 
