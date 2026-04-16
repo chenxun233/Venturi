@@ -21,6 +21,14 @@ in percentile aggregation.
 This change is about reporting only. It must not change latency stage
 generation, latency record semantics, sender behavior, or queueing behavior.
 
+The governing rule for this design is:
+
+- do not touch the hot-path logic
+- do not touch the polling pattern
+- do not touch the latency generation contract
+- only modify data collection, final printing, and the minimal shutdown path
+  needed to reach `stop()`
+
 ## Goals
 
 - stop printing one latency block per event
@@ -31,6 +39,7 @@ generation, latency record semantics, sender behavior, or queueing behavior.
 - print only post-warmup results
 - print the final summary only when the runtime shuts down cleanly
 - keep `LatencyLogRecord` production unchanged
+- keep runtime logic and thread polling pattern unchanged
 
 ## Non-Goals
 
@@ -38,6 +47,9 @@ generation, latency record semantics, sender behavior, or queueing behavior.
 - no rename of existing latency fields
 - no changes to `LatencyTracker` stage semantics
 - no changes to `TxSender`, `Executor`, or RX hot-path behavior
+- no changes to producer-side latency logging logic beyond continuing to push the
+  same records
+- no changes to polling cadence, batching, or sender/runtime control flow
 - no periodic percentile printing
 - no rolling window statistics
 - no time-based warmup
@@ -72,6 +84,14 @@ instead:
 This keeps the change local to the reporting component and avoids changing the
 producer-side latency contract.
 
+It also keeps the modification boundary narrow:
+
+- `LogPrinter` changes own the measurement collection and final print format
+- `Venturi.cpp` changes are limited to the minimal shutdown trigger needed to
+  call `log_printer.stop()`
+- no runtime hot-path logic should be rewritten just to support percentile
+  reporting
+
 ## Rejected Approaches
 
 ### 1. Aggregate inside `LatencyTracker`
@@ -99,6 +119,12 @@ The requested output is final result only.
 
 Rejected because the user chose record-based ignore semantics. Warmup should
 track traffic volume, not wall-clock duration.
+
+### 5. Any design that changes runtime logic or polling behavior
+
+Rejected because the user explicitly wants this change to be about measurement
+only. If a change is not required for data collection, final print formatting,
+or reaching `stop()`, it is out of scope.
 
 ## Reporting Shape
 
@@ -164,6 +190,10 @@ The intended lifecycle is:
 
 No latency summary should be printed periodically during runtime.
 
+The shutdown path must be the smallest practical change needed to let the
+process exit cleanly and reach `log_printer.stop()`. It must not become a
+runtime redesign.
+
 ## Data Storage
 
 `LogPrinter` needs per-queue/per-stage sample storage.
@@ -183,6 +213,9 @@ This design explicitly favors measurement simplicity over strict bounded-memory
 behavior, because benchmark runs are finite and the requested output is final
 percentiles. If storage pressure later becomes a problem, that can be handled
 in a separate design.
+
+This storage change is internal to reporting. It must not alter producer-side
+logic or latency record generation.
 
 ## Percentile Semantics
 
@@ -219,6 +252,9 @@ Required changes:
 
 `pushLatencyLog(...)` should remain the producer-facing latency API.
 
+`LatencyLogRecord` production and all producer-side push points must remain
+unchanged.
+
 ## `Venturi` Changes
 
 File:
@@ -229,7 +265,13 @@ Required changes:
 
 - add a clean shutdown path so `log_printer.stop()` can actually be reached
 - configure `LogPrinter` warmup count
-- make the runtime exit worker loops on `SIGINT` / `Ctrl+C`
+- make the runtime exit worker loops on `SIGINT` / `Ctrl+C` or an equivalent
+  minimal shutdown trigger
+
+Constraint:
+
+- do not otherwise change runtime logic, scheduling, polling structure, or
+  hot-path behavior
 
 This is the minimal runtime change needed to support final-only reporting.
 
@@ -250,6 +292,8 @@ Focused tests should confirm:
 5. only post-warmup samples contribute to summary statistics
 6. queues with no post-warmup samples print an explicit insufficient-sample
    message
+7. the runtime shutdown path reaches `log_printer.stop()` without changing the
+   hot-path polling pattern
 
 ## Stop Condition
 
@@ -262,3 +306,5 @@ This change is complete when:
 5. each latency stage line prints `count / min / p50 / p99 / max`
 6. the summary prints only at clean shutdown
 7. latency record generation and stage semantics remain unchanged
+8. no runtime logic or polling-pattern changes were introduced beyond the
+   minimal shutdown path required to reach `stop()`
