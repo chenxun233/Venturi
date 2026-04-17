@@ -3,6 +3,7 @@
 #include "../common/time_utils.h"
 #include "../latency/latency_tracker.h"
 
+#include <algorithm>
 #include <stdexcept>
 #include <vector>
 
@@ -96,8 +97,18 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
 std::size_t FPGARxEngine::pollDecodedBatch(
                                            std::size_t max_count,
                                            FPGAEventDesc* out) {
-    std::vector<uint32_t> trace_ids(max_count, 0U);
-    const std::size_t count = pollDecodedBatchImpl(max_count, false, true, nullptr, &trace_ids, out);
+    if (m_trace_ids_scratch.size() < max_count) {
+        m_trace_ids_scratch.resize(max_count, 0U);
+    }
+    std::fill_n(m_trace_ids_scratch.begin(), max_count, 0U);
+
+    const std::size_t count = pollDecodedBatchImpl(
+        max_count,
+        false,
+        true,
+        nullptr,
+        &m_trace_ids_scratch,
+        out);
     if (m_latency_tracker == nullptr || count == 0) {
         return count;
     }
@@ -110,7 +121,7 @@ std::size_t FPGARxEngine::pollDecodedBatch(
         m_latency_tracker->pushRecord(TimeRecord {
             .que_idx = m_que_idx,
             .event_tag = out[idx].event_tk,
-            .trace_id = trace_ids[idx],
+            .trace_id = m_trace_ids_scratch[idx],
             .event_stage = stage::BATCH_END,
             .time_captured = readMonotonicRawNs(),
         });

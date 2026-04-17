@@ -37,6 +37,7 @@ private:
     uint16_t m_que_idx {0};
     uint64_t m_cons_ptr {0};
     uint32_t m_next_trace_id {1};
+    std::vector<uint32_t> m_trace_ids_scratch;
     // Attach before polling; tracker must outlive engine and not be swapped concurrently.
     LatencyTracker* m_latency_tracker {nullptr};
 };
