@@ -612,6 +612,8 @@ TEST(TxTranslatorTest, senderBacklogDepthIsCapturedAtEnqueueAndSendEnter) {
     ASSERT_EQ(enqueue_records.size(), 2U);
     EXPECT_EQ(enqueue_records[0].sender_backlog_depth, 0U);
     EXPECT_EQ(enqueue_records[1].sender_backlog_depth, 1U);
+    EXPECT_EQ(enqueue_records[0].trace_id, 0U);
+    EXPECT_EQ(enqueue_records[1].trace_id, 0U);
 
     TxOutboundRecord outbound {};
     ASSERT_TRUE(sender.popReadyOutbound(outbound));
