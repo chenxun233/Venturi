@@ -2,350 +2,321 @@
 
 ## Summary
 
-Replace `LatencyTracker`'s node-based `std::unordered_map` correlation path with
-a cache-friendly direct-indexed design based on a dense per-queue `trace_id`.
+Tighten `LatencyTracker` correlation without changing the runtime logic or the
+business/data wiring of the existing pipeline.
 
-The dense `trace_id` exists only for first-event latency tracing. It is assigned
-when the RX path sees the first traced event in a frame, then propagated through
-the existing order and sender pipeline so that every latency stage belonging to
-that traced event can be correlated by direct table lookup instead of hashing.
+This change is intentionally narrow:
 
-`event_tag` remains in the system and continues to be used for normal event
-identity, business flow, and human-readable logs. This design does not replace
-`event_tag` globally. It adds `trace_id` only to make latency tracking cheaper
-and more predictable.
+1. add a monotonic `trace_id` field to `TimeRecord`
+2. assign `trace_id` only to the first-event trace flow of a frame
+3. stop forcing `event_tag = 0` for non-first events
+4. treat `trace_id != 0` as the first-event tracing marker
+5. replace the two `std::unordered_map` containers inside `LatencyTracker`
 
-The pending-event storage inside `LatencyTracker` should use power-of-two
-capacity so index wrap is done with masking instead of modulo.
+The key constraint is:
+
+- no logic change
+- no wire change
+
+That means:
+
+- do not redesign trading/order/sender behavior
+- do not redesign polling or batching
+- do not propagate new fields through order-intent / order-execution /
+  outbound-wire structs
+- do not replace `event_tag` as the normal event identity
+
+`trace_id` is a latency-tracker-local tracing aid carried only in `TimeRecord`.
+`event_tag` remains the correlation identity already flowing through the rest of
+the system.
 
 ## Goals
 
-- remove `std::unordered_map` from `LatencyTracker`'s hot correlation path
-- use a dense per-queue `trace_id` for traced first-event latency correlation
-- keep `event_tag` for normal event identity and logging
-- use preallocated contiguous storage with power-of-two capacity
-- make wrap and slot lookup fast with bit masking
-- preserve existing latency stage semantics
-- preserve existing polling pattern and sender/runtime behavior
-- preserve existing final latency summary output contract
+- add `trace_id` to `TimeRecord`
+- assign a monotonic first-event `trace_id` at frame entry
+- use `trace_id != 0` to identify traced first-event flow
+- preserve `event_tag` for all events, including non-first events
+- replace `LatencyTracker`'s two `std::unordered_map`s with cache-friendlier
+  preallocated contiguous storage
+- use power-of-two capacity where wrap/index masking matters
+- keep latency stage semantics unchanged
+- keep runtime logic and existing pipeline wiring unchanged
 
 ## Non-Goals
 
-- no changes to which latency stages are measured
-- no changes to percentile reporting shape
-- no changes to trading logic or order generation logic
-- no changes to sender polling or batching pattern
-- no attempt in this design to sample latency instead of tracing every first
-  event
-- no redesign of the logging/reporting subsystem beyond carrying the new
-  correlation field where needed
+- no behavior change in strategy, executor, sender, or connection flow
+- no change to polling pattern
+- no change to order path structs just to carry `trace_id`
+- no global replacement of `event_tag`
+- no redesign of reporting / percentile summary
+- no new latency stages
+- no business-logic use of `trace_id`
 
 ## Current Problem
 
-`LatencyTracker` currently correlates multi-stage latency records by
-`(que_idx, event_tag)` using:
+`LatencyTracker` currently relies on two node-based hash maps:
 
 - `std::unordered_map<EventKey, PendingEventState> m_pending_records`
 - `std::unordered_map<StageKey, LatencyStats> m_latency_stats`
 
-That creates several performance problems:
+Those maps hurt sustained tracking because they add:
 
-1. node-based hash map storage has poor cache locality
-2. lookups and inserts require hashing and pointer chasing
-3. the pending-event path performs this work for every traced stage
-4. under offered load, the tracker falls behind and the input queue fills
-5. once the queue fills, new records are dropped before they can be correlated
+1. hash computation
+2. pointer chasing
+3. poor cache locality
+4. less predictable latency in the tracker thread
 
-This was observed indirectly through latency summary sample counts such as:
-
-- `24 = 1024 - 1000`
-- `924 = 1024 - 100`
-
-Those counts matched input queue capacity minus warmup, showing that the
-measurement path was bottlenecking before the replay workload was exhausted.
+Under load, the tracker falls behind, its input queue fills, and records start
+dropping before correlation completes.
 
 ## Selected Approach
 
-Introduce a dense per-queue `trace_id` and use it as the correlation key only
-for traced first-event latency flow.
+Keep the existing event flow and event identity, but make the latency-tracking
+path more explicit and cheaper.
 
-The high-level model is:
+The selected design is:
 
-1. RX assigns a per-queue dense `trace_id` when it emits a traced first event
-2. that `trace_id` is carried through the order/sender path together with the
-   existing `event_tag`
-3. every `TimeRecord` for traced first-event latency stages carries this
-   `trace_id`
-4. `LatencyTracker` uses `trace_id` plus queue to index directly into a
-   preallocated per-queue pending table
-5. the pending table uses power-of-two capacity and mask-based wrap
-6. final latency output still prints `event_tag` for readability
+1. `TimeRecord` gets a `trace_id`
+2. RX assigns a queue-local monotonic `trace_id` to first-event trace records
+3. non-first events keep their existing `event_tag` instead of being zeroed
+4. later code treats `trace_id != 0` as "this belongs to the traced first-event
+   flow"
+5. `LatencyTracker` replaces both internal `std::unordered_map`s with
+   preallocated contiguous storage
 
-This keeps external latency semantics intact while removing the hash-map
-correlation cost from the hot path.
+This keeps the change boundary narrow:
 
-## Why `trace_id` Instead Of Hashing `event_tag`
+- no wire/data-model redesign outside latency records
+- no propagation of `trace_id` through normal order structs
+- no change to how `event_tag` is used elsewhere
 
-Two viable directions were considered:
+## Why This Approach
 
-1. keep `event_tag` and replace `std::unordered_map` with a vector-backed manual
-   hash table
-2. introduce a dense propagated `trace_id` and use direct indexing
+Two broad options were discussed:
 
-The dense `trace_id` approach was selected because:
+1. bigger redesign: propagate a dense `trace_id` through the entire order path
+2. narrow redesign: add `trace_id` only to `TimeRecord`, keep `event_tag` as-is,
+   and replace the tracker's hash maps
 
-- it removes hash and probing work from the pending-event lookup path
-- it gives the most predictable cost
-- it has the best cache locality
-- it fits HFT-style latency tracking better than generic hashmap-style lookup
+The narrow redesign is selected because the user explicitly wants:
 
-The main trade-off is that `trace_id` must be propagated through the existing
-pipeline. That is a larger change than a vector-backed manual hash table, but it
-produces the better runtime design.
+- no logic change
+- no wire change
+
+So this design improves the tracker without broad pipeline surgery.
 
 ## Trace ID Model
 
 ### Scope
 
-`trace_id` is only for tracing the first event in a frame.
+`trace_id` exists only in `TimeRecord`.
 
-This means:
+It is not added to:
 
-- only first-event traced records receive a valid `trace_id`
-- non-traced or non-first events do not rely on `trace_id`
-- `event_tag` remains the general-purpose event identity field everywhere
-
-### Assignment
-
-Each queue owns a local dense counter:
-
-- queue 0 has its own counter
-- queue 1 has its own counter
-- counters advance independently
-
-When RX decodes a traced first event, it assigns the next queue-local
-`trace_id`.
-
-### Propagation
-
-The assigned `trace_id` is propagated through the same path that already carries
-`event_tag` for traced first events:
-
-- `FPGAEventDesc`
 - `OrderIntent`
 - `OrderExecution`
 - `TxOutboundRecord`
-- `TimeRecord`
-- `LatencyLogRecord` if needed for diagnostics or future inspection
+- any network/business-facing struct
 
-The correlation identity for the tracker becomes:
+### Assignment Rule
 
-- queue-local `trace_id` for slot lookup
-- `event_tag` retained as metadata
+Each queue owns a monotonic counter for first-event tracing.
 
-## Pending Table Design
+When RX sees a traced first event:
 
-### Storage Shape
+- allocate the next queue-local `trace_id`
+- write that `trace_id` into the emitted `TimeRecord`s belonging to that
+  first-event trace flow
 
-Replace `m_pending_records` with one pending table per queue using contiguous
-preallocated storage, conceptually:
+For non-first events:
+
+- `trace_id` remains `0`
+- `event_tag` remains populated and is no longer forced to `0`
+
+### First-Event Detection Rule
+
+The new rule is:
+
+- `trace_id != 0` means first-event tracing flow
+- `trace_id == 0` means not part of first-event tracing flow
+
+This replaces using `event_tag == 0` as the first/non-first discriminator.
+
+## Event Tag Rule
+
+`event_tag` remains the normal event identity field.
+
+Required change:
+
+- stop making `event_tag` equal to `0` for non-first events
+
+Reason:
+
+- `event_tag` should remain available as the stable event identity across the
+  existing pipeline
+- first-event-ness is now represented by `trace_id`, not by zeroing `event_tag`
+
+## LatencyTracker Container Replacement
+
+### Pending Event Correlation
+
+Replace `m_pending_records` with contiguous preallocated storage.
+
+The tracker still correlates by existing event identity semantics, but it should
+do so without `std::unordered_map`.
+
+A practical shape is a vector-backed fixed table / open-addressing structure for
+pending event state. The important requirement is:
+
+- contiguous preallocated storage
+- no node-based hash map
+- explicit power-of-two capacity
+
+Conceptually:
 
 ```cpp
 struct PendingTraceSlot {
     bool occupied;
-    uint32_t trace_id;
+    uint16_t que_idx;
     uint64_t event_tag;
+    uint32_t trace_id;
     PendingEventState state;
 };
 ```
 
-and then:
+plus one or more vector-backed tables with power-of-two capacity.
 
-```cpp
-std::vector<std::vector<PendingTraceSlot>> m_pending_trace_tables;
-```
+### Stats Storage
 
-### Capacity
+Replace `m_latency_stats` with direct indexed storage.
 
-Each queue's pending table capacity must be a power of two.
+There is no reason to hash `(queue, prev_stage, curr_stage)` because that key
+space is small and bounded.
+
+A direct indexed vector/array layout should be used instead.
+
+## Power-Of-Two Capacity Rule
+
+Any tracker table that wraps by index must use power-of-two capacity.
 
 Required property:
 
 - `capacity != 0`
 - `(capacity & (capacity - 1)) == 0`
 
-### Indexing
-
-Use mask-based wrap:
+Wrap should use masking rather than modulo whenever possible, for example:
 
 ```cpp
-slot_idx = trace_id & (capacity - 1);
+idx = value & (capacity - 1);
 ```
 
-This is the chosen wrap mechanism because it is faster and more predictable than
-modulo.
-
-### Collision / Reuse Rule
-
-Because `trace_id` is dense and queue-local, the tracker can use direct indexed
-reuse as long as the number of concurrently outstanding traced events per queue
-does not exceed table capacity.
-
-If a new traced event maps to an occupied slot that still belongs to an older
-unfinished `trace_id`, the tracker must treat that as overflow / overwrite risk
-and count a drop rather than silently corrupting correlation.
-
-This design therefore requires:
-
-- a large enough pending-table capacity for the maximum outstanding traced
-  first-event window
-- explicit drop accounting when a slot cannot be safely reused
-
-## Stats Storage Design
-
-Replace `m_latency_stats` with direct indexed storage as well.
-
-There is no need to hash `(queue, prev_stage, curr_stage)` because the stage
-space is small and bounded.
-
-A practical layout is:
-
-```cpp
-std::vector<std::array<std::array<LatencyStats, kStageCount>, kStageCount>> m_latency_stats;
-```
-
-or an equivalent flattened vector indexed by:
-
-- queue
-- previous stage
-- current stage
-
-This makes stats updates constant-time without heap-based hash-map lookup.
+This is explicitly chosen because the user wants fast wrap behavior.
 
 ## Data Flow Changes
 
 ### RX Engine
 
-RX becomes the owner of initial `trace_id` assignment for traced first events.
+RX is the only place that assigns `trace_id`.
 
-When RX identifies a first event that should be latency-traced:
+When RX emits first-event latency records such as:
 
-1. allocate the next queue-local `trace_id`
-2. store it into the decoded event object
-3. use it in the emitted `TimeRecord`s for:
-   - `FRAME_START`
-   - `DMA_EMIT`
-   - `BATCH_START`
-   - later `BATCH_END` record associated with that event
+- `FRAME_START`
+- `DMA_EMIT`
+- `BATCH_START`
+- later `BATCH_END`
 
-### Strategy
+it should attach the queue-local monotonic `trace_id`.
 
-When strategy emits `STRATEGY_START`, it should carry forward the event's
-existing `trace_id` for traced first events.
+For non-first events:
 
-### Executor
+- `trace_id` stays `0`
+- `event_tag` stays populated
 
-`OrderIntent` and `OrderExecution` must carry `trace_id` in addition to
-`event_tag`.
+### Strategy / Executor / Sender
 
-### Sender
+No wire redesign is allowed.
 
-`TxOutboundRecord` must also carry `trace_id` so sender-side latency stages can
-continue the same traced event:
+So these modules should remain structurally the same:
 
-- `TX_EXECUTION_ACCEPTED`
-- `TX_ENQUEUE`
-- `TX_SEND_ENTER`
-- `TX_SEND_SYSCALL_ENTER`
-- `TX_SEND`
+- do not add `trace_id` to business/order structs
+- do not redesign their interfaces
 
-### Latency Tracker
+The only required behavioral adjustment is:
 
-`TimeRecord` must include `trace_id`.
+- stop using `event_tag == 0` as the first-event marker
+- use `trace_id != 0` in `TimeRecord` where first-event tracing decisions are
+  needed
 
-`LatencyTracker` should:
-
-1. use `trace_id` to select the per-queue pending slot
-2. validate that the slot's stored `trace_id` matches the incoming record
-3. update the pending state directly
-4. emit final `LatencyLogRecord` with the original `event_tag` preserved
+Where a module already emits a `TimeRecord`, it may populate `trace_id` only if
+that value is already available without changing the surrounding wire model.
+Otherwise the design stays with `event_tag` as existing metadata and does not
+force broader struct plumbing.
 
 ## Correlation Semantics
 
-The correlation rule becomes:
+This design does **not** globally replace `event_tag`.
 
-- `trace_id` is the tracker lookup key
-- `event_tag` is descriptive metadata
+Instead:
 
-This means the tracker should no longer search by `event_tag`.
+- `event_tag` remains the event identity used by the existing path
+- `trace_id` becomes the explicit first-event tracing marker in `TimeRecord`
 
-However, to prevent silent corruption, the pending slot should still retain the
-current `event_tag` and `trace_id` so debug assertions or defensive checks can
-confirm that the propagated identity remains coherent.
+This is an important distinction:
+
+- `trace_id` answers "is this record part of the traced first-event flow?"
+- `event_tag` answers "which event is this?"
 
 ## Error Handling And Drop Semantics
 
-This design must make tracker failure modes explicit.
+This design should also make drop/failure conditions more explicit.
 
-Required drop conditions include:
+At minimum, the tracker should have explicit accounting for:
 
-1. input latency queue full
-2. pending table slot collision with an unfinished older trace
-3. stage arrival for an unknown or invalid `trace_id`
-4. stage ordering violation within a pending slot
+1. input queue full
+2. pending-table insertion/reuse failure
+3. missing/invalid pending state during stage processing
+4. stage ordering violation
 
-All such conditions should increment drop counters in direct indexed stats
-storage instead of failing silently.
-
-This is important because the existing queue-capacity bottleneck was exposed
-only indirectly through suspicious summary counts.
+These conditions must not silently disappear behind the old container behavior.
 
 ## File-Level Impact
 
 Expected files impacted:
 
 - `cpp_src/FPGA_boost_demo/common/shared_types.h`
-  add `trace_id` to latency-carrying records and payload structs
+  add `trace_id` to `TimeRecord`
 - `cpp_src/FPGA_boost_demo/rx_engine/fpga_rx_engine.cpp`
-  assign per-queue `trace_id`
-- `cpp_src/FPGA_boost_demo/strategy/dummy_strategy.cpp`
-  propagate `trace_id`
-- `cpp_src/FPGA_boost_demo/tx_engine/executor.*`
-  propagate `trace_id`
-- `cpp_src/FPGA_boost_demo/tx_engine/tx_sender.cpp`
-  propagate `trace_id`
+  assign queue-local monotonic `trace_id` for first-event trace records
+- places that currently zero `event_tag` for non-first events
+  stop doing that
 - `cpp_src/FPGA_boost_demo/latency/latency_tracker.h`
-  replace hash-map members with direct indexed storage
+  replace the two `std::unordered_map` members
 - `cpp_src/FPGA_boost_demo/latency/latency_tracker.cpp`
-  replace hash-based correlation logic with direct indexed correlation
-- tests that construct or assert latency-carrying structs
+  replace hash-map-based correlation/stats storage with contiguous storage
+- tests that assert latency-tracing identity behavior
 
 ## Testing Strategy
 
-Testing should prove both correctness and the new correlation model.
-
 Required coverage:
 
-1. tracker still emits the same stage latencies for a valid traced event
-2. traced first-event records correlate correctly using `trace_id`
-3. `event_tag` remains preserved in final emitted latency logs
-4. per-queue `trace_id` assignment is independent
-5. power-of-two pending-table capacity is enforced
-6. slot reuse after a completed trace works correctly
-7. unfinished-slot collision increments drops instead of corrupting state
-8. existing percentile/final-summary behavior remains compatible
+1. `TimeRecord` carries `trace_id`
+2. first-event records get non-zero `trace_id`
+3. non-first events keep `event_tag`
+4. first-event checks use `trace_id != 0`
+5. tracker still emits the same stage-latency results as before
+6. power-of-two capacity is enforced for the new tracker storage
+7. tracker stats updates still behave correctly without `std::unordered_map`
 
 ## Success Criteria
 
 This design is successful if:
 
-1. `LatencyTracker` no longer uses `std::unordered_map` for pending-event or
-   stats storage
-2. traced first-event correlation is driven by propagated queue-local `trace_id`
-3. `event_tag` remains available in emitted latency logs
-4. pending-table indexing uses power-of-two capacity with mask-based wrap
-5. latency stage semantics remain unchanged
-6. existing runtime behavior outside correlation storage is unchanged
-7. post-change measurement can sustain materially more traced samples before the
-   tracker becomes the bottleneck
+1. no runtime logic or pipeline wiring is redesigned
+2. `TimeRecord` has a monotonic first-event `trace_id`
+3. non-first events no longer zero `event_tag`
+4. first-event tracing checks use `trace_id != 0`
+5. both `std::unordered_map`s in `LatencyTracker` are replaced
+6. new tracker storage uses power-of-two-capacity-friendly indexing where wrap
+   matters
+7. existing latency semantics and reporting behavior remain intact
 
