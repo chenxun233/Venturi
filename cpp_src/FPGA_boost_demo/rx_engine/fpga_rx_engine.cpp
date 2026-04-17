@@ -3,7 +3,6 @@
 #include "../common/time_utils.h"
 #include "../latency/latency_tracker.h"
 
-#include <algorithm>
 #include <stdexcept>
 #include <vector>
 
@@ -97,18 +96,15 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
 std::size_t FPGARxEngine::pollDecodedBatch(
                                            std::size_t max_count,
                                            FPGAEventDesc* out) {
-    if (m_trace_ids_scratch.size() < max_count) {
-        m_trace_ids_scratch.resize(max_count, 0U);
+    std::vector<uint32_t>* trace_ids = nullptr;
+    if (m_latency_tracker != nullptr) {
+        if (m_trace_ids_scratch.size() < max_count) {
+            m_trace_ids_scratch.resize(max_count, 0U);
+        }
+        trace_ids = &m_trace_ids_scratch;
     }
-    std::fill_n(m_trace_ids_scratch.begin(), max_count, 0U);
 
-    const std::size_t count = pollDecodedBatchImpl(
-        max_count,
-        false,
-        true,
-        nullptr,
-        &m_trace_ids_scratch,
-        out);
+    const std::size_t count = pollDecodedBatchImpl(max_count, false, true, nullptr, trace_ids, out);
     if (m_latency_tracker == nullptr || count == 0) {
         return count;
     }
