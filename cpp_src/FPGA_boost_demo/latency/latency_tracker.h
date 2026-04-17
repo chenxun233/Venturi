@@ -62,6 +62,7 @@ private:
         bool occupied {false};
         uint64_t event_tag {0};
         uint32_t trace_id {0};
+        uint64_t insertion_sequence {0};
         PendingEventState state {};
     };
 
@@ -69,6 +70,7 @@ private:
         std::vector<PendingSlot> slots {};
         std::vector<std::size_t> eviction_order {};
         std::size_t next_evict_index {0};
+        uint64_t next_insertion_sequence {0};
         std::size_t live_count {0};
     };
 

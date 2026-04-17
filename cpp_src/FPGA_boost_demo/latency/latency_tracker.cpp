@@ -143,18 +143,30 @@ LatencyTracker::PendingSlot& LatencyTracker::_upsertPendingSlot(uint16_t que_idx
         slot.occupied = true;
         slot.event_tag = event_tag;
         slot.trace_id = trace_id;
+        slot.insertion_sequence = table.next_insertion_sequence++;
         slot.state = PendingEventState {};
         ++table.live_count;
         return slot;
     }
 
-    const std::size_t slot_mask = table.slots.size() - 1U;
-    const std::size_t evict_order_index = table.next_evict_index & slot_mask;
-    table.next_evict_index = (table.next_evict_index + 1U) & slot_mask;
-    PendingSlot& slot = table.slots[table.eviction_order[evict_order_index]];
+    PendingSlot* oldest_slot = nullptr;
+    uint64_t oldest_sequence = std::numeric_limits<uint64_t>::max();
+    for (PendingSlot& candidate : table.slots) {
+        if (!candidate.occupied) {
+            continue;
+        }
+        if (candidate.insertion_sequence >= oldest_sequence) {
+            continue;
+        }
+        oldest_sequence = candidate.insertion_sequence;
+        oldest_slot = &candidate;
+    }
+
+    PendingSlot& slot = (oldest_slot != nullptr) ? *oldest_slot : table.slots.front();
     slot.occupied = true;
     slot.event_tag = event_tag;
     slot.trace_id = trace_id;
+    slot.insertion_sequence = table.next_insertion_sequence++;
     slot.state = PendingEventState {};
     return slot;
 }

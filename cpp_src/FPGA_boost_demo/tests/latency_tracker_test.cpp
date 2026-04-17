@@ -117,6 +117,30 @@ TEST(LatencyTrackerTest, sameEventTagRemainsIsolatedAcrossQueues) {
     EXPECT_EQ(queue1_slot->state.frame_start_tick, 200U);
 }
 
+TEST(LatencyTrackerTest, overflowEvictsOldestLiveEntryAfterFreeSlotReuse) {
+    LatencyTracker tracker(1, 8, 2);
+    constexpr uint64_t event_a = 1001ULL;
+    constexpr uint64_t event_b = 1002ULL;
+    constexpr uint64_t event_c = 1003ULL;
+    constexpr uint64_t event_d = 1004ULL;
+
+    tracker.pushRecord(makeRecord(0, event_a, stage::FRAME_START, 10U, 1U));
+    tracker.pushRecord(makeRecord(0, event_b, stage::FRAME_START, 20U, 2U));
+    tracker.run();
+
+    auto* slot_a = tracker._findPendingSlot(0, event_a);
+    ASSERT_NE(slot_a, nullptr);
+    tracker._erasePendingSlot(0, *slot_a);
+
+    tracker.pushRecord(makeRecord(0, event_c, stage::FRAME_START, 30U, 3U));
+    tracker.pushRecord(makeRecord(0, event_d, stage::FRAME_START, 40U, 4U));
+    tracker.run();
+
+    EXPECT_FALSE(tracker._hasPendingRecord(0, event_b));
+    EXPECT_TRUE(tracker._hasPendingRecord(0, event_c));
+    EXPECT_TRUE(tracker._hasPendingRecord(0, event_d));
+}
+
 TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     LatencyTracker tracker(1, 32);
     LogPrinter printer(1, 32);
