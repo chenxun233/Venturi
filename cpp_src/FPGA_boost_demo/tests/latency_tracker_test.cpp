@@ -91,6 +91,32 @@ TEST(LatencyTrackerTest, oldestPendingEntryIsReusedWhenTableIsFull) {
     EXPECT_TRUE(tracker._hasPendingRecord(0, 33ULL));
 }
 
+TEST(LatencyTrackerTest, sameEventTagRemainsIsolatedAcrossQueues) {
+    LatencyTracker tracker(2, 8, 8);
+    constexpr uint64_t shared_event_tag = 555ULL;
+    tracker.pushRecord(makeRecord(0, shared_event_tag, stage::FRAME_START, 100U, 1U));
+    tracker.pushRecord(makeRecord(1, shared_event_tag, stage::FRAME_START, 200U, 2U));
+    tracker.pushRecord(makeRecord(0, shared_event_tag, stage::DMA_EMIT, 110U, 1U));
+
+    tracker.run();
+
+    EXPECT_TRUE(tracker._hasPendingRecord(0, shared_event_tag));
+    EXPECT_TRUE(tracker._hasPendingRecord(1, shared_event_tag));
+    EXPECT_EQ(tracker.m_pending_tables[0].live_count, 1U);
+    EXPECT_EQ(tracker.m_pending_tables[1].live_count, 1U);
+
+    auto* queue0_slot = tracker._findPendingSlot(0, shared_event_tag);
+    auto* queue1_slot = tracker._findPendingSlot(1, shared_event_tag);
+    ASSERT_NE(queue0_slot, nullptr);
+    ASSERT_NE(queue1_slot, nullptr);
+    EXPECT_EQ(queue0_slot->trace_id, 1U);
+    EXPECT_EQ(queue1_slot->trace_id, 2U);
+    EXPECT_TRUE(queue0_slot->state.has_dma_emit);
+    EXPECT_FALSE(queue1_slot->state.has_dma_emit);
+    EXPECT_EQ(queue0_slot->state.frame_start_tick, 100U);
+    EXPECT_EQ(queue1_slot->state.frame_start_tick, 200U);
+}
+
 TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     LatencyTracker tracker(1, 32);
     LogPrinter printer(1, 32);
