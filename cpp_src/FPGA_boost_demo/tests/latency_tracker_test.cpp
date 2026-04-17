@@ -1,4 +1,6 @@
+#define private public
 #include "../latency/latency_tracker.h"
+#undef private
 #include "../latency/log_printer.h"
 #include "../common/time_utils.h"
 
@@ -13,6 +15,7 @@ TimeRecord makeRecord(uint16_t que_idx,
                       uint64_t event_tag,
                       stage event_stage,
                       uint64_t time_captured,
+                      uint32_t trace_id = 0,
                       uint32_t sender_backlog_depth = 0,
                       uint32_t tx_send_call_count = 0,
                       uint32_t tx_send_bytes_total = 0,
@@ -21,6 +24,7 @@ TimeRecord makeRecord(uint16_t que_idx,
     return TimeRecord {
         .que_idx = que_idx,
         .event_tag = event_tag,
+        .trace_id = trace_id,
         .event_stage = event_stage,
         .time_captured = time_captured,
         .sender_backlog_depth = sender_backlog_depth,
@@ -58,6 +62,33 @@ TEST(LatencyTrackerTest, timeRecordCarriesTraceIdField) {
 
     EXPECT_EQ(record.trace_id, 7U);
     EXPECT_EQ(record.event_tag, 0x22ULL);
+}
+
+TEST(LatencyTrackerTest, fairPassConsumesAtMostOneRecordPerQueue) {
+    LatencyTracker tracker(2, 8, 8);
+    tracker.pushRecord(makeRecord(0, 101ULL, stage::FRAME_START, 10U, 1U));
+    tracker.pushRecord(makeRecord(0, 102ULL, stage::FRAME_START, 11U, 2U));
+    tracker.pushRecord(makeRecord(1, 201ULL, stage::FRAME_START, 12U, 3U));
+
+    EXPECT_EQ(tracker._drainFairPass(), 2U);
+    EXPECT_EQ(tracker.m_pending_tables[0].live_count, 1U);
+    EXPECT_EQ(tracker.m_pending_tables[1].live_count, 1U);
+
+    TimeRecord leftover {};
+    EXPECT_TRUE(tracker.m_latency_queues[0]->pop(leftover));
+}
+
+TEST(LatencyTrackerTest, oldestPendingEntryIsReusedWhenTableIsFull) {
+    LatencyTracker tracker(1, 8, 2);
+    tracker.pushRecord(makeRecord(0, 11ULL, stage::FRAME_START, 10U, 1U));
+    tracker.pushRecord(makeRecord(0, 22ULL, stage::FRAME_START, 20U, 2U));
+    tracker.pushRecord(makeRecord(0, 33ULL, stage::FRAME_START, 30U, 3U));
+
+    tracker.run();
+
+    EXPECT_FALSE(tracker._hasPendingRecord(0, 11ULL));
+    EXPECT_TRUE(tracker._hasPendingRecord(0, 22ULL));
+    EXPECT_TRUE(tracker._hasPendingRecord(0, 33ULL));
 }
 
 TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
@@ -111,6 +142,7 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
                                   event_tag,
                                   stage::TX_ENQUEUE,
                                   tx_enqueue_tick,
+                                  0U,
                                   7U));
     tracker.run();
     printer.stop();
@@ -123,6 +155,7 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
                                   event_tag,
                                   stage::TX_SEND_ENTER,
                                   tx_send_enter_tick,
+                                  0U,
                                   3U));
     tracker.pushRecord(makeRecord(que_idx,
                                   event_tag,
@@ -132,6 +165,7 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
                                   event_tag,
                                   stage::TX_SEND,
                                   tx_send_tick,
+                                  0U,
                                   0U,
                                   2U,
                                   64U,

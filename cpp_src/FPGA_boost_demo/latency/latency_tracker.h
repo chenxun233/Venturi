@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <thread>
-#include <unordered_map>
+#include <vector>
 
 class LogPrinter;
 class Tuner;
@@ -24,42 +24,6 @@ public:
     
 
 private:
-    struct EventKey {
-        uint16_t que_idx {0};
-        uint64_t event_tag {0};
-
-        bool operator==(const EventKey& other) const {
-            return que_idx == other.que_idx && event_tag == other.event_tag;
-        }
-    };
-
-    struct StageKey {
-        uint16_t que_idx {0};
-        stage prev_stage {stage::FRAME_START};
-        stage curr_stage {stage::FRAME_START};
-
-        bool operator==(const StageKey& other) const {
-            return que_idx == other.que_idx &&
-                   prev_stage == other.prev_stage &&
-                   curr_stage == other.curr_stage;
-        }
-    };
-
-    struct EventKeyHash {
-        std::size_t operator()(const EventKey& key) const {
-            return (static_cast<std::size_t>(key.que_idx) << 1) ^
-                   static_cast<std::size_t>(key.event_tag);
-        }
-    };
-
-    struct StageKeyHash {
-        std::size_t operator()(const StageKey& key) const {
-            return static_cast<std::size_t>(key.que_idx) ^
-                   (static_cast<std::size_t>(key.prev_stage) << 8) ^
-                   (static_cast<std::size_t>(key.curr_stage) << 16);
-        }
-    };
-
     struct PendingEventState {
         uint64_t frame_start_tick {0};
         uint64_t dma_emit_tick {0};
@@ -94,25 +58,42 @@ private:
         bool has_tx_send_syscall_enter {false};
     };
 
-    using PendingIterator = std::unordered_map<EventKey, PendingEventState, EventKeyHash>::iterator;
+    struct PendingSlot {
+        bool occupied {false};
+        uint64_t event_tag {0};
+        uint32_t trace_id {0};
+        PendingEventState state {};
+    };
 
+    struct PendingTable {
+        std::vector<PendingSlot> slots {};
+        std::vector<std::size_t> eviction_order {};
+        std::size_t next_evict_index {0};
+        std::size_t live_count {0};
+    };
+
+    std::size_t _drainFairPass();
+    bool _hasPendingRecord(uint16_t que_idx, uint64_t event_tag) const noexcept;
+    PendingSlot* _findPendingSlot(uint16_t que_idx, uint64_t event_tag) noexcept;
+    PendingSlot& _upsertPendingSlot(uint16_t que_idx, uint64_t event_tag, uint32_t trace_id);
+    void _erasePendingSlot(uint16_t que_idx, PendingSlot& slot) noexcept;
     void _processRecord(const TimeRecord& record);
-    void _handleFrameStart(const EventKey& event_key, const TimeRecord& record);
+    void _handleFrameStart(const TimeRecord& record);
     void _handleMissingPendingRecord(const TimeRecord& record);
-    void _handleDmaEmit(const TimeRecord& record, PendingIterator it);
-    void _handleBatchStart(const TimeRecord& record, PendingIterator it);
-    void _handleBatchEnd(const TimeRecord& record, PendingIterator it);
-    void _handleStrategyStart(const TimeRecord& record, PendingIterator it);
-    void _handleTxExecutionAccepted(const TimeRecord& record, PendingIterator it);
-    void _handleTxEnqueue(const TimeRecord& record, PendingIterator it);
-    void _handleTxSendEnter(const TimeRecord& record, PendingIterator it);
-    void _handleTxSendSyscallEnter(const TimeRecord& record, PendingIterator it);
-    void _handleTxSend(const TimeRecord& record, PendingIterator it);
+    void _handleDmaEmit(const TimeRecord& record, PendingSlot& slot);
+    void _handleBatchStart(const TimeRecord& record, PendingSlot& slot);
+    void _handleBatchEnd(const TimeRecord& record, PendingSlot& slot);
+    void _handleStrategyStart(const TimeRecord& record, PendingSlot& slot);
+    void _handleTxExecutionAccepted(const TimeRecord& record, PendingSlot& slot);
+    void _handleTxEnqueue(const TimeRecord& record, PendingSlot& slot);
+    void _handleTxSendEnter(const TimeRecord& record, PendingSlot& slot);
+    void _handleTxSendSyscallEnter(const TimeRecord& record, PendingSlot& slot);
+    void _handleTxSend(const TimeRecord& record, PendingSlot& slot);
     static int64_t _readSignedDelta(uint64_t later_tick, uint64_t earlier_tick);
     static int64_t _readSignedHostDeltaNs(uint64_t later_tick, uint64_t earlier_tick);
     void _updateStats(const StageLatency& latency);
     void _incrementDrop(uint16_t que_idx, stage prev_stage, stage curr_stage);
-    LatencyStats& _readOrCreateStats(uint16_t que_idx, stage prev_stage, stage curr_stage);
+    LatencyStats& _readStats(uint16_t que_idx, stage prev_stage, stage curr_stage);
     static bool _isPowerOfTwo(std::size_t value) noexcept;
 
     std::vector<std::unique_ptr<SpscRingQueue<TimeRecord>>> m_latency_queues;
@@ -120,7 +101,7 @@ private:
     uint16_t m_next_queue_idx {0};
     LogPrinter* m_log_printer {nullptr};
     std::size_t m_pending_capacity {0};
-    std::unordered_map<EventKey, PendingEventState, EventKeyHash> m_pending_records;
-    std::unordered_map<StageKey, LatencyStats, StageKeyHash> m_latency_stats;
+    std::vector<PendingTable> m_pending_tables;
+    std::vector<std::vector<LatencyStats>> m_latency_stats;
     // Tuner* m_tuner {nullptr};
 };
