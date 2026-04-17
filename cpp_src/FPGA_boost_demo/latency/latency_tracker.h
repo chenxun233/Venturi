@@ -15,7 +15,9 @@ class Tuner;
 
 class LatencyTracker {
 public:
-    explicit        LatencyTracker(uint16_t producer_num, std::size_t buffer_capacity = 1024);
+    explicit        LatencyTracker(uint16_t producer_num,
+                                   std::size_t buffer_capacity = 1024,
+                                   std::size_t pending_capacity = 1024);
     std::size_t     run();
     void            pushRecord(const TimeRecord& record) noexcept;
     void            attachLogPrinter(LogPrinter* log_printer);
@@ -111,11 +113,13 @@ private:
     void _updateStats(const StageLatency& latency);
     void _incrementDrop(uint16_t que_idx, stage prev_stage, stage curr_stage);
     LatencyStats& _readOrCreateStats(uint16_t que_idx, stage prev_stage, stage curr_stage);
+    static bool _isPowerOfTwo(std::size_t value) noexcept;
 
     std::vector<std::unique_ptr<SpscRingQueue<TimeRecord>>> m_latency_queues;
     uint16_t m_queue_num {0};
     uint16_t m_next_queue_idx {0};
     LogPrinter* m_log_printer {nullptr};
+    std::size_t m_pending_capacity {0};
     std::unordered_map<EventKey, PendingEventState, EventKeyHash> m_pending_records;
     std::unordered_map<StageKey, LatencyStats, StageKeyHash> m_latency_stats;
     // Tuner* m_tuner {nullptr};

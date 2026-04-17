@@ -8,12 +8,24 @@
 #include <stdexcept>
 #include <utility>
 
-LatencyTracker::LatencyTracker(uint16_t producer_num, std::size_t buffer_capacity):
-m_queue_num(producer_num) {
+LatencyTracker::LatencyTracker(uint16_t producer_num,
+                               std::size_t buffer_capacity,
+                               std::size_t pending_capacity):
+m_queue_num(producer_num),
+m_pending_capacity(pending_capacity) {
+    if (!_isPowerOfTwo(pending_capacity)) {
+        throw std::invalid_argument("pending_capacity must be a non-zero power-of-two");
+    }
+
     m_latency_queues.reserve(producer_num);
     for (uint16_t producer_idx = 0; producer_idx < producer_num; ++producer_idx) {
         m_latency_queues.push_back(std::make_unique<SpscRingQueue<TimeRecord>>(buffer_capacity));
     }
+    m_pending_records.reserve(m_pending_capacity);
+}
+
+bool LatencyTracker::_isPowerOfTwo(std::size_t value) noexcept {
+    return value != 0 && (value & (value - 1)) == 0;
 }
 
 void LatencyTracker::attachLogPrinter(LogPrinter* log_printer) {

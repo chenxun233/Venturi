@@ -58,6 +58,7 @@ enum stage {
 struct TimeRecord {
     uint16_t    que_idx {0};
     uint64_t    event_tag {0};
+    uint32_t    trace_id {0};
     stage       event_stage {stage::DECODE};
     uint64_t    time_captured {0};
     uint32_t    sender_backlog_depth {0};

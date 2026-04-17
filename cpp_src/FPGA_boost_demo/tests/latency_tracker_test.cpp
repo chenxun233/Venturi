@@ -42,6 +42,24 @@ TEST(LatencyTrackerTest, monotonicRawReadRemainsMonotonic) {
     EXPECT_LE(first, second);
 }
 
+TEST(LatencyTrackerTest, rejectsNonPowerOfTwoPendingCapacity) {
+    EXPECT_THROW((void)LatencyTracker(2, 8, 12), std::invalid_argument);
+    EXPECT_THROW((void)LatencyTracker(2, 8, 0), std::invalid_argument);
+}
+
+TEST(LatencyTrackerTest, timeRecordCarriesTraceIdField) {
+    const TimeRecord record {
+        .que_idx = 1,
+        .event_tag = 0x22ULL,
+        .trace_id = 7U,
+        .event_stage = stage::FRAME_START,
+        .time_captured = 123U,
+    };
+
+    EXPECT_EQ(record.trace_id, 7U);
+    EXPECT_EQ(record.event_tag, 0x22ULL);
+}
+
 TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     LatencyTracker tracker(1, 32);
     LogPrinter printer(1, 32);

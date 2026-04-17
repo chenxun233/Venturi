@@ -44,6 +44,7 @@ constexpr bool kSyncEnabled = true;
 constexpr auto kSnapshotPrintInterval = std::chrono::seconds(1);
 constexpr auto kThreadSleepTime = std::chrono::microseconds(100);
 constexpr std::size_t kLatencyQueueCapacity = 1024;
+constexpr std::size_t kLatencyPendingCapacity = 1024;
 constexpr std::size_t kLatencyLogCapacity = 4096;
 constexpr std::size_t kExecutorQueueCapacity = 1024;
 constexpr std::string_view kTxBindIp = "192.168.51.1";
@@ -118,7 +119,9 @@ int main() {
     };
     TxSender tx_sender0(tx_sender_config);
     TxSender tx_sender1(tx_sender_config);
-    LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
+    LatencyTracker latency_tracker(kQueueCount,
+                                   kLatencyQueueCapacity,
+                                   kLatencyPendingCapacity);
     LogPrinter log_printer(kQueueCount, kLatencyLogCapacity);
     std::signal(SIGINT, handleStopSignal);
     log_printer.setLatencyWarmupRecords(100);
