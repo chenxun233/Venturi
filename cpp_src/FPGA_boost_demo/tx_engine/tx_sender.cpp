@@ -513,6 +513,7 @@ void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = record.que_idx,
                 .event_tag = record.event_tag,
+                .trace_id = 0,
                 .event_stage = stage::TX_ENQUEUE,
                 .time_captured = readMonotonicRawNs(),
                 .sender_backlog_depth = enqueue_backlog_depth,

@@ -35,6 +35,7 @@ TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyStartRecord) {
     EXPECT_EQ(record.que_idx, 0U);
     EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
     EXPECT_EQ(record.event_tag, 12345U);
+    EXPECT_EQ(record.trace_id, 0U);
     EXPECT_GT(record.time_captured, 0U);
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
@@ -63,6 +64,7 @@ TEST(DummyStrategyTest, acceptedFirstEventRoutesStrategyStartRecordToNonZeroQueu
     EXPECT_EQ(record.que_idx, 1U);
     EXPECT_EQ(record.event_tag, 54321U);
     EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
+    EXPECT_EQ(record.trace_id, 0U);
     EXPECT_GT(record.time_captured, 0U);
     EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
@@ -187,6 +189,7 @@ TEST(DummyStrategyTest, firstEventWithoutActionStillPushesStrategyStartRecordBef
     EXPECT_EQ(record.que_idx, 0U);
     EXPECT_EQ(record.event_tag, 24680U);
     EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
+    EXPECT_EQ(record.trace_id, 0U);
     EXPECT_GT(record.time_captured, 0U);
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }

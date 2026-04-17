@@ -152,6 +152,10 @@ TEST(FpgaRxEngineTest, firstEventPushesFrameStartDmaEmitBatchStartAndBatchEndRec
     EXPECT_GT(fourth.time_captured, 0U);
     EXPECT_GE(fourth.time_captured, before_ns);
     EXPECT_LE(fourth.time_captured, after_ns);
+    EXPECT_NE(first.trace_id, 0U);
+    EXPECT_EQ(first.trace_id, second.trace_id);
+    EXPECT_EQ(second.trace_id, third.trace_id);
+    EXPECT_EQ(third.trace_id, fourth.trace_id);
     TimeRecord extra {};
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(extra));
 }
@@ -323,6 +327,8 @@ TEST(FpgaRxEngineTest, pollDecodedBatchSyncDoesNotPushBatchBoundaryRecords) {
     EXPECT_EQ(records[1].event_stage, stage::DMA_EMIT);
     EXPECT_EQ(records[0].event_tag, 2100U);
     EXPECT_EQ(records[1].event_tag, 2100U);
+    EXPECT_NE(records[0].trace_id, 0U);
+    EXPECT_EQ(records[0].trace_id, records[1].trace_id);
 }
 
 TEST(FpgaRxEngineTest, firstEventWithoutTrackerDoesNotEmitLatencyRecords) {

@@ -91,6 +91,21 @@ TEST(LatencyTrackerTest, oldestPendingEntryIsReusedWhenTableIsFull) {
     EXPECT_TRUE(tracker._hasPendingRecord(0, 33ULL));
 }
 
+TEST(LatencyTrackerTest, reusedPendingEntryCountsDropForEvictedFrameStart) {
+    LatencyTracker tracker(1, 8, 2);
+    tracker.pushRecord(makeRecord(0, 11ULL, stage::FRAME_START, 10U, 1U));
+    tracker.pushRecord(makeRecord(0, 22ULL, stage::FRAME_START, 20U, 2U));
+    tracker.pushRecord(makeRecord(0, 33ULL, stage::FRAME_START, 30U, 3U));
+    tracker.run();
+
+    tracker.pushRecord(makeRecord(0, 11ULL, stage::DMA_EMIT, 40U));
+    tracker.run();
+
+    const LatencyStats& stats =
+        tracker._readStats(0, stage::FRAME_START, stage::DMA_EMIT);
+    EXPECT_EQ(stats.drop_count, 1U);
+}
+
 TEST(LatencyTrackerTest, sameEventTagRemainsIsolatedAcrossQueues) {
     LatencyTracker tracker(2, 8, 8);
     constexpr uint64_t shared_event_tag = 555ULL;

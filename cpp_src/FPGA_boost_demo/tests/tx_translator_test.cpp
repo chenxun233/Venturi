@@ -427,6 +427,27 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
     EXPECT_EQ(outbound.event_tag, 0x12345678ULL);
 }
 
+TEST(TxTranslatorTest, trackedAcceptedExecutionStillFlowsThroughSenderStages) {
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 8, 8);
+    sender.attachLatenyTracker(&tracker);
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x12345678ULL,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    TimeRecord record {};
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
+    EXPECT_EQ(record.trace_id, 0U);
+}
+
 TEST(TxTranslatorTest, buildOutboundFramesPushesOnlyEnqueueSenderLocalLatencyStage) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
