@@ -2,9 +2,9 @@
 #include "../driver/basic_rx_source.h"
 #include "../decoder/fpga_rx_decoder.h"
 #include "../common/shared_types.h"
-#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 class LatencyTracker;
 
@@ -29,7 +29,7 @@ private:
                                      bool get_snapshot,
                                      bool emit_batch_start,
                                      FpgaSyncSnapshot* snapshot,
-                                     std::array<uint32_t, MAX_POLL_RECORDS>* trace_ids,
+                                     std::vector<uint32_t>* trace_ids,
                                      FPGAEventDesc* out);
 
     BasicRxDev& m_device;

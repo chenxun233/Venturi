@@ -257,6 +257,46 @@ TEST(FpgaRxEngineTest, laterFirstEventGetsLargerTraceId) {
     EXPECT_LT(records[0].trace_id, records[1].trace_id);
 }
 
+TEST(FpgaRxEngineTest, firstEventBeyondMaxPollRecordsKeepsBatchEndTraceId) {
+    FakeFPGADev dev(1);
+    std::vector<FakeFPGADev::RawSlot> raw_slots;
+    raw_slots.reserve(MAX_POLL_RECORDS + 1U);
+    for (std::size_t idx = 0; idx < MAX_POLL_RECORDS; ++idx) {
+        raw_slots.push_back(
+            makeRawSlot(0x000d,
+                        2000ULL + static_cast<uint64_t>(idx),
+                        1900ULL,
+                        12U,
+                        102U,
+                        22U,
+                        107U,
+                        0U));
+    }
+    raw_slots.push_back(makeRawSlot(0x000d, 5000ULL, 4900ULL, 12U, 102U, 22U, 107U, 1U));
+    dev.setRawSlots(0, raw_slots);
+    dev.setProdPtr(0, static_cast<uint64_t>(MAX_POLL_RECORDS + 1U));
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    LatencyTracker tracker(1, 16, 8);
+    engine.attachLatenyTracker(&tracker);
+    std::vector<FPGAEventDesc> out(MAX_POLL_RECORDS + 1U);
+
+    ASSERT_EQ(engine.pollDecodedBatch(out.size(), out.data()), MAX_POLL_RECORDS + 1U);
+
+    std::vector<TimeRecord> records;
+    TimeRecord record {};
+    while (tracker.m_latency_queues[0]->pop(record)) {
+        records.push_back(record);
+    }
+
+    ASSERT_EQ(records.size(), 4U);
+    EXPECT_EQ(records[0].event_stage, stage::FRAME_START);
+    EXPECT_EQ(records[3].event_stage, stage::BATCH_END);
+    EXPECT_NE(records[0].trace_id, 0U);
+    EXPECT_EQ(records[0].trace_id, records[3].trace_id);
+}
+
 TEST(FpgaRxEngineTest, pollDecodedBatchSyncDoesNotPushBatchBoundaryRecords) {
     FakeFPGADev dev(1);
     dev.setRawSlots(0, {
