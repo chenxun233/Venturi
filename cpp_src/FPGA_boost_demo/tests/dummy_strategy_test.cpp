@@ -88,6 +88,21 @@ TEST(DummyStrategyTest, acceptedNonFirstEventDoesNotPushStrategyRecord) {
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
+TEST(DummyStrategyTest, acceptedNonFirstEventPreservesEventTagInIntent) {
+    DummyStrategy strategy;
+    FPGAEventDesc event {};
+    event.event_tk = 12345U;
+    event.is_first_event = 0U;
+    event.bid_price = 100U;
+    event.ask_price = 120U;
+    event.bid_shares = 2000U;
+    event.ask_shares = 100U;
+
+    OrderIntent intent {};
+    ASSERT_TRUE(strategy.evaluateEvent(0, event, intent));
+    EXPECT_EQ(intent.event_tag, 12345U);
+}
+
 TEST(DummyStrategyTest, acceptedFirstEventReturnsIntentWhenLatencyEmissionThrows) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);

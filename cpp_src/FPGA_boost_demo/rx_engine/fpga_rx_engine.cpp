@@ -3,6 +3,7 @@
 #include "../common/time_utils.h"
 #include "../latency/latency_tracker.h"
 
+#include <array>
 #include <stdexcept>
 
 FPGARxEngine::FPGARxEngine(BasicRxDev& source,
@@ -21,6 +22,7 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
                                                bool get_snapshot,
                                                bool emit_batch_start,
                                                FpgaSyncSnapshot* snapshot,
+                                               std::array<uint32_t, MAX_POLL_RECORDS>* trace_ids,
                                                FPGAEventDesc* out) {
 
     uint64_t prod_ptr = 0;
@@ -53,15 +55,21 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
         m_decoder.decodeRawRecord(raw, out[record_count]);
         if (out[record_count].is_first_event != 0 && m_latency_tracker != nullptr) {
             const uint64_t decode_time_ns = readMonotonicRawNs();
+            const uint32_t trace_id = _allocateTraceId();
+            if (trace_ids != nullptr && record_count < trace_ids->size()) {
+                (*trace_ids)[record_count] = trace_id;
+            }
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = m_que_idx,
                 .event_tag = out[record_count].event_tk,
+                .trace_id = trace_id,
                 .event_stage = stage::FRAME_START,
                 .time_captured = out[record_count].frame_start_tk,
             });
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = m_que_idx,
                 .event_tag = out[record_count].event_tk,
+                .trace_id = trace_id,
                 .event_stage = stage::DMA_EMIT,
                 .time_captured = out[record_count].event_tk,
             });
@@ -69,6 +77,7 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
                 m_latency_tracker->pushRecord(TimeRecord {
                     .que_idx = m_que_idx,
                     .event_tag = out[record_count].event_tk,
+                    .trace_id = trace_id,
                     .event_stage = stage::BATCH_START,
                     .time_captured = decode_time_ns,
                 });
@@ -87,7 +96,8 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(
 std::size_t FPGARxEngine::pollDecodedBatch(
                                            std::size_t max_count,
                                            FPGAEventDesc* out) {
-    const std::size_t count = pollDecodedBatchImpl(max_count, false, true, nullptr, out);
+    std::array<uint32_t, MAX_POLL_RECORDS> trace_ids {};
+    const std::size_t count = pollDecodedBatchImpl(max_count, false, true, nullptr, &trace_ids, out);
     if (m_latency_tracker == nullptr || count == 0) {
         return count;
     }
@@ -100,6 +110,7 @@ std::size_t FPGARxEngine::pollDecodedBatch(
         m_latency_tracker->pushRecord(TimeRecord {
             .que_idx = m_que_idx,
             .event_tag = out[idx].event_tk,
+            .trace_id = (idx < trace_ids.size()) ? trace_ids[idx] : 0U,
             .event_stage = stage::BATCH_END,
             .time_captured = readMonotonicRawNs(),
         });
@@ -112,9 +123,17 @@ std::size_t FPGARxEngine::pollDecodedBatchSync(
                                                bool get_snapshot,
                                                FpgaSyncSnapshot* snapshot,
                                                FPGAEventDesc* out) {
-    return pollDecodedBatchImpl(max_count, get_snapshot, false, snapshot, out);
+    return pollDecodedBatchImpl(max_count, get_snapshot, false, snapshot, nullptr, out);
 }
 
 void FPGARxEngine::attachLatenyTracker(LatencyTracker* latency_tracker) {
     m_latency_tracker = latency_tracker;
+}
+
+uint32_t FPGARxEngine::_allocateTraceId() noexcept {
+    const uint32_t trace_id = m_next_trace_id++;
+    if (m_next_trace_id == 0) {
+        m_next_trace_id = 1;
+    }
+    return trace_id;
 }

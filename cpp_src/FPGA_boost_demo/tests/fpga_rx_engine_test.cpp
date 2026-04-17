@@ -200,6 +200,63 @@ TEST(FpgaRxEngineTest, pollDecodedBatchPushesBatchEndForEachFirstEvent) {
     EXPECT_LE(records[7].time_captured, after_ns);
 }
 
+TEST(FpgaRxEngineTest, firstEventRecordsShareSameNonZeroTraceId) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 2000ULL, 1900ULL, 12U, 102U, 22U, 107U, 1U),
+    });
+    dev.setProdPtr(0, 1U);
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    LatencyTracker tracker(1, 8, 8);
+    engine.attachLatenyTracker(&tracker);
+    FPGAEventDesc out[1] {};
+
+    ASSERT_EQ(engine.pollDecodedBatch(1, out), 1U);
+
+    std::vector<TimeRecord> records;
+    TimeRecord record {};
+    while (tracker.m_latency_queues[0]->pop(record)) {
+        records.push_back(record);
+    }
+
+    ASSERT_EQ(records.size(), 4U);
+    EXPECT_NE(records[0].trace_id, 0U);
+    EXPECT_EQ(records[0].trace_id, records[1].trace_id);
+    EXPECT_EQ(records[1].trace_id, records[2].trace_id);
+    EXPECT_EQ(records[2].trace_id, records[3].trace_id);
+}
+
+TEST(FpgaRxEngineTest, laterFirstEventGetsLargerTraceId) {
+    FakeFPGADev dev(1);
+    dev.setRawSlots(0, {
+        makeRawSlot(0x000d, 2000ULL, 1900ULL, 12U, 102U, 22U, 107U, 1U),
+        makeRawSlot(0x000d, 2001ULL, 1900ULL, 13U, 103U, 23U, 108U, 0U),
+        makeRawSlot(0x000d, 2002ULL, 1900ULL, 14U, 104U, 24U, 109U, 1U),
+    });
+    dev.setProdPtr(0, 3U);
+
+    FPGARxDecoder decoder {};
+    FPGARxEngine engine(dev, decoder, 0);
+    LatencyTracker tracker(1, 16, 8);
+    engine.attachLatenyTracker(&tracker);
+    FPGAEventDesc out[3] {};
+
+    ASSERT_EQ(engine.pollDecodedBatch(3, out), 3U);
+
+    std::vector<TimeRecord> records;
+    TimeRecord record {};
+    while (tracker.m_latency_queues[0]->pop(record)) {
+        if (record.event_stage == stage::FRAME_START) {
+            records.push_back(record);
+        }
+    }
+
+    ASSERT_EQ(records.size(), 2U);
+    EXPECT_LT(records[0].trace_id, records[1].trace_id);
+}
+
 TEST(FpgaRxEngineTest, pollDecodedBatchSyncDoesNotPushBatchBoundaryRecords) {
     FakeFPGADev dev(1);
     dev.setRawSlots(0, {

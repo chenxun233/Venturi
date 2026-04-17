@@ -69,7 +69,7 @@ bool DummyStrategy::evaluateEvent(uint16_t que_idx,const FPGAEventDesc& event, O
     out_intent = OrderIntent {
         .stock_locate = event.stock_locate,
         .que_idx = que_idx,
-        .event_tag = event.is_first_event ? event.event_tk : 0,
+        .event_tag = event.event_tk,
         .intent = {
             .action = action,
             .price = (action == OrderIntentAction::Buy)
