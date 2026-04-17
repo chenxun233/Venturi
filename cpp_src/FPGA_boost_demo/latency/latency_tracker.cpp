@@ -32,10 +32,6 @@ m_pending_capacity(pending_capacity) {
     for (uint16_t producer_idx = 0; producer_idx < producer_num; ++producer_idx) {
         PendingTable& table = m_pending_tables[producer_idx];
         table.slots.resize(m_pending_capacity);
-        table.eviction_order.resize(m_pending_capacity);
-        for (std::size_t slot_idx = 0; slot_idx < m_pending_capacity; ++slot_idx) {
-            table.eviction_order[slot_idx] = slot_idx;
-        }
 
         std::vector<LatencyStats>& queue_stats = m_latency_stats[producer_idx];
         queue_stats.resize(kStageCount * kStageCount);

@@ -68,8 +68,6 @@ private:
 
     struct PendingTable {
         std::vector<PendingSlot> slots {};
-        std::vector<std::size_t> eviction_order {};
-        std::size_t next_evict_index {0};
         uint64_t next_insertion_sequence {0};
         std::size_t live_count {0};
     };
