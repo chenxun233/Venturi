@@ -123,44 +123,48 @@ TEST(LatencyTrackerTest, emitsRenamedStageAndLatencyFields) {
     printer.stop();
 
     const std::string output = testing::internal::GetCapturedStdout();
-    auto formatSignedLine = [](const char* label, long long value) {
+    auto formatSummaryLine = [](const char* label, long long value) {
         char line[128];
-        std::snprintf(line, sizeof(line), "%-48s = %lld\n", label, value);
+        std::snprintf(line,
+                      sizeof(line),
+                      "%-48s count=1 min=%lld p50=%lld p99=%lld max=%lld\n",
+                      label,
+                      value,
+                      value,
+                      value,
+                      value);
         return std::string(line);
     };
-    auto formatUnsignedLine = [](const char* label, unsigned long long value) {
-        char line[128];
-        std::snprintf(line, sizeof(line), "%-48s = %llu\n", label, value);
-        return std::string(line);
-    };
-
-    std::string expected = "\nLatencyNs queue=0 event_tag=1234\n";
-    expected += formatUnsignedLine("frame_start -> dma_emit_ns", frame_start_to_dma_emit_ns);
-    expected += formatSignedLine("batch_duration_ns",
-                                 hostTickDeltaToNs(batch_end_tick, batch_start_tick));
-    expected += formatSignedLine("batch_end -> strategy_start_ns",
-                                 hostTickDeltaToNs(strategy_start_tick, batch_end_tick));
-    expected += formatSignedLine(
+    std::string expected = "\nLatencySummary queue=0\n";
+    expected += formatSummaryLine("frame_start -> dma_emit_ns",
+                                  static_cast<long long>(frame_start_to_dma_emit_ns));
+    expected += formatSummaryLine("batch_duration_ns",
+                                  hostTickDeltaToNs(batch_end_tick, batch_start_tick));
+    expected += formatSummaryLine("batch_end -> strategy_start_ns",
+                                  hostTickDeltaToNs(strategy_start_tick, batch_end_tick));
+    expected += formatSummaryLine(
         "strategy_start -> tx_execution_accepted_ns",
         hostTickDeltaToNs(tx_execution_accepted_tick, strategy_start_tick));
-    expected += formatSignedLine("tx_execution_accepted -> tx_enqueue_ns",
-                                 hostTickDeltaToNs(tx_enqueue_tick, tx_execution_accepted_tick));
-    expected += formatSignedLine("tx_enqueue -> tx_send_enter_ns",
-                                 hostTickDeltaToNs(tx_send_enter_tick, tx_enqueue_tick));
-    expected += formatSignedLine("tx_send_enter -> tx_send_syscall_enter_ns",
-                                 hostTickDeltaToNs(tx_send_syscall_enter_tick,
-                                                   tx_send_enter_tick));
-    expected += formatSignedLine("tx_send_syscall_enter -> tx_send_ns",
-                                 hostTickDeltaToNs(tx_send_tick,
-                                                   tx_send_syscall_enter_tick));
-    expected += formatUnsignedLine("tx_enqueue_backlog_depth", 7ULL);
-    expected += formatUnsignedLine("tx_send_enter_backlog_depth", 3ULL);
-    expected += formatUnsignedLine("tx_send_call_count", 2ULL);
-    expected += formatUnsignedLine("tx_send_bytes_total", 64ULL);
-    expected += formatUnsignedLine("tx_send_eintr_retry_count", 1ULL);
-    expected += formatUnsignedLine("tx_send_had_partial_write", 1ULL);
+    expected += formatSummaryLine("tx_execution_accepted -> tx_enqueue_ns",
+                                  hostTickDeltaToNs(tx_enqueue_tick,
+                                                    tx_execution_accepted_tick));
+    expected += formatSummaryLine("tx_enqueue -> tx_send_enter_ns",
+                                  hostTickDeltaToNs(tx_send_enter_tick, tx_enqueue_tick));
+    expected += formatSummaryLine("tx_send_enter -> tx_send_syscall_enter_ns",
+                                  hostTickDeltaToNs(tx_send_syscall_enter_tick,
+                                                    tx_send_enter_tick));
+    expected += formatSummaryLine("tx_send_syscall_enter -> tx_send_ns",
+                                  hostTickDeltaToNs(tx_send_tick,
+                                                    tx_send_syscall_enter_tick));
 
     EXPECT_EQ(output, expected);
+    EXPECT_EQ(output.find("event_tag="), std::string::npos);
+    EXPECT_EQ(output.find("tx_enqueue_backlog_depth"), std::string::npos);
+    EXPECT_EQ(output.find("tx_send_enter_backlog_depth"), std::string::npos);
+    EXPECT_EQ(output.find("tx_send_call_count"), std::string::npos);
+    EXPECT_EQ(output.find("tx_send_bytes_total"), std::string::npos);
+    EXPECT_EQ(output.find("tx_send_eintr_retry_count"), std::string::npos);
+    EXPECT_EQ(output.find("tx_send_had_partial_write"), std::string::npos);
     EXPECT_EQ(output.find("tx_execution_accepted -> tx_execution_dequeue_ns"), std::string::npos);
     EXPECT_EQ(output.find("tx_execution_dequeue -> tx_order_frame_built_ns"), std::string::npos);
     EXPECT_EQ(output.find("tx_order_frame_built -> tx_pending_recorded_ns"), std::string::npos);

@@ -2,6 +2,7 @@
 
 #include "../common/thread_affinity.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <stdexcept>
 
@@ -40,6 +41,19 @@ const char* readTxEventLabel(TxEventKind event) {
     }
 }
 
+int64_t readPercentileValue(std::vector<int64_t> samples,
+                            std::size_t numerator,
+                            std::size_t denominator) {
+    if (samples.empty()) {
+        return 0;
+    }
+
+    std::sort(samples.begin(), samples.end());
+    const std::size_t last_idx = samples.size() - 1U;
+    const std::size_t idx = (last_idx * numerator) / denominator;
+    return samples[idx];
+}
+
 } // namespace
 
 LogPrinter::LogPrinter(uint16_t queue_num, std::size_t capacity)
@@ -54,6 +68,8 @@ LogPrinter::LogPrinter(uint16_t queue_num, std::size_t capacity)
     m_latency_log_queues.reserve(queue_num);
     m_execution_log_queues.reserve(queue_num);
     m_tx_log_queues.reserve(queue_num);
+    m_latency_seen_counts.assign(queue_num, 0U);
+    m_latency_summary_stats.resize(queue_num);
     for (uint16_t idx = 0; idx < queue_num; ++idx) {
         m_latency_log_queues.push_back(
             std::make_unique<SpscRingQueue<LatencyLogRecord>>(capacity));
@@ -82,6 +98,10 @@ bool LogPrinter::pushTxLog(const TxLogRecord& record) {
 
 void LogPrinter::setWorkerCpu(int cpu_id) {
     m_worker_cpu = cpu_id;
+}
+
+void LogPrinter::setLatencyWarmupRecords(uint64_t record_count) {
+    m_latency_warmup_records = record_count;
 }
 
 bool LogPrinter::_pushLatencyLogRecord(const LatencyLogRecord& record) {
@@ -127,6 +147,7 @@ void LogPrinter::start() {
         return;
     }
 
+    m_latency_summary_printed = false;
     m_thread = std::thread(&LogPrinter::_run, this);
 }
 
@@ -137,6 +158,14 @@ void LogPrinter::stop() {
     }
 
     _drainRemaining();
+    const bool has_latency_records =
+        std::any_of(m_latency_seen_counts.begin(),
+                    m_latency_seen_counts.end(),
+                    [](uint64_t seen_count) { return seen_count > 0U; });
+    if (has_latency_records && !m_latency_summary_printed) {
+        _printLatencySummary();
+        m_latency_summary_printed = true;
+    }
 }
 
 uint64_t LogPrinter::readDropCount() const {
@@ -158,7 +187,7 @@ bool LogPrinter::_drainLatencyRecord() {
         }
 
         m_next_latency_queue_idx = static_cast<uint16_t>((queue_idx + 1U) % queue_num);
-        _printLatencyRecord(record);
+        _recordLatencySamples(record);
         return true;
     }
 
@@ -214,6 +243,36 @@ void LogPrinter::_drainRemaining() {
     }
 }
 
+void LogPrinter::_recordLatencySamples(const LatencyLogRecord& record) {
+    if (record.que_idx >= m_queue_num) {
+        return;
+    }
+
+    uint64_t& seen_count = m_latency_seen_counts[record.que_idx];
+    seen_count += 1U;
+    if (seen_count <= m_latency_warmup_records) {
+        return;
+    }
+
+    auto& stats = m_latency_summary_stats[record.que_idx];
+    stats[static_cast<std::size_t>(LatencyField::FrameStartToDmaEmit)].samples.push_back(
+        static_cast<int64_t>(record.frame_start_to_dma_emit_ns));
+    stats[static_cast<std::size_t>(LatencyField::BatchDuration)].samples.push_back(
+        record.batch_duration_ns);
+    stats[static_cast<std::size_t>(LatencyField::BatchEndToStrategyStart)].samples.push_back(
+        record.batch_end_to_strategy_start_ns);
+    stats[static_cast<std::size_t>(LatencyField::StrategyStartToTxExecutionAccepted)]
+        .samples.push_back(record.strategy_start_to_tx_execution_accepted_ns);
+    stats[static_cast<std::size_t>(LatencyField::TxExecutionAcceptedToTxEnqueue)]
+        .samples.push_back(record.tx_execution_accepted_to_tx_enqueue_ns);
+    stats[static_cast<std::size_t>(LatencyField::TxEnqueueToTxSendEnter)].samples.push_back(
+        record.tx_enqueue_to_tx_send_enter_ns);
+    stats[static_cast<std::size_t>(LatencyField::TxSendEnterToTxSendSyscallEnter)]
+        .samples.push_back(record.tx_send_enter_to_tx_send_syscall_enter_ns);
+    stats[static_cast<std::size_t>(LatencyField::TxSendSyscallEnterToTxSend)]
+        .samples.push_back(record.tx_send_syscall_enter_to_tx_send_ns);
+}
+
 void LogPrinter::_run() {
     if (m_worker_cpu >= 0) {
         pinCurrentThreadToCpu(m_worker_cpu);
@@ -225,6 +284,54 @@ void LogPrinter::_run() {
         drained |= _drainExecutionLogRecord();
         drained |= _drainTxLogRecord();
         (void)drained;
+    }
+}
+
+void LogPrinter::_printLatencySummary() {
+    for (uint16_t queue_idx = 0; queue_idx < m_queue_num; ++queue_idx) {
+        _printLatencyQueueSummary(queue_idx);
+    }
+    std::fflush(stdout);
+}
+
+void LogPrinter::_printLatencyQueueSummary(uint16_t queue_idx) {
+    constexpr int kLatencyLabelWidth = 48;
+    static constexpr std::array<const char*, static_cast<std::size_t>(LatencyField::Count)>
+        kLatencyLabels = {
+            "frame_start -> dma_emit_ns",
+            "batch_duration_ns",
+            "batch_end -> strategy_start_ns",
+            "strategy_start -> tx_execution_accepted_ns",
+            "tx_execution_accepted -> tx_enqueue_ns",
+            "tx_enqueue -> tx_send_enter_ns",
+            "tx_send_enter -> tx_send_syscall_enter_ns",
+            "tx_send_syscall_enter -> tx_send_ns",
+        };
+
+    const auto& queue_stats = m_latency_summary_stats[queue_idx];
+    const auto& reference_samples =
+        queue_stats[static_cast<std::size_t>(LatencyField::FrameStartToDmaEmit)].samples;
+    if (reference_samples.empty()) {
+        std::printf("\nLatencySummary queue=%u insufficient post-warmup samples\n",
+                    static_cast<unsigned int>(queue_idx));
+        return;
+    }
+
+    std::printf("\nLatencySummary queue=%u\n", static_cast<unsigned int>(queue_idx));
+    for (std::size_t field_idx = 0; field_idx < kLatencyLabels.size(); ++field_idx) {
+        const auto& samples = queue_stats[field_idx].samples;
+        const int64_t min_value = readPercentileValue(samples, 0U, 1U);
+        const int64_t p50_value = readPercentileValue(samples, 50U, 100U);
+        const int64_t p99_value = readPercentileValue(samples, 99U, 100U);
+        const int64_t max_value = readPercentileValue(samples, 1U, 1U);
+        std::printf("%-*s count=%zu min=%lld p50=%lld p99=%lld max=%lld\n",
+                    kLatencyLabelWidth,
+                    kLatencyLabels[field_idx],
+                    samples.size(),
+                    static_cast<long long>(min_value),
+                    static_cast<long long>(p50_value),
+                    static_cast<long long>(p99_value),
+                    static_cast<long long>(max_value));
     }
 }
 

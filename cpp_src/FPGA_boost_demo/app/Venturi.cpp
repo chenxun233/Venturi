@@ -12,6 +12,7 @@
 #include <atomic>
 #include <array>
 #include <chrono>
+#include <csignal>
 #include <cstdint>
 #include <ctime>
 #include <cstdio>
@@ -55,6 +56,12 @@ constexpr int kRxThread0Cpu = 2;
 constexpr int kRxThread1Cpu = 4;
 constexpr int kLatencyThreadCpu = 6;
 constexpr int kMainAndLogPrinterCpu = 8;
+
+std::atomic<bool> g_should_stop {false};
+
+void handleStopSignal(int) {
+    g_should_stop.store(true, std::memory_order_release);
+}
 
 } // namespace
 
@@ -113,6 +120,8 @@ int main() {
     TxSender tx_sender1(tx_sender_config);
     LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
     LogPrinter log_printer(kQueueCount, kLatencyLogCapacity);
+    std::signal(SIGINT, handleStopSignal);
+    log_printer.setLatencyWarmupRecords(100);
 
     rx_engine0.attachLatenyTracker(&latency_tracker);
     rx_engine1.attachLatenyTracker(&latency_tracker);
@@ -141,7 +150,7 @@ int main() {
 
     std::thread latency_thread([&]() {
         pinCurrentThreadToCpu(kLatencyThreadCpu);
-        while (true) {
+        while (!g_should_stop.load(std::memory_order_acquire)) {
             const std::size_t processed = latency_tracker.run();
             (void)processed;
         }
@@ -156,7 +165,7 @@ int main() {
         OrderExecution execution {};
         TxConnectionInfo connection_info {};
 
-        while (true) {
+        while (!g_should_stop.load(std::memory_order_acquire)) {
             const std::size_t count =
                 rx_engine0.pollDecodedBatch(MAX_POLL_RECORDS, events);
             if (count > 0) {
@@ -187,7 +196,7 @@ int main() {
         OrderExecution execution {};
         TxConnectionInfo connection_info {};
 
-        while (true) {
+        while (!g_should_stop.load(std::memory_order_acquire)) {
             const std::size_t count =
                 rx_engine1.pollDecodedBatch(MAX_POLL_RECORDS,  events);
 
