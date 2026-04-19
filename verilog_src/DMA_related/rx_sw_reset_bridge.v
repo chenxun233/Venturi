@@ -32,12 +32,13 @@ always @(posedge i_user_clk or posedge i_user_reset_p) begin
     end
 end
 
-bit_synchronizer #(
-    .BIT_WIDTH (1)
+rst_synchronizer #(
+    .IN_ACTIVE_HIGH  (1),
+    .OUT_ACTIVE_HIGH (1)
 ) rx_sw_reset_sync_inst (
-    .i_clk  (i_rx_clk_156),
-    .i_in   (reset_250),
-    .o_out  (reset_156_sync)
+    .i_clk   (i_rx_clk_156),
+    .rst_in  (reset_250),
+    .rst_out (reset_156_sync)
 );
 
 assign o_reset_250 = i_user_reset_p | reset_250;

@@ -24,6 +24,8 @@ const char* readTxEventLabel(TxEventKind event) {
     switch (event) {
         case TxEventKind::ConnectionEstablished:
             return "ConnectionEstablished";
+        case TxEventKind::ConnectionIssue:
+            return "ConnectionIssue";
         case TxEventKind::ConnectionLost:
             return "ConnectionLost";
         case TxEventKind::OrderSent:
@@ -120,7 +122,12 @@ bool LogPrinter::_pushLatencyLogRecord(const LatencyLogRecord& record) {
 }
 
 bool LogPrinter::_pushExecutionLogRecord(const ExecutionLogRecord& execution) {
-    const uint16_t queue_idx = 0;
+    const uint16_t queue_idx = execution.queue_idx;
+    if (queue_idx >= m_queue_num) {
+        m_drop_count.fetch_add(1, std::memory_order_relaxed);
+        return false;
+    }
+
     const bool pushed = m_execution_log_queues[queue_idx]->push(execution);
     if (!pushed) {
         m_drop_count.fetch_add(1, std::memory_order_relaxed);
@@ -131,7 +138,12 @@ bool LogPrinter::_pushExecutionLogRecord(const ExecutionLogRecord& execution) {
 }
 
 bool LogPrinter::_pushTxLogRecord(const TxLogRecord& record) {
-    const uint16_t queue_idx = 0;
+    const uint16_t queue_idx = record.queue_idx;
+    if (queue_idx >= m_queue_num) {
+        m_drop_count.fetch_add(1, std::memory_order_relaxed);
+        return false;
+    }
+
     const bool pushed = m_tx_log_queues[queue_idx]->push(record);
     if (!pushed) {
         m_drop_count.fetch_add(1, std::memory_order_relaxed);
@@ -370,18 +382,6 @@ void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
                        static_cast<long long>(record.tx_send_enter_to_tx_send_syscall_enter_ns));
     printSignedLatency("tx_send_syscall_enter -> tx_send_ns",
                        static_cast<long long>(record.tx_send_syscall_enter_to_tx_send_ns));
-    printUnsignedLatency("tx_enqueue_backlog_depth",
-                         static_cast<unsigned long long>(record.tx_enqueue_backlog_depth));
-    printUnsignedLatency("tx_send_enter_backlog_depth",
-                         static_cast<unsigned long long>(record.tx_send_enter_backlog_depth));
-    printUnsignedLatency("tx_send_call_count",
-                         static_cast<unsigned long long>(record.tx_send_call_count));
-    printUnsignedLatency("tx_send_bytes_total",
-                         static_cast<unsigned long long>(record.tx_send_bytes_total));
-    printUnsignedLatency("tx_send_eintr_retry_count",
-                         static_cast<unsigned long long>(record.tx_send_eintr_retry_count));
-    printUnsignedLatency("tx_send_had_partial_write",
-                         static_cast<unsigned long long>(record.tx_send_had_partial_write));
     std::fflush(stdout);
 }
 

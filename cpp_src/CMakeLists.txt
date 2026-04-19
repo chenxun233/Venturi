@@ -125,6 +125,7 @@ add_executable(Venturi
     ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
     ${FPGA_COMMON_DIR}/thread_affinity.cpp
     ${FPGA_LATENCY_DIR}/log_printer.cpp
+    ${FPGA_LATENCY_DIR}/latency_analyzer.cpp
     ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
     ${FPGA_LATENCY_DIR}/latency_tracker.cpp
     ${FPGA_SYNC_DIR}/FPGA_regression.cpp
@@ -186,6 +187,7 @@ if(TARGET GTest::gtest_main)
         ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/latency_analyzer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
@@ -233,6 +235,7 @@ if(TARGET GTest::gtest_main)
         ${FPGA_TX_DIR}/tx_sender.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/latency_analyzer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
@@ -255,6 +258,7 @@ if(TARGET GTest::gtest_main)
         ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/latency_analyzer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
@@ -274,6 +278,7 @@ if(TARGET GTest::gtest_main)
         ${FPGA_TX_DIR}/executor.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/latency_analyzer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
@@ -335,6 +340,7 @@ if(TARGET GTest::gtest_main)
         ${FPGA_TX_DIR}/tx_sender.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/latency_analyzer.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
@@ -367,6 +373,7 @@ if(TARGET GTest::gtest_main)
     add_executable(latency_tracker_test
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
+        ${FPGA_LATENCY_DIR}/latency_analyzer.cpp
         ${FPGA_LATENCY_DIR}/latency_tracker.cpp
         ${FPGA_COMMON_DIR}/spsc_ring_queue.cpp
         ${FPGA_SYNC_DIR}/FPGA_regression.cpp
@@ -379,6 +386,19 @@ if(TARGET GTest::gtest_main)
         ${FPGA_TEST_DIR}
     )
     target_link_libraries(latency_tracker_test PRIVATE
+        GTest::gtest_main
+    )
+
+    add_executable(latency_analyzer_test
+        ${FPGA_LATENCY_DIR}/latency_analyzer.cpp
+        ${FPGA_TEST_DIR}/latency_analyzer_test.cpp
+    )
+    target_include_directories(latency_analyzer_test PRIVATE
+        ${FPGA_LATENCY_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(latency_analyzer_test PRIVATE
         GTest::gtest_main
     )
 
@@ -431,6 +451,7 @@ if(TARGET GTest::gtest_main)
     gtest_discover_tests(tx_log_record_test)
     gtest_discover_tests(log_printer_test)
     gtest_discover_tests(latency_tracker_test)
+    gtest_discover_tests(latency_analyzer_test)
     gtest_discover_tests(spsc_ring_queue_overwrite_test)
     gtest_discover_tests(fixed_circular_buffer_test)
     gtest_discover_tests(thread_affinity_test)

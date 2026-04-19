@@ -562,7 +562,7 @@ rx_dma_stage #(
     .PAYLOAD_W          (EVENT_PAYLOAD_W)
 ) rx_dma_stage_inst (
     .i_clk              (user_clk_250),
-    .i_rst              (user_reset_p),
+    .i_rst              (rx_logic_reset_250),
     .i_dma_timestamp    (w_dma_ts_bin),
     .i_event_empty      (event_cdc_rd_empty),
     .i_event_valid      (event_cdc_rd_valid),

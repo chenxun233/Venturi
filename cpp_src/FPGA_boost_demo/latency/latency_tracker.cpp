@@ -1,575 +1,519 @@
 #include "latency_tracker.h"
-#include "log_printer.h"
 
+#include "latency_analyzer.h"
 #include "../common/time_utils.h"
 
-#include <cstdio>
-#include <limits>
-#include <stdexcept>
+#include <array>
+#include <thread>
 #include <utility>
 
 namespace {
-constexpr std::size_t kStageCount =
-    static_cast<std::size_t>(stage::BATCH_END) + 1U;
+
+constexpr std::array<stage, 10> kRequiredStages = {{
+    stage::FRAME_START,
+    stage::DMA_EMIT,
+    stage::BATCH_START,
+    stage::BATCH_END,
+    stage::STRATEGY_START,
+    stage::TX_EXECUTION_ACCEPTED,
+    stage::TX_ENQUEUE,
+    stage::TX_SEND_ENTER,
+    stage::TX_SEND_SYSCALL_ENTER,
+    stage::TX_SEND,
+}};
+
+constexpr std::size_t kMaxCommandsPerQueuePerPass = 4U;
+
 } // namespace
 
 LatencyTracker::LatencyTracker(uint16_t producer_num,
                                std::size_t buffer_capacity,
-                               std::size_t pending_capacity):
-m_queue_num(producer_num),
-m_pending_capacity(pending_capacity) {
-    if (!_isPowerOfTwo(pending_capacity)) {
-        throw std::invalid_argument("pending_capacity must be a non-zero power-of-two");
-    }
-
+                               std::size_t command_capacity)
+    : m_trace_command_overflow_slots(producer_num),
+      m_queue_num(producer_num),
+      m_active_trace_ids(producer_num),
+      m_started_trace_counts(producer_num),
+      m_finalize_request_counts(producer_num),
+      m_completed_trace_counts(producer_num),
+      m_drop_request_counts(producer_num),
+      m_missing_trace_record_counts(producer_num),
+      m_stage_mismatch_drop_counts(producer_num) {
     m_latency_queues.reserve(producer_num);
+    m_trace_command_queues.reserve(producer_num);
     for (uint16_t producer_idx = 0; producer_idx < producer_num; ++producer_idx) {
-        m_latency_queues.push_back(std::make_unique<SpscRingQueue<TimeRecord>>(buffer_capacity));
-    }
-
-    m_pending_tables.resize(producer_num);
-    m_latency_stats.resize(producer_num);
-    for (uint16_t producer_idx = 0; producer_idx < producer_num; ++producer_idx) {
-        PendingTable& table = m_pending_tables[producer_idx];
-        table.slots.resize(m_pending_capacity);
-
-        std::vector<LatencyStats>& queue_stats = m_latency_stats[producer_idx];
-        queue_stats.resize(kStageCount * kStageCount);
-        for (std::size_t prev_idx = 0; prev_idx < kStageCount; ++prev_idx) {
-            for (std::size_t curr_idx = 0; curr_idx < kStageCount; ++curr_idx) {
-                LatencyStats& stats = queue_stats[prev_idx * kStageCount + curr_idx];
-                stats.que_idx = producer_idx;
-                stats.prev_stage = static_cast<stage>(prev_idx);
-                stats.curr_stage = static_cast<stage>(curr_idx);
-                stats.min_ns = std::numeric_limits<uint64_t>::max();
-            }
-        }
+        m_latency_queues.push_back(
+            std::make_unique<SpscRingQueue<TimeRecord>>(buffer_capacity));
+        m_trace_command_queues.push_back(
+            std::make_unique<SpscRingQueue<TraceCommand>>(command_capacity));
+        m_trace_command_overflow_slots[producer_idx].store(0ULL, std::memory_order_relaxed);
+        m_active_trace_ids[producer_idx].store(0U, std::memory_order_relaxed);
+        m_started_trace_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
+        m_finalize_request_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
+        m_completed_trace_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
+        m_drop_request_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
+        m_missing_trace_record_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
+        m_stage_mismatch_drop_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
     }
 }
 
-bool LatencyTracker::_isPowerOfTwo(std::size_t value) noexcept {
-    return value != 0 && (value & (value - 1)) == 0;
+uint32_t LatencyTracker::tryAllocateTraceId(uint16_t que_idx, bool is_first_event) noexcept {
+    if (!is_first_event || que_idx >= m_active_trace_ids.size()) {
+        return 0U;
+    }
+
+    const uint32_t trace_id = _allocateTraceId();
+    if (trace_id == 0U) {
+        return 0U;
+    }
+
+    uint32_t expected_trace_id = 0U;
+    if (!m_active_trace_ids[que_idx].compare_exchange_strong(expected_trace_id,
+                                                             trace_id,
+                                                             std::memory_order_acq_rel,
+                                                             std::memory_order_acquire)) {
+        return 0U;
+    }
+
+    m_started_trace_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+    return trace_id;
 }
 
-void LatencyTracker::attachLogPrinter(LogPrinter* log_printer) {
-    m_log_printer = log_printer;
+void LatencyTracker::attachAnalyzer(LatencyAnalyzer* latency_analyzer) noexcept {
+    m_latency_analyzer = latency_analyzer;
 }
 
 void LatencyTracker::pushRecord(const TimeRecord& record) noexcept {
     if (record.que_idx >= m_latency_queues.size()) {
         return;
     }
-    m_latency_queues[record.que_idx]->push(record);
+
+    (void)m_latency_queues[record.que_idx]->push(record);
 }
 
-std::size_t LatencyTracker::_drainFairPass() {
-    if (m_queue_num == 0) {
-        return 0;
+bool LatencyTracker::requestFinalize(uint16_t que_idx, uint32_t trace_id) noexcept {
+    if (que_idx >= m_trace_command_queues.size() || trace_id == 0U) {
+        return false;
+    }
+    m_finalize_request_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+    return _enqueueCommand(que_idx, que_idx, TraceCommandOp::Finalize, trace_id);
+}
+
+bool LatencyTracker::requestDrop(uint16_t que_idx, uint32_t trace_id) noexcept {
+    return requestDrop(que_idx, que_idx, trace_id);
+}
+
+bool LatencyTracker::requestDrop(uint16_t command_queue_idx,
+                                 uint16_t target_queue_idx,
+                                 uint32_t trace_id) noexcept {
+    if (command_queue_idx >= m_trace_command_queues.size() ||
+        target_queue_idx >= m_latency_queues.size() ||
+        trace_id == 0U) {
+        return false;
+    }
+    m_drop_request_counts[target_queue_idx].fetch_add(1ULL, std::memory_order_relaxed);
+    return _enqueueCommand(command_queue_idx, target_queue_idx, TraceCommandOp::Drop, trace_id);
+}
+
+void LatencyTracker::run() noexcept {
+    while (!m_should_stop.load(std::memory_order_acquire)) {
+        if (!_drainCommandPass()) {
+            std::this_thread::yield();
+        }
     }
 
-    std::size_t processed = 0;
+    _drainAllCommands();
+}
+
+void LatencyTracker::stop() noexcept {
+    m_should_stop.store(true, std::memory_order_release);
+}
+
+void LatencyTracker::printDebugSummary() const noexcept {
+    std::printf("Latency Tracker Debug Summary\n");
+    for (uint16_t que_idx = 0; que_idx < m_queue_num; ++que_idx) {
+        std::printf("queue=%u started=%llu finalize_requested=%llu completed=%llu drop_requested=%llu missing_trace=%llu stage_mismatch=%llu active_trace=%u\n",
+                    static_cast<unsigned int>(que_idx),
+                    static_cast<unsigned long long>(
+                        m_started_trace_counts[que_idx].load(std::memory_order_relaxed)),
+                    static_cast<unsigned long long>(
+                        m_finalize_request_counts[que_idx].load(std::memory_order_relaxed)),
+                    static_cast<unsigned long long>(
+                        m_completed_trace_counts[que_idx].load(std::memory_order_relaxed)),
+                    static_cast<unsigned long long>(
+                        m_drop_request_counts[que_idx].load(std::memory_order_relaxed)),
+                    static_cast<unsigned long long>(
+                        m_missing_trace_record_counts[que_idx].load(std::memory_order_relaxed)),
+                    static_cast<unsigned long long>(
+                        m_stage_mismatch_drop_counts[que_idx].load(std::memory_order_relaxed)),
+                    static_cast<unsigned int>(
+                        m_active_trace_ids[que_idx].load(std::memory_order_relaxed)));
+    }
+    std::fflush(stdout);
+}
+
+void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
+    if (que_idx >= m_latency_queues.size() ||
+        trace_id == 0U ||
+        m_active_trace_ids[que_idx].load(std::memory_order_acquire) != trace_id) {
+        return;
+    }
+
+    SpscRingQueue<TimeRecord>& queue = *m_latency_queues[que_idx];
     TimeRecord record {};
-    for (uint16_t offset = 0; offset < m_queue_num; ++offset) {
-        const uint16_t que_idx =
-            static_cast<uint16_t>((m_next_queue_idx + offset) % m_queue_num);
-        if (!m_latency_queues[que_idx]->pop(record)) {
+    bool found_matching_trace = false;
+    while (queue.pop(record)) {
+        if (record.trace_id != trace_id) {
             continue;
         }
-        _processRecord(record);
-        ++processed;
+        found_matching_trace = true;
+        break;
     }
 
-    m_next_queue_idx = static_cast<uint16_t>((m_next_queue_idx + 1U) % m_queue_num);
-    return processed;
-}
+    if (!found_matching_trace) {
+        m_missing_trace_record_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+        _clearActiveTrace(que_idx, trace_id);
+        return;
+    }
 
-std::size_t LatencyTracker::run() {
-    std::size_t processed_count = 0;
-    for (;;) {
-        const std::size_t pass_count = _drainFairPass();
-        if (pass_count == 0) {
-            return processed_count;
+    LatencyLogRecord completed_record {.que_idx = que_idx};
+    uint64_t frame_start_tick = 0U;
+    uint64_t batch_start_tick = 0U;
+    uint64_t batch_end_tick = 0U;
+    uint64_t strategy_start_tick = 0U;
+    uint64_t tx_execution_accepted_tick = 0U;
+    uint64_t tx_enqueue_tick = 0U;
+    uint64_t tx_send_enter_tick = 0U;
+    uint64_t tx_send_syscall_enter_tick = 0U;
+
+    for (std::size_t stage_idx = 0; stage_idx < kRequiredStages.size(); ++stage_idx) {
+        if (record.trace_id != trace_id || record.event_stage != kRequiredStages[stage_idx]) {
+            m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+            _dropQueueUntilEmpty(que_idx);
+            _clearActiveTrace(que_idx, trace_id);
+            return;
         }
-        processed_count += pass_count;
+
+        if (stage_idx == 0U) {
+            completed_record.event_tag = record.event_tag;
+        }
+
+        switch (record.event_stage) {
+            case stage::FRAME_START:
+                frame_start_tick = record.time_captured;
+                break;
+            case stage::DMA_EMIT: {
+                const int64_t delta_ns =
+                    _readSignedDelta(record.time_captured, frame_start_tick);
+                if (delta_ns < 0) {
+                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+                    _dropQueueUntilEmpty(que_idx);
+                    _clearActiveTrace(que_idx, trace_id);
+                    return;
+                }
+                completed_record.frame_start_to_dma_emit_ns =
+                    static_cast<uint64_t>(delta_ns);
+                break;
+            }
+            case stage::BATCH_START:
+                batch_start_tick = record.time_captured;
+                break;
+            case stage::BATCH_END: {
+                batch_end_tick = record.time_captured;
+                const int64_t delta_ns =
+                    _readSignedHostDeltaNs(record.time_captured, batch_start_tick);
+                if (delta_ns < 0) {
+                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+                    _dropQueueUntilEmpty(que_idx);
+                    _clearActiveTrace(que_idx, trace_id);
+                    return;
+                }
+                completed_record.batch_duration_ns = delta_ns;
+                break;
+            }
+            case stage::STRATEGY_START: {
+                strategy_start_tick = record.time_captured;
+                const int64_t delta_ns =
+                    _readSignedHostDeltaNs(record.time_captured, batch_end_tick);
+                if (delta_ns < 0) {
+                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+                    _dropQueueUntilEmpty(que_idx);
+                    _clearActiveTrace(que_idx, trace_id);
+                    return;
+                }
+                completed_record.batch_end_to_strategy_start_ns = delta_ns;
+                break;
+            }
+            case stage::TX_EXECUTION_ACCEPTED: {
+                tx_execution_accepted_tick = record.time_captured;
+                const int64_t delta_ns =
+                    _readSignedHostDeltaNs(record.time_captured, strategy_start_tick);
+                if (delta_ns < 0) {
+                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+                    _dropQueueUntilEmpty(que_idx);
+                    _clearActiveTrace(que_idx, trace_id);
+                    return;
+                }
+                completed_record.strategy_start_to_tx_execution_accepted_ns = delta_ns;
+                break;
+            }
+            case stage::TX_ENQUEUE: {
+                tx_enqueue_tick = record.time_captured;
+                const int64_t delta_ns =
+                    _readSignedHostDeltaNs(record.time_captured, tx_execution_accepted_tick);
+                if (delta_ns < 0) {
+                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+                    _dropQueueUntilEmpty(que_idx);
+                    _clearActiveTrace(que_idx, trace_id);
+                    return;
+                }
+                completed_record.tx_execution_accepted_to_tx_enqueue_ns = delta_ns;
+                break;
+            }
+            case stage::TX_SEND_ENTER: {
+                tx_send_enter_tick = record.time_captured;
+                const int64_t delta_ns =
+                    _readSignedHostDeltaNs(record.time_captured, tx_enqueue_tick);
+                if (delta_ns < 0) {
+                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+                    _dropQueueUntilEmpty(que_idx);
+                    _clearActiveTrace(que_idx, trace_id);
+                    return;
+                }
+                completed_record.tx_enqueue_to_tx_send_enter_ns = delta_ns;
+                break;
+            }
+            case stage::TX_SEND_SYSCALL_ENTER: {
+                tx_send_syscall_enter_tick = record.time_captured;
+                const int64_t delta_ns =
+                    _readSignedHostDeltaNs(record.time_captured, tx_send_enter_tick);
+                if (delta_ns < 0) {
+                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+                    _dropQueueUntilEmpty(que_idx);
+                    _clearActiveTrace(que_idx, trace_id);
+                    return;
+                }
+                completed_record.tx_send_enter_to_tx_send_syscall_enter_ns = delta_ns;
+                break;
+            }
+            case stage::TX_SEND: {
+                const int64_t delta_ns =
+                    _readSignedHostDeltaNs(record.time_captured, tx_send_syscall_enter_tick);
+                if (delta_ns < 0) {
+                    _dropQueueUntilEmpty(que_idx);
+                    _clearActiveTrace(que_idx, trace_id);
+                    return;
+                }
+                completed_record.tx_send_syscall_enter_to_tx_send_ns = delta_ns;
+                break;
+            }
+            default:
+                m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+                _dropQueueUntilEmpty(que_idx);
+                _clearActiveTrace(que_idx, trace_id);
+                return;
+        }
+
+        if (stage_idx + 1U == kRequiredStages.size()) {
+            break;
+        }
+
+        if (!queue.pop(record)) {
+            m_missing_trace_record_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+            _clearActiveTrace(que_idx, trace_id);
+            return;
+        }
     }
+
+    if (m_latency_analyzer != nullptr) {
+        m_latency_analyzer->pushCompletedRecord(completed_record);
+    }
+    m_completed_trace_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+    _clearActiveTrace(que_idx, trace_id);
 }
 
-bool LatencyTracker::_hasPendingRecord(uint16_t que_idx, uint64_t event_tag) const noexcept {
-    if (que_idx >= m_pending_tables.size()) {
+void LatencyTracker::dropTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
+    if (que_idx >= m_latency_queues.size() ||
+        trace_id == 0U ||
+        m_active_trace_ids[que_idx].load(std::memory_order_acquire) != trace_id) {
+        return;
+    }
+
+    _dropQueueUntilEmpty(que_idx);
+    _clearActiveTrace(que_idx, trace_id);
+}
+
+bool LatencyTracker::_drainCommandPass() noexcept {
+    if (m_trace_command_queues.empty()) {
         return false;
     }
 
-    const PendingTable& table = m_pending_tables[que_idx];
-    for (const PendingSlot& slot : table.slots) {
-        if (slot.occupied && slot.event_tag == event_tag) {
-            return true;
+    bool did_work = false;
+    const uint16_t start_queue_idx =
+        static_cast<uint16_t>(m_next_command_queue_idx % m_trace_command_queues.size());
+
+    for (uint16_t queue_offset = 0; queue_offset < m_queue_num; ++queue_offset) {
+        const uint16_t queue_idx =
+            static_cast<uint16_t>((start_queue_idx + queue_offset) % m_queue_num);
+        TraceCommand command {};
+        std::size_t commands_processed = 0U;
+
+        while (commands_processed < kMaxCommandsPerQueuePerPass &&
+               m_trace_command_queues[queue_idx]->pop(command)) {
+            did_work = true;
+            _processCommand(command);
+            ++commands_processed;
+        }
+
+        if (_tryConsumeOverflowCommand(queue_idx, command)) {
+            did_work = true;
+            _processCommand(command);
         }
     }
-    return false;
+
+    m_next_command_queue_idx =
+        static_cast<uint16_t>((start_queue_idx + 1U) % m_queue_num);
+    return did_work;
 }
 
-LatencyTracker::PendingSlot* LatencyTracker::_findPendingSlot(uint16_t que_idx,
-                                                              uint64_t event_tag) noexcept {
-    if (que_idx >= m_pending_tables.size()) {
-        return nullptr;
-    }
-
-    PendingTable& table = m_pending_tables[que_idx];
-    for (PendingSlot& slot : table.slots) {
-        if (slot.occupied && slot.event_tag == event_tag) {
-            return &slot;
-        }
-    }
-    return nullptr;
-}
-
-LatencyTracker::PendingSlot& LatencyTracker::_upsertPendingSlot(uint16_t que_idx,
-                                                                uint64_t event_tag,
-                                                                uint32_t trace_id) {
-    PendingTable& table = m_pending_tables[que_idx];
-    if (PendingSlot* existing = _findPendingSlot(que_idx, event_tag)) {
-        existing->trace_id = trace_id;
-        return *existing;
-    }
-
-    for (PendingSlot& slot : table.slots) {
-        if (slot.occupied) {
-            continue;
-        }
-        slot.occupied = true;
-        slot.event_tag = event_tag;
-        slot.trace_id = trace_id;
-        slot.insertion_sequence = table.next_insertion_sequence++;
-        slot.state = PendingEventState {};
-        ++table.live_count;
-        return slot;
-    }
-
-    PendingSlot* oldest_slot = nullptr;
-    uint64_t oldest_sequence = std::numeric_limits<uint64_t>::max();
-    for (PendingSlot& candidate : table.slots) {
-        if (!candidate.occupied) {
-            continue;
-        }
-        if (candidate.insertion_sequence >= oldest_sequence) {
-            continue;
-        }
-        oldest_sequence = candidate.insertion_sequence;
-        oldest_slot = &candidate;
-    }
-
-    PendingSlot& slot = (oldest_slot != nullptr) ? *oldest_slot : table.slots.front();
-    slot.occupied = true;
-    slot.event_tag = event_tag;
-    slot.trace_id = trace_id;
-    slot.insertion_sequence = table.next_insertion_sequence++;
-    slot.state = PendingEventState {};
-    return slot;
-}
-
-void LatencyTracker::_erasePendingSlot(uint16_t que_idx, PendingSlot& slot) noexcept {
-    if (que_idx >= m_pending_tables.size() || !slot.occupied) {
-        return;
-    }
-
-    PendingTable& table = m_pending_tables[que_idx];
-    slot = PendingSlot {};
-    if (table.live_count > 0) {
-        --table.live_count;
+void LatencyTracker::_drainAllCommands() noexcept {
+    while (_drainCommandPass()) {
     }
 }
 
-void LatencyTracker::_processRecord(const TimeRecord& record) {
-    if (record.event_stage == stage::FRAME_START) {
-        _handleFrameStart(record);
-        return;
+bool LatencyTracker::_enqueueCommand(uint16_t command_queue_idx,
+                                     uint16_t target_queue_idx,
+                                     TraceCommandOp op,
+                                     uint32_t trace_id) noexcept {
+    TraceCommand command {
+        .que_idx = target_queue_idx,
+        .trace_id = trace_id,
+        .op = op,
+    };
+    if (m_trace_command_queues[command_queue_idx]->push(command)) {
+        return true;
     }
 
-    PendingSlot* slot = _findPendingSlot(record.que_idx, record.event_tag);
-    if (slot == nullptr) {
-        _handleMissingPendingRecord(record);
-        return;
+    return _tryStoreOverflowCommand(command_queue_idx, command);
+}
+
+bool LatencyTracker::_tryStoreOverflowCommand(uint16_t command_queue_idx,
+                                              const TraceCommand& command) noexcept {
+    if (command_queue_idx >= m_trace_command_overflow_slots.size()) {
+        return false;
     }
 
-    switch (record.event_stage) {
-        case stage::DMA_EMIT:
-            _handleDmaEmit(record, *slot);
-            return;
-        case stage::BATCH_START:
-            _handleBatchStart(record, *slot);
-            return;
-        case stage::BATCH_END:
-            _handleBatchEnd(record, *slot);
-            return;
-        case stage::STRATEGY_START:
-            _handleStrategyStart(record, *slot);
-            return;
-        case stage::TX_EXECUTION_ACCEPTED:
-            _handleTxExecutionAccepted(record, *slot);
-            return;
-        case stage::EXECUTION_TAKEN:
-            return;
-        case stage::TX_ENQUEUE:
-            _handleTxEnqueue(record, *slot);
-            return;
-        case stage::TX_SEND_ENTER:
-            _handleTxSendEnter(record, *slot);
-            return;
-        case stage::TX_SEND_SYSCALL_ENTER:
-            _handleTxSendSyscallEnter(record, *slot);
-            return;
-        case stage::TX_SEND:
-            _handleTxSend(record, *slot);
-            return;
-        default:
-            return;
+    const uint64_t encoded_command = _encodeOverflowCommand(command);
+    uint64_t expected_command = 0ULL;
+    return m_trace_command_overflow_slots[command_queue_idx].compare_exchange_strong(
+        expected_command,
+        encoded_command,
+        std::memory_order_acq_rel,
+        std::memory_order_acquire);
+}
+
+bool LatencyTracker::_tryConsumeOverflowCommand(uint16_t command_queue_idx,
+                                                TraceCommand& command) noexcept {
+    if (command_queue_idx >= m_trace_command_overflow_slots.size()) {
+        return false;
+    }
+
+    const uint64_t encoded_command =
+        m_trace_command_overflow_slots[command_queue_idx].exchange(0ULL,
+                                                                   std::memory_order_acq_rel);
+    if (encoded_command == 0ULL) {
+        return false;
+    }
+
+    command = _decodeOverflowCommand(encoded_command);
+    return true;
+}
+
+void LatencyTracker::_processCommand(const TraceCommand& command) noexcept {
+    switch (command.op) {
+        case TraceCommandOp::Finalize:
+            finalizeTrace(command.que_idx, command.trace_id);
+            break;
+        case TraceCommandOp::Drop:
+            dropTrace(command.que_idx, command.trace_id);
+            break;
     }
 }
 
-void LatencyTracker::_handleFrameStart(const TimeRecord& record) {
-    PendingSlot& slot = _upsertPendingSlot(record.que_idx,
-                                           record.event_tag,
-                                           record.trace_id);
-    slot.trace_id = record.trace_id;
-    slot.state = PendingEventState {
-        .frame_start_tick = record.time_captured,
+uint64_t LatencyTracker::_encodeOverflowCommand(const TraceCommand& command) noexcept {
+    return (static_cast<uint64_t>(command.que_idx) << 48U) |
+           (static_cast<uint64_t>(command.trace_id) << 16U) |
+           static_cast<uint64_t>(static_cast<uint8_t>(command.op));
+}
+
+TraceCommand LatencyTracker::_decodeOverflowCommand(uint64_t encoded_command) noexcept {
+    return TraceCommand {
+        .que_idx = static_cast<uint16_t>((encoded_command >> 48U) & 0xFFFFU),
+        .trace_id = static_cast<uint32_t>((encoded_command >> 16U) & 0xFFFFFFFFULL),
+        .op = static_cast<TraceCommandOp>(encoded_command & 0xFFU),
     };
 }
 
-void LatencyTracker::_handleMissingPendingRecord(const TimeRecord& record) {
-    switch (record.event_stage) {
-        case stage::DMA_EMIT:
-            _incrementDrop(record.que_idx, stage::FRAME_START, stage::DMA_EMIT);
-            return;
-        case stage::BATCH_START:
-            _incrementDrop(record.que_idx, stage::DMA_EMIT, stage::BATCH_START);
-            return;
-        case stage::BATCH_END:
-            _incrementDrop(record.que_idx, stage::BATCH_START, stage::BATCH_END);
-            return;
-        case stage::STRATEGY_START:
-            _incrementDrop(record.que_idx, stage::BATCH_END, stage::STRATEGY_START);
-            return;
-        case stage::TX_EXECUTION_ACCEPTED:
-            _incrementDrop(record.que_idx, stage::STRATEGY_START, stage::TX_EXECUTION_ACCEPTED);
-            return;
-        case stage::TX_ENQUEUE:
-            _incrementDrop(record.que_idx, stage::TX_EXECUTION_ACCEPTED, stage::TX_ENQUEUE);
-            return;
-        case stage::TX_SEND_ENTER:
-            _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND_ENTER);
-            return;
-        case stage::TX_SEND_SYSCALL_ENTER:
-            _incrementDrop(record.que_idx, stage::TX_SEND_ENTER, stage::TX_SEND_SYSCALL_ENTER);
-            return;
-        case stage::TX_SEND:
-            _incrementDrop(record.que_idx, stage::TX_SEND_SYSCALL_ENTER, stage::TX_SEND);
-            return;
-        default:
-            return;
+int64_t LatencyTracker::_readSignedDelta(uint64_t later_tick, uint64_t earlier_tick) noexcept {
+    if (later_tick < earlier_tick) {
+        return -1;
+    }
+
+    const uint64_t delta_tick = later_tick - earlier_tick;
+    const uint64_t delta_ns = (delta_tick * 64ULL) / 10ULL;
+    return static_cast<int64_t>(delta_ns);
+}
+
+int64_t LatencyTracker::_readSignedHostDeltaNs(uint64_t later_tick,
+                                               uint64_t earlier_tick) noexcept {
+    if (later_tick < earlier_tick) {
+        return -1;
+    }
+
+    const uint64_t delta_tick = later_tick - earlier_tick;
+    const HostTickScale& host_scale = readHostTickScale();
+    if (host_scale.use_clock_fallback || host_scale.tsc_hz == 0U) {
+        return static_cast<int64_t>(delta_tick);
+    }
+
+    return static_cast<int64_t>(
+        (static_cast<__uint128_t>(delta_tick) * 1000000000ULL) / host_scale.tsc_hz);
+}
+
+uint32_t LatencyTracker::_allocateTraceId() noexcept {
+    uint32_t current = m_next_trace_id.load(std::memory_order_relaxed);
+    for (;;) {
+        uint32_t next = current + 1U;
+        if (next == 0U) {
+            next = 1U;
+        }
+
+        if (m_next_trace_id.compare_exchange_weak(current,
+                                                  next,
+                                                  std::memory_order_relaxed,
+                                                  std::memory_order_relaxed)) {
+            return current;
+        }
     }
 }
 
-void LatencyTracker::_handleDmaEmit(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (record.time_captured < state.frame_start_tick) {
-        _incrementDrop(record.que_idx, stage::FRAME_START, stage::DMA_EMIT);
-        _erasePendingSlot(record.que_idx, slot);
+void LatencyTracker::_clearActiveTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
+    if (que_idx >= m_active_trace_ids.size()) {
         return;
     }
 
-    const uint64_t frame_start_to_dma_emit_ns =
-        ((record.time_captured - state.frame_start_tick) * 64ULL) / 10ULL;
-    const StageLatency latency {
-        .que_idx = record.que_idx,
-        .event_tag = record.event_tag,
-        .prev_stage = stage::FRAME_START,
-        .curr_stage = stage::DMA_EMIT,
-        .latency = frame_start_to_dma_emit_ns
-    };
-    _updateStats(latency);
-
-    state.dma_emit_tick = record.time_captured;
-    state.frame_start_to_dma_emit_ns = frame_start_to_dma_emit_ns;
-    state.has_dma_emit = true;
+    uint32_t expected_trace_id = trace_id;
+    (void)m_active_trace_ids[que_idx].compare_exchange_strong(expected_trace_id,
+                                                              0U,
+                                                              std::memory_order_acq_rel,
+                                                              std::memory_order_acquire);
 }
 
-void LatencyTracker::_handleBatchStart(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (!state.has_dma_emit) {
-        _incrementDrop(record.que_idx, stage::DMA_EMIT, stage::BATCH_START);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-    if (state.has_batch_start) {
-        _incrementDrop(record.que_idx, stage::BATCH_START, stage::BATCH_START);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-    if (state.has_batch_end) {
-        _incrementDrop(record.que_idx, stage::BATCH_END, stage::BATCH_START);
-        _erasePendingSlot(record.que_idx, slot);
+void LatencyTracker::_dropQueueUntilEmpty(uint16_t que_idx) noexcept {
+    if (que_idx >= m_latency_queues.size()) {
         return;
     }
 
-    state.batch_start_tick = record.time_captured;
-    state.has_batch_start = true;
-}
-
-void LatencyTracker::_handleBatchEnd(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (!state.has_batch_start) {
-        _incrementDrop(record.que_idx, stage::BATCH_START, stage::BATCH_END);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
+    TimeRecord dropped_record {};
+    while (m_latency_queues[que_idx]->pop(dropped_record)) {
     }
-    if (state.has_batch_end) {
-        _incrementDrop(record.que_idx, stage::BATCH_END, stage::BATCH_END);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-    if (record.time_captured < state.batch_start_tick) {
-        _incrementDrop(record.que_idx, stage::BATCH_START, stage::BATCH_END);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-
-    const int64_t batch_duration_ns =
-        _readSignedHostDeltaNs(record.time_captured, state.batch_start_tick);
-    if (batch_duration_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::BATCH_START,
-            .curr_stage = stage::BATCH_END,
-            .latency = static_cast<uint64_t>(batch_duration_ns)
-        });
-    }
-
-    state.batch_end_tick = record.time_captured;
-    state.batch_duration_ns = batch_duration_ns;
-    state.has_batch_end = true;
-}
-
-void LatencyTracker::_handleStrategyStart(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (!state.has_batch_end) {
-        _incrementDrop(record.que_idx, stage::BATCH_END, stage::STRATEGY_START);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-    if (record.time_captured < state.batch_end_tick) {
-        _incrementDrop(record.que_idx, stage::BATCH_END, stage::STRATEGY_START);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-
-    state.strategy_start_tick = record.time_captured;
-    state.batch_end_to_strategy_start_ns =
-        _readSignedHostDeltaNs(record.time_captured, state.batch_end_tick);
-    if (state.batch_end_to_strategy_start_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::BATCH_END,
-            .curr_stage = stage::STRATEGY_START,
-            .latency = static_cast<uint64_t>(state.batch_end_to_strategy_start_ns)
-        });
-    }
-
-    state.has_strategy_start = true;
-}
-
-void LatencyTracker::_handleTxExecutionAccepted(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (!state.has_strategy_start) {
-        _incrementDrop(record.que_idx, stage::STRATEGY_START, stage::TX_EXECUTION_ACCEPTED);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-
-    state.tx_execution_accepted_tick = record.time_captured;
-    state.strategy_start_to_tx_execution_accepted_ns =
-        _readSignedHostDeltaNs(record.time_captured, state.strategy_start_tick);
-    if (state.strategy_start_to_tx_execution_accepted_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::STRATEGY_START,
-            .curr_stage = stage::TX_EXECUTION_ACCEPTED,
-            .latency = static_cast<uint64_t>(state.strategy_start_to_tx_execution_accepted_ns)
-        });
-    }
-
-    state.has_tx_execution_accepted = true;
-}
-
-void LatencyTracker::_handleTxEnqueue(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (!state.has_tx_execution_accepted) {
-        _incrementDrop(record.que_idx, stage::TX_EXECUTION_ACCEPTED, stage::TX_ENQUEUE);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-
-    state.tx_enqueue_tick = record.time_captured;
-    state.tx_enqueue_backlog_depth = record.sender_backlog_depth;
-    state.tx_execution_accepted_to_tx_enqueue_ns =
-        _readSignedHostDeltaNs(record.time_captured, state.tx_execution_accepted_tick);
-    if (state.tx_execution_accepted_to_tx_enqueue_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::TX_EXECUTION_ACCEPTED,
-            .curr_stage = stage::TX_ENQUEUE,
-            .latency = static_cast<uint64_t>(state.tx_execution_accepted_to_tx_enqueue_ns)
-        });
-    }
-
-    state.has_tx_enqueue = true;
-}
-
-void LatencyTracker::_handleTxSendEnter(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (!state.has_tx_enqueue) {
-        _incrementDrop(record.que_idx, stage::TX_ENQUEUE, stage::TX_SEND_ENTER);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-
-    state.tx_send_enter_tick = record.time_captured;
-    state.tx_send_enter_backlog_depth = record.sender_backlog_depth;
-    state.tx_enqueue_to_tx_send_enter_ns =
-        _readSignedHostDeltaNs(record.time_captured, state.tx_enqueue_tick);
-    if (state.tx_enqueue_to_tx_send_enter_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::TX_ENQUEUE,
-            .curr_stage = stage::TX_SEND_ENTER,
-            .latency = static_cast<uint64_t>(state.tx_enqueue_to_tx_send_enter_ns)
-        });
-    }
-
-    state.has_tx_send_enter = true;
-}
-
-void LatencyTracker::_handleTxSendSyscallEnter(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (!state.has_tx_send_enter) {
-        _incrementDrop(record.que_idx, stage::TX_SEND_ENTER, stage::TX_SEND_SYSCALL_ENTER);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-
-    state.tx_send_syscall_enter_tick = record.time_captured;
-    state.tx_send_enter_to_tx_send_syscall_enter_ns =
-        _readSignedHostDeltaNs(record.time_captured, state.tx_send_enter_tick);
-    if (state.tx_send_enter_to_tx_send_syscall_enter_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::TX_SEND_ENTER,
-            .curr_stage = stage::TX_SEND_SYSCALL_ENTER,
-            .latency = static_cast<uint64_t>(state.tx_send_enter_to_tx_send_syscall_enter_ns)
-        });
-    }
-
-    state.has_tx_send_syscall_enter = true;
-}
-
-void LatencyTracker::_handleTxSend(const TimeRecord& record, PendingSlot& slot) {
-    PendingEventState& state = slot.state;
-    if (!state.has_tx_send_syscall_enter) {
-        _incrementDrop(record.que_idx, stage::TX_SEND_SYSCALL_ENTER, stage::TX_SEND);
-        _erasePendingSlot(record.que_idx, slot);
-        return;
-    }
-
-    state.tx_send_syscall_enter_to_tx_send_ns =
-        _readSignedHostDeltaNs(record.time_captured, state.tx_send_syscall_enter_tick);
-    state.tx_send_call_count = record.tx_send_call_count;
-    state.tx_send_bytes_total = record.tx_send_bytes_total;
-    state.tx_send_eintr_retry_count = record.tx_send_eintr_retry_count;
-    state.tx_send_had_partial_write = record.tx_send_had_partial_write;
-    if (state.tx_send_syscall_enter_to_tx_send_ns >= 0) {
-        _updateStats(StageLatency {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .prev_stage = stage::TX_SEND_SYSCALL_ENTER,
-            .curr_stage = stage::TX_SEND,
-            .latency = static_cast<uint64_t>(state.tx_send_syscall_enter_to_tx_send_ns)
-        });
-    }
-
-    if (record.event_tag != 0 && m_log_printer != nullptr) {
-        (void)m_log_printer->pushLatencyLog(LatencyLogRecord {
-            .que_idx = record.que_idx,
-            .event_tag = record.event_tag,
-            .frame_start_to_dma_emit_ns = state.frame_start_to_dma_emit_ns,
-            .batch_duration_ns = state.batch_duration_ns,
-            .batch_end_to_strategy_start_ns = state.batch_end_to_strategy_start_ns,
-            .strategy_start_to_tx_execution_accepted_ns = state.strategy_start_to_tx_execution_accepted_ns,
-            .tx_execution_accepted_to_tx_enqueue_ns = state.tx_execution_accepted_to_tx_enqueue_ns,
-            .tx_enqueue_to_tx_send_enter_ns = state.tx_enqueue_to_tx_send_enter_ns,
-            .tx_send_enter_to_tx_send_syscall_enter_ns = state.tx_send_enter_to_tx_send_syscall_enter_ns,
-            .tx_send_syscall_enter_to_tx_send_ns = state.tx_send_syscall_enter_to_tx_send_ns,
-            .tx_enqueue_backlog_depth = state.tx_enqueue_backlog_depth,
-            .tx_send_enter_backlog_depth = state.tx_send_enter_backlog_depth,
-            .tx_send_call_count = state.tx_send_call_count,
-            .tx_send_bytes_total = state.tx_send_bytes_total,
-            .tx_send_eintr_retry_count = state.tx_send_eintr_retry_count,
-            .tx_send_had_partial_write = state.tx_send_had_partial_write
-        });
-    }
-    _erasePendingSlot(record.que_idx, slot);
-}
-
-int64_t LatencyTracker::_readSignedDelta(uint64_t later_ns, uint64_t earlier_ns) {
-    return (later_ns >= earlier_ns)
-        ? static_cast<int64_t>(later_ns - earlier_ns)
-        : -static_cast<int64_t>(earlier_ns - later_ns);
-}
-
-int64_t LatencyTracker::_readSignedHostDeltaNs(uint64_t later_tick, uint64_t earlier_tick) {
-    const int64_t signed_tick_delta = _readSignedDelta(later_tick, earlier_tick);
-    const HostTickScale& scale = readHostTickScale();
-    if (scale.use_clock_fallback || scale.tsc_hz == 0) {
-        return signed_tick_delta;
-    }
-
-    const uint64_t abs_tick_delta = (signed_tick_delta >= 0)
-        ? static_cast<uint64_t>(signed_tick_delta)
-        : static_cast<uint64_t>(-signed_tick_delta);
-    const uint64_t delta_ns = static_cast<uint64_t>(
-        (static_cast<__uint128_t>(abs_tick_delta) * 1000000000ULL) / scale.tsc_hz);
-    return (signed_tick_delta >= 0)
-        ? static_cast<int64_t>(delta_ns)
-        : -static_cast<int64_t>(delta_ns);
-}
-
-void LatencyTracker::_updateStats(const StageLatency& latency) {
-    LatencyStats& stats =
-        _readStats(latency.que_idx, latency.prev_stage, latency.curr_stage);
-
-    ++stats.sample_count;
-    if (latency.latency < stats.min_ns) {
-        stats.min_ns = latency.latency;
-    }
-    if (latency.latency > stats.max_ns) {
-        stats.max_ns = latency.latency;
-    }
-}
-
-void LatencyTracker::_incrementDrop(uint16_t que_idx, stage prev_stage, stage curr_stage) {
-    ++_readStats(que_idx, prev_stage, curr_stage).drop_count;
-}
-
-LatencyStats& LatencyTracker::_readStats(uint16_t que_idx,
-                                         stage prev_stage,
-                                         stage curr_stage) {
-    const std::size_t stage_index =
-        static_cast<std::size_t>(prev_stage) * kStageCount +
-        static_cast<std::size_t>(curr_stage);
-    return m_latency_stats[que_idx][stage_index];
 }

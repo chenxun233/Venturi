@@ -33,6 +33,7 @@ struct FPGAEventDesc {
     uint32_t bid_shares     {0};
     uint64_t frame_start_tk {0};
     uint64_t event_tk       {0};
+    uint32_t trace_id       {0};
     uint16_t stock_locate   {0};
 };
 
@@ -61,11 +62,6 @@ struct TimeRecord {
     uint32_t    trace_id {0};
     stage       event_stage {stage::DECODE};
     uint64_t    time_captured {0};
-    uint32_t    sender_backlog_depth {0};
-    uint32_t    tx_send_call_count {0};
-    uint32_t    tx_send_bytes_total {0};
-    uint32_t    tx_send_eintr_retry_count {0};
-    uint32_t    tx_send_had_partial_write {0};
 };
 
 struct StageLatency{
@@ -98,12 +94,17 @@ struct LatencyLogRecord {
     int64_t     tx_enqueue_to_tx_send_enter_ns {0};
     int64_t     tx_send_enter_to_tx_send_syscall_enter_ns {0};
     int64_t     tx_send_syscall_enter_to_tx_send_ns {0};
-    uint32_t    tx_enqueue_backlog_depth {0};
-    uint32_t    tx_send_enter_backlog_depth {0};
-    uint32_t    tx_send_call_count {0};
-    uint32_t    tx_send_bytes_total {0};
-    uint32_t    tx_send_eintr_retry_count {0};
-    uint32_t    tx_send_had_partial_write {0};
+};
+
+enum class TraceCommandOp : uint8_t {
+    Finalize,
+    Drop,
+};
+
+struct TraceCommand {
+    uint16_t que_idx {0};
+    uint32_t trace_id {0};
+    TraceCommandOp op {TraceCommandOp::Finalize};
 };
 
 struct RegressionStatusLogRecord {
@@ -127,6 +128,7 @@ struct OrderIntent {
     uint16_t stock_locate {0};
     uint16_t que_idx {0};
     uint64_t event_tag {0};
+    uint32_t trace_id {0};
     OrderIntentPayload intent {};
 };
 
@@ -134,10 +136,12 @@ struct OrderExecution {
     uint16_t stock_locate {0};
     uint16_t que_idx {0};
     uint64_t event_tag {0};
+    uint32_t trace_id {0};
     OrderIntentPayload order {};
 };
 
 struct ExecutionLogRecord {
+    uint16_t queue_idx {0};
     uint16_t stock_locate {0};
     OrderIntentPayload intent {};
 };
@@ -158,6 +162,7 @@ struct TxOutboundRecord {
     uint16_t                stock_locate    {0};
     uint16_t                que_idx         {0};
     uint64_t                event_tag       {0};
+    uint32_t                trace_id        {0};
     uint32_t                price           {0};
     uint32_t                shares          {0};
     uint8_t                 payload_length  {0};

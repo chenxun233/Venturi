@@ -162,8 +162,10 @@ always @(posedge i_clk or posedge i_rst) begin
     end else if (i_reg_reset) begin
         state                   <= ST_IDLE;
         current_que_idx         <= {CL_SYMBOL_NUM{1'b0}};
+        drop_current            <= 1'b0;
         record_que              <= {(PAYLOAD_W+8){1'b0}};
         write_addr              <= 64'd0;
+        o_event_pop             <= {SYMBOL_NUM{1'b0}};
         for (que_idx = 0; que_idx < SYMBOL_NUM; que_idx = que_idx + 1) begin
             que_prod_ptr[que_idx]   <= 64'd0;
             que_drop_count[que_idx] <= 64'd0;

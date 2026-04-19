@@ -12,6 +12,7 @@
 #include "../common/shared_types.h"
 #define private public
 #include "../tx_engine/tx_sender.h"
+#include "../latency/latency_analyzer.h"
 #include "../latency/latency_tracker.h"
 #undef private
 
@@ -31,11 +32,13 @@ OrderExecution makeExecution(uint16_t stock_locate,
                              uint32_t price,
                              uint32_t shares,
                              uint16_t que_idx = 0,
-                             uint64_t event_tag = 0) {
+                             uint64_t event_tag = 0,
+                             uint32_t trace_id = 0U) {
     return OrderExecution {
         .stock_locate = stock_locate,
         .que_idx = que_idx,
         .event_tag = event_tag,
+        .trace_id = trace_id,
         .order = {.action = action, .price = price, .shares = shares},
     };
 }
@@ -53,6 +56,48 @@ void disconnectSender(TxSender& sender, uint64_t generation) {
         .kind = TxConnectionKind::Disconnected,
         .generation = generation,
         .fd = -1,
+    });
+}
+
+void seedTrackedLatencyFlow(LatencyTracker& tracker,
+                            uint16_t que_idx,
+                            uint64_t event_tag,
+                            uint32_t trace_id = 1U) {
+    tracker.m_active_trace_ids[que_idx].store(trace_id, std::memory_order_relaxed);
+    tracker.pushRecord(TimeRecord {
+        .que_idx = que_idx,
+        .event_tag = event_tag,
+        .trace_id = trace_id,
+        .event_stage = stage::FRAME_START,
+        .time_captured = 100U,
+    });
+    tracker.pushRecord(TimeRecord {
+        .que_idx = que_idx,
+        .event_tag = event_tag,
+        .trace_id = trace_id,
+        .event_stage = stage::DMA_EMIT,
+        .time_captured = 110U,
+    });
+    tracker.pushRecord(TimeRecord {
+        .que_idx = que_idx,
+        .event_tag = event_tag,
+        .trace_id = trace_id,
+        .event_stage = stage::BATCH_START,
+        .time_captured = 200U,
+    });
+    tracker.pushRecord(TimeRecord {
+        .que_idx = que_idx,
+        .event_tag = event_tag,
+        .trace_id = trace_id,
+        .event_stage = stage::BATCH_END,
+        .time_captured = 240U,
+    });
+    tracker.pushRecord(TimeRecord {
+        .que_idx = que_idx,
+        .event_tag = event_tag,
+        .trace_id = trace_id,
+        .event_stage = stage::STRATEGY_START,
+        .time_captured = 300U,
     });
 }
 
@@ -144,6 +189,35 @@ TEST(TxTranslatorTest, transportConnectQueuesLoginRequestFrame) {
     EXPECT_EQ(record.user_ref_num, 0U);
     ASSERT_GE(record.payload_length, 3U);
     EXPECT_EQ(record.payload[2], static_cast<uint8_t>('L'));
+}
+
+TEST(TxTranslatorTest, successfulSendClearsPendingOrderWithoutReceiverFlow) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 1,
+        .pending_slot_count = 16,
+    });
+    sender.m_send_fd = sockets[0];
+    sender.m_transport_generation = 42;
+
+    ASSERT_TRUE(sender.acceptExecution(
+        makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10, 0, 1ULL)));
+    ASSERT_TRUE(sender.buildOutboundFrames());
+    ASSERT_EQ(sender.m_pending_orders.live_count, 1U);
+
+    TxOutboundRecord first {};
+    ASSERT_TRUE(sender.popReadyOutbound(first));
+    ASSERT_TRUE(sender.trySendOutbound(first));
+    EXPECT_EQ(sender.m_pending_orders.live_count, 0U);
+
+    ASSERT_TRUE(sender.acceptExecution(
+        makeExecution(0x000d, OrderIntentAction::Buy, 100100, 11, 0, 2ULL)));
+    EXPECT_TRUE(sender.buildOutboundFrames());
+    EXPECT_EQ(sender.m_pending_orders.live_count, 1U);
+
+    ::close(sockets[1]);
 }
 
 TEST(TxTranslatorTest, activeGenerationDisconnectRebuildsReplayAndSessionState) {
@@ -400,24 +474,30 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
     });
     LatencyTracker tracker(2, 8);
     sender.attachLatenyTracker(&tracker);
+    seedTrackedLatencyFlow(tracker, 1, 0x12345678ULL);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,
         .que_idx = 1,
         .event_tag = 0x12345678ULL,
+        .trace_id = 1U,
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
     EXPECT_EQ(static_cast<int>(stage::TX_EXECUTION_DEQUEUE), 7);
     EXPECT_EQ(static_cast<int>(stage::TX_ORDER_FRAME_BUILT), 8);
     EXPECT_EQ(static_cast<int>(stage::TX_PENDING_RECORDED), 9);
+    std::vector<TimeRecord> records;
     TimeRecord record {};
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
-    EXPECT_EQ(record.que_idx, 1U);
-    EXPECT_EQ(record.event_tag, 0x12345678ULL);
-    EXPECT_GT(record.time_captured, 0U);
-    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
+    while (tracker.m_latency_queues[1]->pop(record)) {
+        records.push_back(record);
+    }
+    ASSERT_FALSE(records.empty());
+    EXPECT_EQ(records.back().event_stage, stage::TX_EXECUTION_ACCEPTED);
+    EXPECT_EQ(records.back().que_idx, 1U);
+    EXPECT_EQ(records.back().event_tag, 0x12345678ULL);
+    EXPECT_EQ(records.back().trace_id, 1U);
+    EXPECT_GT(records.back().time_captured, 0U);
 
     ASSERT_TRUE(sender.buildOutboundFrames());
 
@@ -425,62 +505,39 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
     ASSERT_TRUE(sender.popReadyOutbound(outbound));
     EXPECT_EQ(outbound.que_idx, 1U);
     EXPECT_EQ(outbound.event_tag, 0x12345678ULL);
+    EXPECT_EQ(outbound.trace_id, 1U);
 }
 
-TEST(TxTranslatorTest, trackedAcceptedExecutionStillFlowsThroughSenderStages) {
+TEST(TxTranslatorTest, buildOutboundFramesPushesTxEnqueueWithTraceId) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
         .pending_slot_count = 64,
     });
-    LatencyTracker tracker(2, 8, 8);
+    LatencyTracker tracker(2, 8);
     sender.attachLatenyTracker(&tracker);
+    seedTrackedLatencyFlow(tracker, 1, 0x12345678ULL);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,
         .que_idx = 1,
         .event_tag = 0x12345678ULL,
+        .trace_id = 1U,
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
 
     TimeRecord record {};
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
-    EXPECT_EQ(record.trace_id, 0U);
-}
-
-TEST(TxTranslatorTest, buildOutboundFramesPushesOnlyEnqueueSenderLocalLatencyStage) {
-    TxSender sender(TxSenderConfig {
-        .pending_capacity = 8,
-        .pending_slot_count = 64,
-    });
-    LatencyTracker tracker(2, 16);
-    sender.attachLatenyTracker(&tracker);
-
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x0ee8,
-        .que_idx = 1,
-        .event_tag = 0x10203040ULL,
-        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
-    }));
-
-    TimeRecord record {};
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
+    while (tracker.m_latency_queues[1]->pop(record)) {
+    }
 
     ASSERT_TRUE(sender.buildOutboundFrames());
 
-    bool saw_tx_enqueue = false;
-    while (tracker.m_latency_queues[1]->pop(record)) {
-        saw_tx_enqueue = saw_tx_enqueue || (record.event_stage == stage::TX_ENQUEUE);
-        EXPECT_NE(record.event_stage, stage::TX_EXECUTION_DEQUEUE);
-        EXPECT_NE(record.event_stage, stage::TX_ORDER_FRAME_BUILT);
-        EXPECT_NE(record.event_stage, stage::TX_PENDING_RECORDED);
-    }
-
-    EXPECT_TRUE(saw_tx_enqueue);
+    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.event_stage, stage::TX_ENQUEUE);
+    EXPECT_EQ(record.trace_id, 1U);
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
 
-TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass) {
+TEST(TxTranslatorTest, untrackedExecutionDoesNotPushSenderLatencyStages) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
@@ -490,24 +547,55 @@ TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass
     });
     LatencyTracker tracker(2, 16);
     sender.attachLatenyTracker(&tracker);
+    sender.m_send_fd = sockets[0];
+    sender.m_transport_generation = 42;
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x88776655ULL,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+    EXPECT_TRUE(sender.buildOutboundFrames());
+
+    TxOutboundRecord outbound {};
+    ASSERT_TRUE(sender.popReadyOutbound(outbound));
+    ASSERT_TRUE(sender.trySendOutbound(outbound));
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
+
+    std::array<uint8_t, 64> received {};
+    ASSERT_EQ(::recv(sockets[1], received.data(), outbound.payload_length, 0),
+              static_cast<ssize_t>(outbound.payload_length));
+
+    ::close(sockets[1]);
+}
+
+TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass) {
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 16);
+    sender.attachLatenyTracker(&tracker);
+    seedTrackedLatencyFlow(tracker, 1, 0x55667788ULL);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,
         .que_idx = 1,
         .event_tag = 0x55667788ULL,
+        .trace_id = 1U,
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
-
-    TimeRecord record {};
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
 
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord outbound {};
     ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    ASSERT_TRUE(sender.trySendOutbound(outbound) == false);
+    EXPECT_FALSE(sender.trySendOutbound(outbound));
 
+    TimeRecord record {};
     std::vector<stage> failed_send_stages;
     while (tracker.m_latency_queues[1]->pop(record)) {
         failed_send_stages.push_back(record.event_stage);
@@ -525,83 +613,36 @@ TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass
               failed_send_stages.end());
     EXPECT_EQ(std::find(failed_send_stages.begin(), failed_send_stages.end(), stage::TX_SEND),
               failed_send_stages.end());
-
-    connectSender(sender, 42, sockets[0]);
-    ASSERT_TRUE(sender.trySendOutbound(outbound));
-
-    std::vector<stage> successful_send_stages;
-    while (tracker.m_latency_queues[1]->pop(record)) {
-        successful_send_stages.push_back(record.event_stage);
-    }
-
-    EXPECT_EQ(std::find(successful_send_stages.begin(),
-                        successful_send_stages.end(),
-                        stage::TX_ENQUEUE),
-              successful_send_stages.end());
-
-    std::vector<stage> all_seen_stages = failed_send_stages;
-    all_seen_stages.insert(all_seen_stages.end(),
-                           successful_send_stages.begin(),
-                           successful_send_stages.end());
-
-    const auto tx_enqueue_it =
-        std::find(all_seen_stages.begin(), all_seen_stages.end(), stage::TX_ENQUEUE);
-    const auto tx_send_enter_it =
-        std::find(all_seen_stages.begin(), all_seen_stages.end(), stage::TX_SEND_ENTER);
-    const auto tx_send_syscall_enter_it =
-        std::find(all_seen_stages.begin(), all_seen_stages.end(), stage::TX_SEND_SYSCALL_ENTER);
-    const auto tx_send_it =
-        std::find(all_seen_stages.begin(), all_seen_stages.end(), stage::TX_SEND);
-
-    EXPECT_NE(tx_enqueue_it, all_seen_stages.end());
-    EXPECT_NE(tx_send_enter_it, all_seen_stages.end());
-    EXPECT_NE(tx_send_syscall_enter_it, all_seen_stages.end());
-    EXPECT_NE(tx_send_it, all_seen_stages.end());
-    EXPECT_LT(tx_enqueue_it, tx_send_enter_it);
-    EXPECT_LT(tx_send_enter_it, tx_send_syscall_enter_it);
-    EXPECT_LT(tx_send_syscall_enter_it, tx_send_it);
-
-    std::array<uint8_t, 2> received {};
-    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
-              static_cast<ssize_t>(received.size()));
-
-    ::close(sockets[1]);
 }
 
-TEST(TxTranslatorTest, senderBacklogDepthIsCapturedAtEnqueueAndSendEnter) {
-    int sockets[2] {-1, -1};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
-
+TEST(TxTranslatorTest, tracedEnqueuePreservesTraceId) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
         .pending_slot_count = 64,
     });
     LatencyTracker tracker(2, 16);
     sender.attachLatenyTracker(&tracker);
-    sender.m_send_fd = sockets[0];
-    sender.m_transport_generation = 42;
+    seedTrackedLatencyFlow(tracker, 1, 0x1001ULL, 1U);
+    seedTrackedLatencyFlow(tracker, 1, 0x1002ULL, 2U);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,
         .que_idx = 1,
         .event_tag = 0x1001ULL,
+        .trace_id = 1U,
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,
         .que_idx = 1,
         .event_tag = 0x1002ULL,
+        .trace_id = 2U,
         .order = {.action = OrderIntentAction::Sell, .price = 223451, .shares = 200},
     }));
 
-    TimeRecord record {};
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
-
     ASSERT_TRUE(sender.buildOutboundFrames());
 
+    TimeRecord record {};
     std::vector<TimeRecord> enqueue_records;
     while (tracker.m_latency_queues[1]->pop(record)) {
         if (record.event_stage == stage::TX_ENQUEUE) {
@@ -610,26 +651,53 @@ TEST(TxTranslatorTest, senderBacklogDepthIsCapturedAtEnqueueAndSendEnter) {
     }
 
     ASSERT_EQ(enqueue_records.size(), 2U);
-    EXPECT_EQ(enqueue_records[0].sender_backlog_depth, 0U);
-    EXPECT_EQ(enqueue_records[1].sender_backlog_depth, 1U);
-    EXPECT_EQ(enqueue_records[0].trace_id, 0U);
-    EXPECT_EQ(enqueue_records[1].trace_id, 0U);
+    EXPECT_EQ(enqueue_records[0].trace_id, 1U);
+    EXPECT_EQ(enqueue_records[1].trace_id, 2U);
+}
+
+TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInline) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+        .pending_slot_count = 64,
+    });
+    LatencyAnalyzer analyzer(2);
+    LatencyTracker tracker(2, 16);
+    tracker.attachAnalyzer(&analyzer);
+    sender.attachLatenyTracker(&tracker);
+    sender.m_send_fd = sockets[0];
+    sender.m_transport_generation = 42;
+    seedTrackedLatencyFlow(tracker, 1, 0x2001ULL);
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x2001ULL,
+        .trace_id = 1U,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord outbound {};
     ASSERT_TRUE(sender.popReadyOutbound(outbound));
     ASSERT_TRUE(sender.trySendOutbound(outbound));
 
-    bool saw_tx_send_enter = false;
-    while (tracker.m_latency_queues[1]->pop(record)) {
-        if (record.event_stage != stage::TX_SEND_ENTER) {
-            continue;
-        }
-        saw_tx_send_enter = true;
-        EXPECT_EQ(record.event_tag, 0x1001ULL);
-        EXPECT_EQ(record.sender_backlog_depth, 1U);
-    }
+    TimeRecord record {};
+    EXPECT_TRUE(analyzer.m_completed_records[1].empty());
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
 
-    EXPECT_TRUE(saw_tx_send_enter);
+    tracker.stop();
+    EXPECT_TRUE(analyzer.m_completed_records[1].empty());
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
+    tracker.run();
+
+    ASSERT_EQ(analyzer.m_completed_records[1].size(), 1U);
+    EXPECT_EQ(analyzer.m_completed_records[1][0].event_tag, 0x2001ULL);
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 
     std::array<uint8_t, 2> received {};
     ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
@@ -638,7 +706,70 @@ TEST(TxTranslatorTest, senderBacklogDepthIsCapturedAtEnqueueAndSendEnter) {
     ::close(sockets[1]);
 }
 
-TEST(TxTranslatorTest, sendLoopStatsAreCapturedOnTxSendRecord) {
+TEST(TxTranslatorTest, pendingRejectQueuesDropWithoutDroppingInline) {
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 0,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 16);
+    sender.attachLatenyTracker(&tracker);
+    seedTrackedLatencyFlow(tracker, 1, 0x3001ULL);
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x3001ULL,
+        .trace_id = 1U,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    EXPECT_FALSE(sender.buildOutboundFrames());
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
+
+    tracker.stop();
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
+    tracker.run();
+
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
+}
+
+TEST(TxTranslatorTest, invalidTrackedExecutionQueuesDropWithoutDroppingInline) {
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 16);
+    sender.attachLatenyTracker(&tracker);
+    seedTrackedLatencyFlow(tracker, 1, 0x3002ULL);
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x3002ULL,
+        .trace_id = 1U,
+        .order = {.action = OrderIntentAction::None, .price = 223450, .shares = 200},
+    }));
+
+    EXPECT_FALSE(sender.buildOutboundFrames());
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
+
+    TxOutboundRecord outbound {};
+    EXPECT_FALSE(sender.popReadyOutbound(outbound));
+
+    tracker.stop();
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
+    tracker.run();
+
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
+}
+
+TEST(TxTranslatorTest, backpressuredFinalizeIsRetriedLater) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
@@ -646,54 +777,96 @@ TEST(TxTranslatorTest, sendLoopStatsAreCapturedOnTxSendRecord) {
         .pending_capacity = 8,
         .pending_slot_count = 64,
     });
-    LatencyTracker tracker(2, 16);
+    LatencyAnalyzer analyzer(2);
+    LatencyTracker tracker(2, 16, 1);
+    tracker.attachAnalyzer(&analyzer);
     sender.attachLatenyTracker(&tracker);
     sender.m_send_fd = sockets[0];
     sender.m_transport_generation = 42;
+    seedTrackedLatencyFlow(tracker, 1, 0x4001ULL);
+
+    const TraceCommand blocker {
+        .que_idx = 1,
+        .trace_id = 99U,
+        .op = TraceCommandOp::Drop,
+    };
+    ASSERT_TRUE(tracker.m_trace_command_queues[1]->push(blocker));
+    tracker.m_trace_command_overflow_slots[1].store(LatencyTracker::_encodeOverflowCommand(blocker),
+                                                    std::memory_order_release);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,
         .que_idx = 1,
-        .event_tag = 0x2001ULL,
+        .event_tag = 0x4001ULL,
+        .trace_id = 1U,
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
-
-    TimeRecord record {};
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_EXECUTION_ACCEPTED);
-
     ASSERT_TRUE(sender.buildOutboundFrames());
-    while (tracker.m_latency_queues[1]->pop(record)) {
-    }
 
     TxOutboundRecord outbound {};
     ASSERT_TRUE(sender.popReadyOutbound(outbound));
     ASSERT_TRUE(sender.trySendOutbound(outbound));
 
-    bool saw_tx_send_syscall_enter = false;
-    bool saw_tx_send = false;
-    while (tracker.m_latency_queues[1]->pop(record)) {
-        if (record.event_stage == stage::TX_SEND_SYSCALL_ENTER) {
-            saw_tx_send_syscall_enter = true;
-            EXPECT_EQ(record.event_tag, 0x2001ULL);
-        }
-        if (record.event_stage != stage::TX_SEND) {
-            continue;
-        }
-        saw_tx_send = true;
-        EXPECT_EQ(record.event_tag, 0x2001ULL);
-        EXPECT_EQ(record.tx_send_call_count, 1U);
-        EXPECT_EQ(record.tx_send_bytes_total, outbound.payload_length);
-        EXPECT_EQ(record.tx_send_eintr_retry_count, 0U);
-        EXPECT_EQ(record.tx_send_had_partial_write, 0U);
-    }
+    EXPECT_TRUE(analyzer.m_completed_records[1].empty());
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
 
-    EXPECT_TRUE(saw_tx_send_syscall_enter);
-    EXPECT_TRUE(saw_tx_send);
+    tracker.stop();
+    tracker.run();
+    EXPECT_TRUE(analyzer.m_completed_records[1].empty());
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
+
+    EXPECT_TRUE(sender.runOnce());
+    tracker.run();
+
+    ASSERT_EQ(analyzer.m_completed_records[1].size(), 1U);
+    EXPECT_EQ(analyzer.m_completed_records[1][0].event_tag, 0x4001ULL);
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);
 
     std::array<uint8_t, 2> received {};
     ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
               static_cast<ssize_t>(received.size()));
 
     ::close(sockets[1]);
+}
+
+TEST(TxTranslatorTest, backpressuredDropIsRetriedLater) {
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 0,
+        .pending_slot_count = 64,
+    });
+    LatencyTracker tracker(2, 16, 1);
+    sender.attachLatenyTracker(&tracker);
+    seedTrackedLatencyFlow(tracker, 1, 0x4002ULL);
+
+    const TraceCommand blocker {
+        .que_idx = 1,
+        .trace_id = 99U,
+        .op = TraceCommandOp::Finalize,
+    };
+    ASSERT_TRUE(tracker.m_trace_command_queues[1]->push(blocker));
+    tracker.m_trace_command_overflow_slots[1].store(LatencyTracker::_encodeOverflowCommand(blocker),
+                                                    std::memory_order_release);
+
+    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
+        .stock_locate = 0x0ee8,
+        .que_idx = 1,
+        .event_tag = 0x4002ULL,
+        .trace_id = 1U,
+        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
+    }));
+
+    EXPECT_FALSE(sender.buildOutboundFrames());
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
+
+    tracker.stop();
+    tracker.run();
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
+
+    EXPECT_FALSE(sender.runOnce());
+    tracker.run();
+
+    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);
+
+    TimeRecord record {};
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }

@@ -2,9 +2,9 @@
 #include "../driver/basic_rx_source.h"
 #include "../decoder/fpga_rx_decoder.h"
 #include "../common/shared_types.h"
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 
 class LatencyTracker;
 
@@ -21,23 +21,24 @@ public:
                                      FPGAEventDesc* out);
     // Non-owning; attach before polling; tracker must outlive engine; do not swap concurrently.
     void attachLatenyTracker(LatencyTracker* latency_tracker);
+    uint64_t readDecodedCount() const noexcept;
+    uint64_t readFirstEventCount() const noexcept;
+    uint16_t readQueueIdx() const noexcept;
 
 
 private:
-    uint32_t _allocateTraceId() noexcept;
     std::size_t pollDecodedBatchImpl(std::size_t max_count,
                                      bool get_snapshot,
                                      bool emit_batch_start,
                                      FpgaSyncSnapshot* snapshot,
-                                     std::vector<uint32_t>* trace_ids,
                                      FPGAEventDesc* out);
 
     BasicRxDev& m_device;
     const FPGARxDecoder& m_decoder;
     uint16_t m_que_idx {0};
     uint64_t m_cons_ptr {0};
-    uint32_t m_next_trace_id {1};
-    std::vector<uint32_t> m_trace_ids_scratch;
+    std::atomic<uint64_t> m_decoded_count {0};
+    std::atomic<uint64_t> m_first_event_count {0};
     // Attach before polling; tracker must outlive engine and not be swapped concurrently.
     LatencyTracker* m_latency_tracker {nullptr};
 };

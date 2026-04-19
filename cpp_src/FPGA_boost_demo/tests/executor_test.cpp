@@ -1,112 +1,132 @@
-#include "../tx_engine/executor.h"
-
 #define private public
 #include "../latency/latency_tracker.h"
 #undef private
 
+#include "../tx_engine/executor.h"
+
 #include <gtest/gtest.h>
-#include <stdexcept>
 
-TEST(ExecutorTest, takeReadyExecutionReturnsNextExecutionWithoutCrossThreadQueueContract) {
-    Executor executor(8);
+#include <type_traits>
 
-    ASSERT_TRUE(executor.acceptIntent(OrderIntent {
-        .stock_locate = 0x000d,
-        .que_idx = 0,
-        .event_tag = 11ULL,
-        .intent = {.action = OrderIntentAction::Buy, .price = 100, .shares = 10},
-    }));
+namespace {
 
-    OrderExecution execution {};
-    ASSERT_TRUE(executor.takeReadyExecution(execution));
-    EXPECT_EQ(execution.que_idx, 0);
-    EXPECT_EQ(execution.event_tag, 11ULL);
-    EXPECT_FALSE(executor.takeReadyExecution(execution));
+template <typename TraceIdSlot>
+uint32_t readActiveTraceId(const TraceIdSlot& trace_id) {
+    using SlotType = std::remove_cv_t<std::remove_reference_t<TraceIdSlot>>;
+    if constexpr (std::is_same_v<SlotType, std::atomic<uint32_t>>) {
+        return trace_id.load();
+    }
+    return trace_id;
 }
+
+} // namespace
 
 TEST(ExecutorTest, acceptsIntentAndMakesExecutionAvailable) {
     Executor executor(8);
     OrderIntent intent {};
     intent.stock_locate = 0x000d;
-    intent.intent.action = OrderIntentAction::Buy;
+    intent.que_idx = 1U;
+    intent.event_tag = 11ULL;
+    intent.trace_id = 55U;
+    intent.intent = {.action = OrderIntentAction::Buy, .price = 100U, .shares = 10U};
 
     ASSERT_TRUE(executor.acceptIntent(intent));
 
     OrderExecution ready {};
     ASSERT_TRUE(executor.takeReadyExecution(ready));
     EXPECT_EQ(ready.stock_locate, 0x000d);
+    EXPECT_EQ(ready.que_idx, 1U);
+    EXPECT_EQ(ready.event_tag, 11ULL);
+    EXPECT_EQ(ready.trace_id, 55U);
+    EXPECT_EQ(ready.order.action, OrderIntentAction::Buy);
 }
 
-TEST(ExecutorTest, successfulTrackedAcceptDoesNotPushLatencyRecord) {
-    Executor executor(8);
-    LatencyTracker tracker(1, 8);
-    executor.attachLatenyTracker(&tracker);
-
-    OrderIntent intent {};
-    intent.que_idx = 0;
-    intent.event_tag = 77U;
-
-    ASSERT_TRUE(executor.acceptIntent(intent));
-    EXPECT_EQ(static_cast<int>(stage::TX_EXECUTION_ACCEPTED), 6);
-
-    TimeRecord record {};
-    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
-}
-
-TEST(ExecutorTest, takeReadyExecutionDoesNotEmitExecutionTakenStage) {
-    Executor executor(8);
-    LatencyTracker tracker(1, 8);
-    executor.attachLatenyTracker(&tracker);
-
-    ASSERT_TRUE(executor.acceptIntent(OrderIntent {
-        .stock_locate = 0x000d,
-        .que_idx = 0,
-        .event_tag = 77ULL,
-        .intent = {.action = OrderIntentAction::Buy, .price = 100, .shares = 10},
-    }));
-
-    OrderExecution execution {};
-    ASSERT_TRUE(executor.takeReadyExecution(execution));
-
-    TimeRecord record {};
-    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
-}
-
-TEST(ExecutorTest, successfulTrackedAcceptToNonZeroQueueDoesNotPushLatencyRecord) {
+TEST(ExecutorTest, queueMismatchQueuesDropRequestInsteadOfDroppingInline) {
     Executor executor(8);
     LatencyTracker tracker(2, 8);
     executor.attachLatenyTracker(&tracker);
+    executor.attachQueueIdx(0);
+
+    const uint32_t trace_id = tracker.tryAllocateTraceId(1, true);
+    ASSERT_NE(trace_id, 0U);
+    tracker.pushRecord(TimeRecord {
+        .que_idx = 1,
+        .event_tag = 99ULL,
+        .trace_id = trace_id,
+        .event_stage = stage::FRAME_START,
+        .time_captured = 100U,
+    });
 
     OrderIntent intent {};
-    intent.que_idx = 1;
-    intent.event_tag = 88U;
+    intent.que_idx = 1U;
+    intent.event_tag = 99ULL;
+    intent.trace_id = trace_id;
+    intent.intent = {.action = OrderIntentAction::Buy, .price = 100U, .shares = 10U};
 
-    ASSERT_TRUE(executor.acceptIntent(intent));
+    EXPECT_FALSE(executor.acceptIntent(intent));
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), trace_id);
+
+    TraceCommand command {};
+    ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(command));
+    EXPECT_EQ(command.que_idx, 1U);
+    EXPECT_EQ(command.trace_id, trace_id);
+    EXPECT_EQ(command.op, TraceCommandOp::Drop);
+    EXPECT_FALSE(tracker.m_trace_command_queues[1]->pop(command));
+    ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(command));
+
+    tracker.stop();
+    tracker.run();
+
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), 0U);
 
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
     EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
 
-TEST(ExecutorTest, trackedAcceptReturnsTrueAndExecutionRemainsAvailableWithoutLatencyEmission) {
-    Executor executor(8);
+TEST(ExecutorTest, failedPushQueuesDropRequestInsteadOfDroppingInline) {
+    Executor executor(1);
     LatencyTracker tracker(1, 8);
     executor.attachLatenyTracker(&tracker);
 
-    OrderIntent intent {};
-    intent.que_idx = 1;
-    intent.event_tag = 66U;
-    intent.stock_locate = 0x000d;
-    intent.intent.action = OrderIntentAction::Buy;
+    OrderIntent accepted_intent {};
+    accepted_intent.stock_locate = 0x000d;
+    accepted_intent.que_idx = 0U;
+    accepted_intent.event_tag = 88ULL;
+    accepted_intent.trace_id = 0U;
+    accepted_intent.intent = {.action = OrderIntentAction::Buy, .price = 100U, .shares = 10U};
+    ASSERT_TRUE(executor.acceptIntent(accepted_intent));
 
-    ASSERT_TRUE(executor.acceptIntent(intent));
+    const uint32_t trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_NE(trace_id, 0U);
+    tracker.pushRecord(TimeRecord {
+        .que_idx = 0,
+        .event_tag = 99ULL,
+        .trace_id = trace_id,
+        .event_stage = stage::FRAME_START,
+        .time_captured = 100U,
+    });
 
-    OrderExecution ready {};
-    ASSERT_TRUE(executor.takeReadyExecution(ready));
-    EXPECT_EQ(ready.que_idx, 1U);
-    EXPECT_EQ(ready.event_tag, 66U);
-    EXPECT_EQ(ready.stock_locate, 0x000d);
-    EXPECT_EQ(ready.order.action, OrderIntentAction::Buy);
+    OrderIntent rejected_intent {};
+    rejected_intent.stock_locate = 0x000d;
+    rejected_intent.que_idx = 0U;
+    rejected_intent.event_tag = 99ULL;
+    rejected_intent.trace_id = trace_id;
+    rejected_intent.intent = {.action = OrderIntentAction::Buy, .price = 101U, .shares = 10U};
+
+    EXPECT_FALSE(executor.acceptIntent(rejected_intent));
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), trace_id);
+
+    TraceCommand command {};
+    ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(command));
+    EXPECT_EQ(command.que_idx, 0U);
+    EXPECT_EQ(command.trace_id, trace_id);
+    EXPECT_EQ(command.op, TraceCommandOp::Drop);
+    ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(command));
+
+    tracker.stop();
+    tracker.run();
+
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 0U);
 
     TimeRecord record {};
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));

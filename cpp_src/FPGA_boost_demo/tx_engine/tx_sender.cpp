@@ -183,11 +183,13 @@ void TxSender::attachConnection(TxConnection* connection) {
 
 bool TxSender::acceptExecution(const OrderExecution& execution) noexcept {
     const bool pushed = m_execution_buffer.pushBack(execution);
-    if (pushed && execution.event_tag != 0 && m_latency_tracker != nullptr) {
+    if (pushed && execution.trace_id != 0U && m_latency_tracker != nullptr) {
+
         try {
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = execution.que_idx,
                 .event_tag = execution.event_tag,
+                .trace_id = execution.trace_id,
                 .event_stage = stage::TX_EXECUTION_ACCEPTED,
                 .time_captured = readMonotonicRawNs(),
             });
@@ -218,6 +220,7 @@ void TxSender::updateConnectionInfo(const TxConnectionInfo& info) {
 }
 
 bool TxSender::runOnce() {
+    (void)_flushPendingLatencyCommand();
 
     buildOutboundFrames();
     queueHeartbeat();
@@ -326,10 +329,8 @@ void TxSender::_retireGeneration(uint64_t generation) {
 }
 
 bool TxSender::_sendPayload(const TxOutboundRecord& record) {
-    uint32_t tx_send_call_count = 0;
-    uint32_t tx_send_bytes_total = 0;
-    uint32_t tx_send_eintr_retry_count = 0;
-    uint32_t tx_send_had_partial_write = 0;
+    const bool should_track_latency =
+        (m_latency_tracker != nullptr && record.trace_id != 0U);
 #ifndef ISO
     if (record.payload_length == 0 ||
         record.payload_length > record.payload.size() ||
@@ -337,16 +338,15 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
         return false;
     }
 
-    const uint32_t send_enter_backlog_depth =
-        static_cast<uint32_t>(_readReadyBacklogDepth());
-    if (record.event_tag != 0 && m_latency_tracker != nullptr) {
+    if (should_track_latency) {
+
         try {
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = record.que_idx,
                 .event_tag = record.event_tag,
+                .trace_id = record.trace_id,
                 .event_stage = stage::TX_SEND_ENTER,
                 .time_captured = readMonotonicRawNs(),
-                .sender_backlog_depth = send_enter_backlog_depth,
             });
         } catch (...) {
         }
@@ -354,18 +354,19 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
 
     std::size_t offset = 0;
     while (offset < static_cast<std::size_t>(record.payload_length)) {
-        if (offset == 0 && record.event_tag != 0 && m_latency_tracker != nullptr) {
+        if (offset == 0 && should_track_latency) {
+
             try {
                 m_latency_tracker->pushRecord(TimeRecord {
                     .que_idx = record.que_idx,
                     .event_tag = record.event_tag,
+                    .trace_id = record.trace_id,
                     .event_stage = stage::TX_SEND_SYSCALL_ENTER,
                     .time_captured = readMonotonicRawNs(),
                 });
             } catch (...) {
             }
         }
-        tx_send_call_count += 1U;
         const std::size_t bytes_remaining =
             static_cast<std::size_t>(record.payload_length) - offset;
         const ssize_t written = ::send(
@@ -374,16 +375,10 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
             bytes_remaining,
             MSG_NOSIGNAL);
         if (written > 0) {
-            const std::size_t bytes_written = static_cast<std::size_t>(written);
-            tx_send_bytes_total += static_cast<uint32_t>(bytes_written);
-            if (bytes_written < bytes_remaining) {
-                tx_send_had_partial_write = 1U;
-            }
             offset += static_cast<std::size_t>(written);
             continue;
         }
         if (written < 0 && errno == EINTR) {
-            tx_send_eintr_retry_count += 1U;
             continue;
         }
         if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
@@ -398,21 +393,25 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
     }
 #endif
 
-    if (record.event_tag != 0 && m_latency_tracker != nullptr) {
+    if (should_track_latency) {
+
         try {
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = record.que_idx,
                 .event_tag = record.event_tag,
+                .trace_id = record.trace_id,
                 .event_stage = stage::TX_SEND,
                 .time_captured = readMonotonicRawNs(),
-                .tx_send_call_count = tx_send_call_count,
-                .tx_send_bytes_total = tx_send_bytes_total,
-                .tx_send_eintr_retry_count = tx_send_eintr_retry_count,
-                .tx_send_had_partial_write = tx_send_had_partial_write,
             });
+            (void)_requestLatencyCommand(record.que_idx,
+                                         TraceCommandOp::Finalize,
+                                         record.trace_id);
         } catch (...) {
         }
     }
+
+    // In split sender/receiver mode, sender-side progress ends at a successful send.
+    _erasePendingOrder(record.user_ref_num);
 
     return true;
 }
@@ -455,6 +454,8 @@ bool TxSender::queueHeartbeat() {
 }
 
 bool TxSender::buildOutboundFrames() {
+    (void)_flushPendingLatencyCommand();
+
     bool did_work = false;
     bool did_reject_pending = false;
     TxOutboundRecord record {};
@@ -463,10 +464,20 @@ bool TxSender::buildOutboundFrames() {
         (void)m_execution_buffer.eraseFront();
 
         if (!_buildOrderFrame(execution, record)) {
+            if (execution.trace_id != 0U && m_latency_tracker != nullptr) {
+                (void)_requestLatencyCommand(execution.que_idx,
+                                             TraceCommandOp::Drop,
+                                             execution.trace_id);
+            }
             continue;
         }
 
         if (!_recordPendingOrder(record)) {
+            if (record.trace_id != 0U && m_latency_tracker != nullptr) {
+                (void)_requestLatencyCommand(record.que_idx,
+                                             TraceCommandOp::Drop,
+                                             record.trace_id);
+            }
             did_reject_pending = true;
             continue;
         }
@@ -496,6 +507,7 @@ bool TxSender::_buildOrderFrame(const OrderExecution& execution, TxOutboundRecor
     record.stock_locate = execution.stock_locate;
     record.que_idx = execution.que_idx;
     record.event_tag = execution.event_tag;
+    record.trace_id = execution.trace_id;
     record.shares = execution.order.shares;
     record.price = execution.order.price;
     writeFramePayload(record, side);
@@ -505,18 +517,16 @@ bool TxSender::_buildOrderFrame(const OrderExecution& execution, TxOutboundRecor
 
 void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
     _normalizeReadyRecords();
-    const uint32_t enqueue_backlog_depth =
-        static_cast<uint32_t>(_readReadyBacklogDepth());
     m_ready_outbound.push_back(record);
-    if (record.event_tag != 0 && m_latency_tracker != nullptr) {
+    if (record.trace_id != 0U && m_latency_tracker != nullptr) {
+
         try {
             m_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = record.que_idx,
                 .event_tag = record.event_tag,
-                .trace_id = 0,
+                .trace_id = record.trace_id,
                 .event_stage = stage::TX_ENQUEUE,
                 .time_captured = readMonotonicRawNs(),
-                .sender_backlog_depth = enqueue_backlog_depth,
             });
         } catch (...) {
         }
@@ -664,21 +674,21 @@ void TxSender::_logOrderAccepted(uint16_t queue_idx,
                                  uint16_t stock_locate,
                                  uint32_t shares,
                                  uint32_t price) {
-    _pushTxEvent(queue_idx, TxLogRecord {
-        .event = TxEventKind::OrderAccepted,
-        .user_ref_num = user_ref_num,
-        .stock_locate = stock_locate,
-        .price = price,
-        .shares = shares,
-    });
+    // _pushTxEvent(queue_idx, TxLogRecord {
+    //     .event = TxEventKind::OrderAccepted,
+    //     .user_ref_num = user_ref_num,
+    //     .stock_locate = stock_locate,
+    //     .price = price,
+    //     .shares = shares,
+    // });
 }
 
 void TxSender::_logOrderRejected(uint16_t queue_idx, uint32_t user_ref_num, uint16_t reason) {
-    _pushTxEvent(queue_idx, TxLogRecord {
-        .event = TxEventKind::OrderRejected,
-        .user_ref_num = user_ref_num,
-        .reason = reason,
-    });
+    // _pushTxEvent(queue_idx, TxLogRecord {
+    //     .event = TxEventKind::OrderRejected,
+    //     .user_ref_num = user_ref_num,
+    //     .reason = reason,
+    // });
 }
 
 void TxSender::_logOrderFilled(uint16_t queue_idx,
@@ -700,13 +710,13 @@ void TxSender::_logOrderDropped(uint16_t queue_idx,
                                 uint16_t stock_locate,
                                 uint32_t shares,
                                 uint32_t price) {
-    _pushTxEvent(queue_idx, TxLogRecord {
-        .event = TxEventKind::OrderDropped,
-        .user_ref_num = user_ref_num,
-        .stock_locate = stock_locate,
-        .price = price,
-        .shares = shares,
-    });
+    // _pushTxEvent(queue_idx, TxLogRecord {
+    //     .event = TxEventKind::OrderDropped,
+    //     .user_ref_num = user_ref_num,
+    //     .stock_locate = stock_locate,
+    //     .price = price,
+    //     .shares = shares,
+    // });
 }
 
 void TxSender::_pushTxEvent(uint16_t queue_idx, const TxLogRecord& record) {
@@ -739,9 +749,55 @@ void TxSender::_normalizeReadyRecords() {
     m_ready_head = 0;
 }
 
-std::size_t TxSender::_readReadyBacklogDepth() const noexcept {
-    if (m_ready_head >= m_ready_outbound.size()) {
-        return 0;
+bool TxSender::_flushPendingLatencyCommand() noexcept {
+    if (!m_pending_latency_command.occupied || m_latency_tracker == nullptr) {
+        return false;
     }
-    return m_ready_outbound.size() - m_ready_head;
+
+    const TraceCommand command = m_pending_latency_command.command;
+    const bool flushed =
+        (command.op == TraceCommandOp::Finalize)
+            ? m_latency_tracker->requestFinalize(command.que_idx, command.trace_id)
+            : m_latency_tracker->requestDrop(command.que_idx, command.trace_id);
+    if (flushed) {
+        m_pending_latency_command.occupied = false;
+        m_pending_latency_command.command = TraceCommand {};
+    }
+
+    return flushed;
+}
+
+bool TxSender::_requestLatencyCommand(uint16_t que_idx,
+                                      TraceCommandOp op,
+                                      uint32_t trace_id) noexcept {
+    if (m_latency_tracker == nullptr || trace_id == 0U) {
+        return false;
+    }
+
+    const TraceCommand command {
+        .que_idx = que_idx,
+        .trace_id = trace_id,
+        .op = op,
+    };
+    if (m_pending_latency_command.occupied) {
+        const TraceCommand& pending_command = m_pending_latency_command.command;
+        if (pending_command.que_idx == command.que_idx &&
+            pending_command.trace_id == command.trace_id &&
+            pending_command.op == command.op) {
+            return true;
+        }
+        return false;
+    }
+
+    const bool requested =
+        (op == TraceCommandOp::Finalize)
+            ? m_latency_tracker->requestFinalize(que_idx, trace_id)
+            : m_latency_tracker->requestDrop(que_idx, trace_id);
+    if (requested) {
+        return true;
+    }
+
+    m_pending_latency_command.occupied = true;
+    m_pending_latency_command.command = command;
+    return true;
 }

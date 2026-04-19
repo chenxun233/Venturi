@@ -1,107 +1,70 @@
 #pragma once
 
-#include "../common/spsc_ring_queue.h"
 #include "../common/shared_types.h"
+#include "../common/spsc_ring_queue.h"
 
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
-#include <thread>
 #include <vector>
 
-class LogPrinter;
-class Tuner;
+class LatencyAnalyzer;
 
 class LatencyTracker {
 public:
-    explicit        LatencyTracker(uint16_t producer_num,
-                                   std::size_t buffer_capacity = 1024,
-                                   std::size_t pending_capacity = 1024);
-    std::size_t     run();
-    void            pushRecord(const TimeRecord& record) noexcept;
-    void            attachLogPrinter(LogPrinter* log_printer);
-    
+    explicit LatencyTracker(uint16_t producer_num,
+                            std::size_t buffer_capacity = 1024,
+                            std::size_t command_capacity = 8);
+
+    uint32_t tryAllocateTraceId(uint16_t que_idx, bool is_first_event) noexcept;
+    void attachAnalyzer(LatencyAnalyzer* latency_analyzer) noexcept;
+    void pushRecord(const TimeRecord& record) noexcept;
+    bool requestFinalize(uint16_t que_idx, uint32_t trace_id) noexcept;
+    bool requestDrop(uint16_t que_idx, uint32_t trace_id) noexcept;
+    bool requestDrop(uint16_t command_queue_idx,
+                     uint16_t target_queue_idx,
+                     uint32_t trace_id) noexcept;
+    void run() noexcept;
+    void stop() noexcept;
+    void printDebugSummary() const noexcept;
 
 private:
-    struct PendingEventState {
-        uint64_t frame_start_tick {0};
-        uint64_t dma_emit_tick {0};
-        uint64_t batch_start_tick {0};
-        uint64_t batch_end_tick {0};
-        uint64_t strategy_start_tick {0};
-        uint64_t tx_execution_accepted_tick {0};
-        uint64_t tx_enqueue_tick {0};
-        uint64_t tx_send_enter_tick {0};
-        uint64_t tx_send_syscall_enter_tick {0};
-        uint64_t frame_start_to_dma_emit_ns {0};
-        int64_t batch_duration_ns {0};
-        int64_t batch_end_to_strategy_start_ns {0};
-        int64_t strategy_start_to_tx_execution_accepted_ns {0};
-        int64_t tx_execution_accepted_to_tx_enqueue_ns {0};
-        int64_t tx_enqueue_to_tx_send_enter_ns {0};
-        int64_t tx_send_enter_to_tx_send_syscall_enter_ns {0};
-        int64_t tx_send_syscall_enter_to_tx_send_ns {0};
-        uint32_t tx_enqueue_backlog_depth {0};
-        uint32_t tx_send_enter_backlog_depth {0};
-        uint32_t tx_send_call_count {0};
-        uint32_t tx_send_bytes_total {0};
-        uint32_t tx_send_eintr_retry_count {0};
-        uint32_t tx_send_had_partial_write {0};
-        bool has_dma_emit {false};
-        bool has_batch_start {false};
-        bool has_batch_end {false};
-        bool has_strategy_start {false};
-        bool has_tx_execution_accepted {false};
-        bool has_tx_enqueue {false};
-        bool has_tx_send_enter {false};
-        bool has_tx_send_syscall_enter {false};
-    };
-
-    struct PendingSlot {
-        bool occupied {false};
-        uint64_t event_tag {0};
-        uint32_t trace_id {0};
-        uint64_t insertion_sequence {0};
-        PendingEventState state {};
-    };
-
-    struct PendingTable {
-        std::vector<PendingSlot> slots {};
-        uint64_t next_insertion_sequence {0};
-        std::size_t live_count {0};
-    };
-
-    std::size_t _drainFairPass();
-    bool _hasPendingRecord(uint16_t que_idx, uint64_t event_tag) const noexcept;
-    PendingSlot* _findPendingSlot(uint16_t que_idx, uint64_t event_tag) noexcept;
-    PendingSlot& _upsertPendingSlot(uint16_t que_idx, uint64_t event_tag, uint32_t trace_id);
-    void _erasePendingSlot(uint16_t que_idx, PendingSlot& slot) noexcept;
-    void _processRecord(const TimeRecord& record);
-    void _handleFrameStart(const TimeRecord& record);
-    void _handleMissingPendingRecord(const TimeRecord& record);
-    void _handleDmaEmit(const TimeRecord& record, PendingSlot& slot);
-    void _handleBatchStart(const TimeRecord& record, PendingSlot& slot);
-    void _handleBatchEnd(const TimeRecord& record, PendingSlot& slot);
-    void _handleStrategyStart(const TimeRecord& record, PendingSlot& slot);
-    void _handleTxExecutionAccepted(const TimeRecord& record, PendingSlot& slot);
-    void _handleTxEnqueue(const TimeRecord& record, PendingSlot& slot);
-    void _handleTxSendEnter(const TimeRecord& record, PendingSlot& slot);
-    void _handleTxSendSyscallEnter(const TimeRecord& record, PendingSlot& slot);
-    void _handleTxSend(const TimeRecord& record, PendingSlot& slot);
-    static int64_t _readSignedDelta(uint64_t later_tick, uint64_t earlier_tick);
-    static int64_t _readSignedHostDeltaNs(uint64_t later_tick, uint64_t earlier_tick);
-    void _updateStats(const StageLatency& latency);
-    void _incrementDrop(uint16_t que_idx, stage prev_stage, stage curr_stage);
-    LatencyStats& _readStats(uint16_t que_idx, stage prev_stage, stage curr_stage);
-    static bool _isPowerOfTwo(std::size_t value) noexcept;
+    static int64_t _readSignedDelta(uint64_t later_tick, uint64_t earlier_tick) noexcept;
+    static int64_t _readSignedHostDeltaNs(uint64_t later_tick, uint64_t earlier_tick) noexcept;
+    static uint64_t _encodeOverflowCommand(const TraceCommand& command) noexcept;
+    static TraceCommand _decodeOverflowCommand(uint64_t encoded_command) noexcept;
+    uint32_t _allocateTraceId() noexcept;
+    void finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept;
+    void dropTrace(uint16_t que_idx, uint32_t trace_id) noexcept;
+    bool _drainCommandPass() noexcept;
+    void _drainAllCommands() noexcept;
+    bool _enqueueCommand(uint16_t command_queue_idx,
+                         uint16_t target_queue_idx,
+                         TraceCommandOp op,
+                         uint32_t trace_id) noexcept;
+    bool _tryStoreOverflowCommand(uint16_t command_queue_idx,
+                                  const TraceCommand& command) noexcept;
+    bool _tryConsumeOverflowCommand(uint16_t command_queue_idx,
+                                    TraceCommand& command) noexcept;
+    void _processCommand(const TraceCommand& command) noexcept;
+    void _clearActiveTrace(uint16_t que_idx, uint32_t trace_id) noexcept;
+    void _dropQueueUntilEmpty(uint16_t que_idx) noexcept;
 
     std::vector<std::unique_ptr<SpscRingQueue<TimeRecord>>> m_latency_queues;
+    std::vector<std::unique_ptr<SpscRingQueue<TraceCommand>>> m_trace_command_queues;
+    std::vector<std::atomic<uint64_t>> m_trace_command_overflow_slots;
     uint16_t m_queue_num {0};
-    uint16_t m_next_queue_idx {0};
-    LogPrinter* m_log_printer {nullptr};
-    std::size_t m_pending_capacity {0};
-    std::vector<PendingTable> m_pending_tables;
-    std::vector<std::vector<LatencyStats>> m_latency_stats;
-    // Tuner* m_tuner {nullptr};
+    std::atomic<uint32_t> m_next_trace_id {1U};
+    std::vector<std::atomic<uint32_t>> m_active_trace_ids;
+    std::vector<std::atomic<uint64_t>> m_started_trace_counts;
+    std::vector<std::atomic<uint64_t>> m_finalize_request_counts;
+    std::vector<std::atomic<uint64_t>> m_completed_trace_counts;
+    std::vector<std::atomic<uint64_t>> m_drop_request_counts;
+    std::vector<std::atomic<uint64_t>> m_missing_trace_record_counts;
+    std::vector<std::atomic<uint64_t>> m_stage_mismatch_drop_counts;
+    LatencyAnalyzer* m_latency_analyzer {nullptr};
+    std::atomic<bool> m_should_stop {false};
+    uint16_t m_next_command_queue_idx {0};
 };

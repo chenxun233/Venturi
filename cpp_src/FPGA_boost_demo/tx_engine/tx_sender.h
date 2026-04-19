@@ -60,6 +60,11 @@ private:
         std::vector<PendingSlot> slots {};
     };
 
+    struct PendingLatencyCommandState {
+        bool occupied {false};
+        TraceCommand command {};
+    };
+
     static constexpr std::size_t kExecutionBufferCapacity = 1024;
 
     void _updateConnectionInfo(const TxConnectionInfo& info);
@@ -104,10 +109,14 @@ private:
     void _pushTxEvent(uint16_t queue_idx, const TxLogRecord& record);
     void _clearReadyRecords();
     void _normalizeReadyRecords();
-    std::size_t _readReadyBacklogDepth() const noexcept;
+    bool _flushPendingLatencyCommand() noexcept;
+    bool _requestLatencyCommand(uint16_t que_idx,
+                                TraceCommandOp op,
+                                uint32_t trace_id) noexcept;
 
     TxSenderConfig m_config {};
     PendingOrderState m_pending_orders {};
+    PendingLatencyCommandState m_pending_latency_command {};
     FixedCircularBuffer<OrderExecution, kExecutionBufferCapacity> m_execution_buffer;
     std::vector<TxOutboundRecord> m_ready_outbound {};
     std::size_t m_ready_head {0};

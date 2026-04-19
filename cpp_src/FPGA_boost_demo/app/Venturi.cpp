@@ -1,8 +1,9 @@
 #include "../driver/fpga_dev.h"
-#include "../rx_engine/fpga_rx_engine.h"
-#include "../latency/log_printer.h"
-#include "../latency/latency_tracker.h"
 #include "../common/thread_affinity.h"
+#include "../latency/latency_analyzer.h"
+#include "../latency/latency_tracker.h"
+#include "../latency/log_printer.h"
+#include "../rx_engine/fpga_rx_engine.h"
 #include "../strategy/dummy_strategy.h"
 #include "../tx_engine/executor.h"
 #include "../tx_engine/tx_connection.h"
@@ -119,12 +120,11 @@ int main() {
     };
     TxSender tx_sender0(tx_sender_config);
     TxSender tx_sender1(tx_sender_config);
-    LatencyTracker latency_tracker(kQueueCount,
-                                   kLatencyQueueCapacity,
-                                   kLatencyPendingCapacity);
+    LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
+    LatencyAnalyzer latency_analyzer(kQueueCount);
     LogPrinter log_printer(kQueueCount, kLatencyLogCapacity);
     std::signal(SIGINT, handleStopSignal);
-    log_printer.setLatencyWarmupRecords(100);
+    latency_analyzer.setWarmupRecords(1000);
 
     rx_engine0.attachLatenyTracker(&latency_tracker);
     rx_engine1.attachLatenyTracker(&latency_tracker);
@@ -135,7 +135,7 @@ int main() {
     executor0.attachQueueIdx(0);
     executor1.attachQueueIdx(1);
     
-    latency_tracker.attachLogPrinter(&log_printer);
+    latency_tracker.attachAnalyzer(&latency_analyzer);
     executor0.attachLogPrinter(&log_printer);
     executor1.attachLogPrinter(&log_printer);
     tx_connection0.attachQueueIdx(0);
@@ -150,15 +150,10 @@ int main() {
     tx_sender1.attachLatenyTracker(&latency_tracker);
     log_printer.setWorkerCpu(kMainAndLogPrinterCpu);
     log_printer.start();
-
-    std::thread latency_thread([&]() {
+    std::thread latency_thread([&latency_tracker]() {
         pinCurrentThreadToCpu(kLatencyThreadCpu);
-        while (!g_should_stop.load(std::memory_order_acquire)) {
-            const std::size_t processed = latency_tracker.run();
-            (void)processed;
-        }
+        latency_tracker.run();
     });
-
 
     std::vector<std::thread> rx_threads;
     rx_threads.emplace_back([&]() {
@@ -178,7 +173,7 @@ int main() {
                         executor0.acceptIntent(intent);
                     }
                 }
-            }
+            } 
 
             while (executor0.takeReadyExecution(execution)) {
                 tx_sender0.acceptExecution(execution);
@@ -214,7 +209,6 @@ int main() {
 
             while (executor1.takeReadyExecution(execution)) {
                 tx_sender1.acceptExecution(execution);
-                // executor1.logExecution(execution);
             }
 
             tx_connection1.pollConnect();
@@ -232,10 +226,22 @@ int main() {
             rx_thread.join();
         }
     }
+    latency_tracker.stop();
     if (latency_thread.joinable()) {
         latency_thread.join();
     }
     log_printer.stop();
+    std::printf("RX Engine Debug Summary\n");
+    std::printf("queue=%u decoded=%llu first_event=%llu\n",
+                static_cast<unsigned int>(rx_engine0.readQueueIdx()),
+                static_cast<unsigned long long>(rx_engine0.readDecodedCount()),
+                static_cast<unsigned long long>(rx_engine0.readFirstEventCount()));
+    std::printf("queue=%u decoded=%llu first_event=%llu\n",
+                static_cast<unsigned int>(rx_engine1.readQueueIdx()),
+                static_cast<unsigned long long>(rx_engine1.readDecodedCount()),
+                static_cast<unsigned long long>(rx_engine1.readFirstEventCount()));
+    latency_tracker.printDebugSummary();
+    latency_analyzer.printSummary();
 
     return 0;
 }

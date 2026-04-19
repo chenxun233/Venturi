@@ -6,7 +6,22 @@
 
 #include <gtest/gtest.h>
 
-TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyStartRecord) {
+#include <type_traits>
+
+namespace {
+
+template <typename TraceIdSlot>
+uint32_t readActiveTraceId(const TraceIdSlot& trace_id) {
+    using SlotType = std::remove_cv_t<std::remove_reference_t<TraceIdSlot>>;
+    if constexpr (std::is_same_v<SlotType, std::atomic<uint32_t>>) {
+        return trace_id.load();
+    }
+    return trace_id;
+}
+
+} // namespace
+
+TEST(DummyStrategyTest, tracedEventPushesStrategyStartRecordAndPropagatesTraceId) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);
     strategy.attachLatenyTracker(&tracker);
@@ -14,62 +29,27 @@ TEST(DummyStrategyTest, acceptedFirstEventPushesStrategyStartRecord) {
     FPGAEventDesc event {};
     event.stock_locate = 0x000d;
     event.event_tk = 12345U;
-    event.is_first_event = 1U;
+    event.trace_id = 88U;
     event.bid_price = 100U;
     event.ask_price = 120U;
     event.bid_shares = 2000U;
     event.ask_shares = 100U;
 
     OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(0 ,event, intent));
-    EXPECT_EQ(static_cast<int>(stage::STRATEGY_START), 3);
-    EXPECT_EQ(intent.stock_locate, 0x000d);
-    EXPECT_EQ(intent.que_idx, 0U);
-    EXPECT_EQ(intent.event_tag, 12345U);
-    EXPECT_EQ(intent.intent.action, OrderIntentAction::Buy);
-    EXPECT_EQ(intent.intent.price, 100U);
-    EXPECT_EQ(intent.intent.shares, 100U);
+    ASSERT_TRUE(strategy.evaluateEvent(0, event, intent));
+    EXPECT_EQ(intent.trace_id, 88U);
 
     TimeRecord record {};
     ASSERT_TRUE(tracker.m_latency_queues[0]->pop(record));
     EXPECT_EQ(record.que_idx, 0U);
     EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
     EXPECT_EQ(record.event_tag, 12345U);
-    EXPECT_EQ(record.trace_id, 0U);
+    EXPECT_EQ(record.trace_id, 88U);
     EXPECT_GT(record.time_captured, 0U);
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
-TEST(DummyStrategyTest, acceptedFirstEventRoutesStrategyStartRecordToNonZeroQueue) {
-    DummyStrategy strategy;
-    LatencyTracker tracker(2, 8);
-    strategy.attachLatenyTracker(&tracker);
-
-    FPGAEventDesc event {};
-    event.stock_locate = 0x000d;
-    event.event_tk = 54321U;
-    event.is_first_event = 1U;
-    event.bid_price = 100U;
-    event.ask_price = 120U;
-    event.bid_shares = 2000U;
-    event.ask_shares = 100U;
-
-    OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(1, event, intent));
-    EXPECT_EQ(intent.que_idx, 1U);
-
-    TimeRecord record {};
-    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.que_idx, 1U);
-    EXPECT_EQ(record.event_tag, 54321U);
-    EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
-    EXPECT_EQ(record.trace_id, 0U);
-    EXPECT_GT(record.time_captured, 0U);
-    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
-}
-
-TEST(DummyStrategyTest, acceptedNonFirstEventDoesNotPushStrategyRecord) {
+TEST(DummyStrategyTest, untracedEventDoesNotPushStrategyRecord) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);
     strategy.attachLatenyTracker(&tracker);
@@ -77,24 +57,7 @@ TEST(DummyStrategyTest, acceptedNonFirstEventDoesNotPushStrategyRecord) {
     FPGAEventDesc event {};
     event.stock_locate = 0x000d;
     event.event_tk = 12345U;
-    event.is_first_event = 0U;
-    event.bid_price = 100U;
-    event.ask_price = 120U;
-    event.bid_shares = 2000U;
-    event.ask_shares = 100U;
-
-    OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(0 ,event, intent));
-
-    TimeRecord record {};
-    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
-}
-
-TEST(DummyStrategyTest, acceptedNonFirstEventPreservesEventTagInIntent) {
-    DummyStrategy strategy;
-    FPGAEventDesc event {};
-    event.event_tk = 12345U;
-    event.is_first_event = 0U;
+    event.trace_id = 0U;
     event.bid_price = 100U;
     event.ask_price = 120U;
     event.bid_shares = 2000U;
@@ -102,80 +65,31 @@ TEST(DummyStrategyTest, acceptedNonFirstEventPreservesEventTagInIntent) {
 
     OrderIntent intent {};
     ASSERT_TRUE(strategy.evaluateEvent(0, event, intent));
-    EXPECT_EQ(intent.event_tag, 12345U);
-}
-
-TEST(DummyStrategyTest, acceptedFirstEventReturnsIntentWhenLatencyEmissionThrows) {
-    DummyStrategy strategy;
-    LatencyTracker tracker(1, 8);
-    strategy.attachLatenyTracker(&tracker);
-
-    FPGAEventDesc event {};
-    event.stock_locate = 0x000d;
-    event.event_tk = 12345U;
-    event.is_first_event = 1U;
-    event.bid_price = 100U;
-    event.ask_price = 120U;
-    event.bid_shares = 2000U;
-    event.ask_shares = 100U;
-
-    OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(1, event, intent));
-    EXPECT_EQ(intent.stock_locate, 0x000d);
-    EXPECT_EQ(intent.que_idx, 1U);
-    EXPECT_EQ(intent.event_tag, 12345U);
-    EXPECT_EQ(intent.intent.action, OrderIntentAction::Buy);
-    EXPECT_EQ(intent.intent.price, 100U);
-    EXPECT_EQ(intent.intent.shares, 100U);
+    EXPECT_EQ(intent.trace_id, 0U);
 
     TimeRecord record {};
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }
 
-TEST(DummyStrategyTest, firstAcceptedEventWithZeroTimestampDoesNotPushStrategyRecord) {
+TEST(DummyStrategyTest, rejectedTracedEventQueuesDropRequestInsteadOfDroppingInline) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);
     strategy.attachLatenyTracker(&tracker);
 
-    FPGAEventDesc event {};
-    event.stock_locate = 0x000d;
-    event.event_tk = 0U;
-    event.is_first_event = 1U;
-    event.bid_price = 100U;
-    event.ask_price = 120U;
-    event.bid_shares = 2000U;
-    event.ask_shares = 100U;
-
-    OrderIntent intent {};
-    ASSERT_TRUE(strategy.evaluateEvent(0, event, intent));
-
-    TimeRecord record {};
-    EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
-}
-
-TEST(DummyStrategyTest, rejectsEventWhenNoActionIsSuggested) {
-    DummyStrategy strategy;
-    FPGAEventDesc event {};
-    event.stock_locate = 0x000d;
-    event.event_tk = 12345U;
-    event.bid_price = 100U;
-    event.ask_price = 100U;
-    event.bid_shares = 100U;
-    event.ask_shares = 100U;
-
-    OrderIntent intent {};
-    EXPECT_FALSE(strategy.evaluateEvent(0, event, intent));
-}
-
-TEST(DummyStrategyTest, firstEventWithoutActionStillPushesStrategyStartRecordBeforeRejection) {
-    DummyStrategy strategy;
-    LatencyTracker tracker(1, 8);
-    strategy.attachLatenyTracker(&tracker);
+    const uint32_t trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_NE(trace_id, 0U);
+    tracker.pushRecord(TimeRecord {
+        .que_idx = 0,
+        .event_tag = 24680U,
+        .trace_id = trace_id,
+        .event_stage = stage::FRAME_START,
+        .time_captured = 100U,
+    });
 
     FPGAEventDesc event {};
     event.stock_locate = 0x000d;
     event.event_tk = 24680U;
-    event.is_first_event = 1U;
+    event.trace_id = trace_id;
     event.bid_price = 100U;
     event.ask_price = 100U;
     event.bid_shares = 100U;
@@ -183,13 +97,20 @@ TEST(DummyStrategyTest, firstEventWithoutActionStillPushesStrategyStartRecordBef
 
     OrderIntent intent {};
     EXPECT_FALSE(strategy.evaluateEvent(0, event, intent));
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), trace_id);
+
+    TraceCommand command {};
+    ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(command));
+    EXPECT_EQ(command.que_idx, 0U);
+    EXPECT_EQ(command.trace_id, trace_id);
+    EXPECT_EQ(command.op, TraceCommandOp::Drop);
+    ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(command));
+
+    tracker.stop();
+    tracker.run();
+
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 0U);
 
     TimeRecord record {};
-    ASSERT_TRUE(tracker.m_latency_queues[0]->pop(record));
-    EXPECT_EQ(record.que_idx, 0U);
-    EXPECT_EQ(record.event_tag, 24680U);
-    EXPECT_EQ(record.event_stage, stage::STRATEGY_START);
-    EXPECT_EQ(record.trace_id, 0U);
-    EXPECT_GT(record.time_captured, 0U);
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(record));
 }

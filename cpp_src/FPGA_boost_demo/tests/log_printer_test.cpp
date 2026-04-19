@@ -19,12 +19,60 @@ static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_execution_accepted_t
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_enqueue_to_tx_send_enter_ns), int64_t>);
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_send_enter_to_tx_send_syscall_enter_ns), int64_t>);
 static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_send_syscall_enter_to_tx_send_ns), int64_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_enqueue_backlog_depth), uint32_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_send_enter_backlog_depth), uint32_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_send_call_count), uint32_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_send_bytes_total), uint32_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_send_eintr_retry_count), uint32_t>);
-static_assert(std::is_same_v<decltype(LatencyLogRecord{}.tx_send_had_partial_write), uint32_t>);
+static_assert(std::is_same_v<decltype(ExecutionLogRecord{}.queue_idx), uint16_t>);
+
+TEST(LogPrinterTest, executionLogsRouteToIndependentQueues) {
+    LogPrinter printer(2, 1);
+
+    ExecutionLogRecord q0 {
+        .queue_idx = 0,
+        .stock_locate = 0x0ee8,
+        .intent = {.action = OrderIntentAction::Buy, .price = 100100, .shares = 10},
+    };
+    ExecutionLogRecord q1 {
+        .queue_idx = 1,
+        .stock_locate = 0x0ee9,
+        .intent = {.action = OrderIntentAction::Sell, .price = 100200, .shares = 20},
+    };
+
+    EXPECT_TRUE(printer.pushExecutionLog(q0));
+    EXPECT_TRUE(printer.pushExecutionLog(q1));
+}
+
+TEST(LogPrinterTest, txLogsRouteToIndependentQueues) {
+    LogPrinter printer(2, 1);
+
+    TxLogRecord q0 {
+        .queue_idx = 0,
+        .event = TxEventKind::ConnectionEstablished,
+    };
+    TxLogRecord q1 {
+        .queue_idx = 1,
+        .event = TxEventKind::ConnectionLost,
+    };
+
+    EXPECT_TRUE(printer.pushTxLog(q0));
+    EXPECT_TRUE(printer.pushTxLog(q1));
+}
+
+TEST(LogPrinterTest, txConnectionIssuesPrintReadableLabel) {
+    LogPrinter printer(1, 8);
+
+    TxLogRecord issue {
+        .queue_idx = 0,
+        .event = TxEventKind::ConnectionIssue,
+        .reason = 0x006f,
+    };
+
+    testing::internal::CaptureStdout();
+    printer.start();
+    EXPECT_TRUE(printer.pushTxLog(issue));
+    printer.stop();
+    const std::string output = testing::internal::GetCapturedStdout();
+
+    EXPECT_NE(output.find("TxEvent event=ConnectionIssue"), std::string::npos);
+    EXPECT_NE(output.find("reason=0x006f"), std::string::npos);
+}
 
 TEST(LogPrinterTest, latencySummaryPrintsFinalPercentilesPerQueue) {
     LogPrinter printer(2, 8);
