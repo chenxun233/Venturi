@@ -791,8 +791,6 @@ TEST(TxTranslatorTest, backpressuredFinalizeIsRetriedLater) {
         .op = TraceCommandOp::Drop,
     };
     ASSERT_TRUE(tracker.m_trace_command_queues[1]->push(blocker));
-    tracker.m_trace_command_overflow_slots[1].store(LatencyTracker::_encodeOverflowCommand(blocker),
-                                                    std::memory_order_release);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,
@@ -844,8 +842,6 @@ TEST(TxTranslatorTest, backpressuredDropIsRetriedLater) {
         .op = TraceCommandOp::Finalize,
     };
     ASSERT_TRUE(tracker.m_trace_command_queues[1]->push(blocker));
-    tracker.m_trace_command_overflow_slots[1].store(LatencyTracker::_encodeOverflowCommand(blocker),
-                                                    std::memory_order_release);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,

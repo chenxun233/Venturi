@@ -20,3 +20,4 @@ corundum_exanic_x10/
 mkdocs/
 docs/
 build/
+cpp_src/FPGA_boost_demo/tests/

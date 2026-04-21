@@ -60,14 +60,6 @@ void pushCompleteTraceRecords(LatencyTracker& tracker,
     tracker.pushRecord(makeRecord(que_idx, event_tag, trace_id, stage::TX_SEND, 1555U));
 }
 
-TraceCommand decodeOverflowCommand(uint64_t encoded_command) {
-    TraceCommand command {};
-    command.que_idx = static_cast<uint16_t>((encoded_command >> 48U) & 0xFFFFU);
-    command.trace_id = static_cast<uint32_t>((encoded_command >> 16U) & 0xFFFFFFFFULL);
-    command.op = static_cast<TraceCommandOp>(encoded_command & 0xFFU);
-    return command;
-}
-
 } // namespace
 
 TEST(LatencyTrackerTest, monotonicRawReadRemainsMonotonic) {
@@ -142,7 +134,15 @@ TEST(LatencyTrackerTest, requestDropCanUseProducerQueueDifferentFromTargetQueue)
     EXPECT_FALSE(tracker.m_trace_command_queues[1]->pop(command));
 }
 
-TEST(LatencyTrackerTest, requestFinalizePreservesQueuedProgressWhenCommandQueueIsFull) {
+TEST(LatencyTrackerTest, defaultCommandQueueCapacityAbsorbsModerateBurst) {
+    LatencyTracker tracker(1, 32);
+
+    for (uint32_t trace_id = 1U; trace_id <= 32U; ++trace_id) {
+        EXPECT_TRUE(tracker.requestDrop(0, trace_id));
+    }
+}
+
+TEST(LatencyTrackerTest, requestFinalizeFailsWhenCommandQueueIsFullWithoutOverflowFallback) {
     LatencyTracker tracker(1, 32, 1);
     LatencyAnalyzer analyzer(1);
     tracker.attachAnalyzer(&analyzer);
@@ -158,7 +158,7 @@ TEST(LatencyTrackerTest, requestFinalizePreservesQueuedProgressWhenCommandQueueI
     };
     ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(stale_command));
 
-    EXPECT_TRUE(tracker.requestFinalize(0, trace_id));
+    EXPECT_FALSE(tracker.requestFinalize(0, trace_id));
 
     TraceCommand queued_command {};
     ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(queued_command));
@@ -167,37 +167,14 @@ TEST(LatencyTrackerTest, requestFinalizePreservesQueuedProgressWhenCommandQueueI
     EXPECT_EQ(queued_command.op, stale_command.op);
     EXPECT_FALSE(tracker.m_trace_command_queues[0]->pop(queued_command));
 
-    const uint64_t encoded_overflow_command =
-        tracker.m_trace_command_overflow_slots[0].load();
-    ASSERT_NE(encoded_overflow_command, 0ULL);
-    const TraceCommand overflow_command = decodeOverflowCommand(encoded_overflow_command);
-    EXPECT_EQ(overflow_command.que_idx, 0U);
-    EXPECT_EQ(overflow_command.trace_id, trace_id);
-    EXPECT_EQ(overflow_command.op, TraceCommandOp::Finalize);
-
-    const TraceCommand later_command {
-        .que_idx = 0U,
-        .trace_id = trace_id + 123U,
-        .op = TraceCommandOp::Drop,
-    };
-    EXPECT_TRUE(tracker.requestDrop(0, later_command.trace_id));
-
-    TraceCommand retried_ring_command {};
-    ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(retried_ring_command));
-    EXPECT_EQ(retried_ring_command.que_idx, later_command.que_idx);
-    EXPECT_EQ(retried_ring_command.trace_id, later_command.trace_id);
-    EXPECT_EQ(retried_ring_command.op, later_command.op);
-    ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(retried_ring_command));
-
     tracker.stop();
     tracker.run();
 
-    ASSERT_EQ(analyzer.m_completed_records[0].size(), 1U);
-    EXPECT_EQ(analyzer.m_completed_records[0][0].event_tag, 1001ULL);
-    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 0U);
+    EXPECT_TRUE(analyzer.m_completed_records[0].empty());
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), trace_id);
 }
 
-TEST(LatencyTrackerTest, requestFinalizeOverflowStillDrainsWhenRingPassHitsWorkBound) {
+TEST(LatencyTrackerTest, requestFinalizeSucceedsAfterDrainFreesCommandQueueCapacity) {
     LatencyTracker tracker(1, 32, 4);
     LatencyAnalyzer analyzer(1);
     tracker.attachAnalyzer(&analyzer);
@@ -215,12 +192,13 @@ TEST(LatencyTrackerTest, requestFinalizeOverflowStillDrainsWhenRingPassHitsWorkB
         ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(stale_command));
     }
 
+    EXPECT_FALSE(tracker.requestFinalize(0, trace_id));
+
+    EXPECT_TRUE(tracker._drainCommand());
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), trace_id);
+
     ASSERT_TRUE(tracker.requestFinalize(0, trace_id));
-    EXPECT_NE(tracker.m_trace_command_overflow_slots[0].load(), 0ULL);
-
-    EXPECT_TRUE(tracker._drainCommandPass());
-
-    EXPECT_EQ(tracker.m_trace_command_overflow_slots[0].load(), 0ULL);
+    EXPECT_TRUE(tracker._drainCommand());
     ASSERT_EQ(analyzer.m_completed_records[0].size(), 1U);
     EXPECT_EQ(analyzer.m_completed_records[0][0].event_tag, 1001ULL);
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 0U);

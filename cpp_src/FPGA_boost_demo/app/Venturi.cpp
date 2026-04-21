@@ -25,35 +25,25 @@
 
 namespace {
 
-constexpr uint16_t kQueueCount = 2;
-constexpr uint32_t kRxSlotCount = 1024;
-constexpr std::array<std::string_view, kQueueCount> kSymbolNames = {
+constexpr uint16_t kQueueNum = 2;
+constexpr uint32_t kRxSlotNum = 1024;
+constexpr std::array<std::string_view, kQueueNum> kSymbolNames = {
     "AAPL",
     "HSBC",
 };
-constexpr std::array<uint16_t, kQueueCount> kStockLocates = {
+constexpr std::array<uint16_t, kQueueNum> kStockLocates = {
     0x000d,
     0x0ee8,
 
 };
-constexpr std::array<uint32_t, kQueueCount> kPriceBases = {
+constexpr std::array<uint32_t, kQueueNum> kPriceBases = {
     0U,
     0U,
 };
 
-constexpr bool kSyncEnabled = true;
-constexpr auto kSnapshotPrintInterval = std::chrono::seconds(1);
-constexpr auto kThreadSleepTime = std::chrono::microseconds(100);
 constexpr std::size_t kLatencyQueueCapacity = 1024;
-constexpr std::size_t kLatencyPendingCapacity = 1024;
 constexpr std::size_t kLatencyLogCapacity = 4096;
 constexpr std::size_t kExecutorQueueCapacity = 1024;
-constexpr std::string_view kTxBindIp = "192.168.51.1";
-constexpr std::string_view kTxServerIp = "192.168.51.2";
-constexpr uint16_t kTxServerPort = 9000;
-constexpr std::string_view kTxUsername = "client";
-constexpr std::string_view kTxPassword = "secret";
-constexpr std::string_view kTxSession = "SESSION01";
 constexpr int kRxThread0Cpu = 2;
 constexpr int kRxThread1Cpu = 4;
 constexpr int kLatencyThreadCpu = 6;
@@ -74,12 +64,12 @@ int main() {
         return 1;
     }
 
-    if (!device.setRxRingBuffers(kQueueCount, kRxSlotCount, SLOT_SIZE_BYTES)) {
+    if (!device.setRxRingBuffers(kQueueNum, kRxSlotNum, SLOT_SIZE_BYTES)) {
         error("Failed to configure FPGA RX ring buffers");
         return 1;
     }
 
-    for (uint16_t que_idx = 0; que_idx < kQueueCount; ++que_idx) {
+    for (uint16_t que_idx = 0; que_idx < kQueueNum; ++que_idx) {
         if (!device.setSymbolLocate(que_idx, kStockLocates[que_idx])) {
             error("Failed to configure stock_locate for queue %u", que_idx);
             return 1;
@@ -91,6 +81,21 @@ int main() {
     }
 
     // device.setSync(kSyncEnabled);
+    const GatewayClientConfig tx_connection_config {
+        .bind_ip = std::string("192.168.51.1"),
+        .server_ip = std::string("192.168.51.2"),
+        .port = 9000,
+    };
+    const TxSenderConfig tx_sender_config {
+        .username = std::string("client"),
+        .password = std::string("secret"),
+        .requested_session = std::string("SESSION01"),
+        .heartbeat_interval = std::chrono::seconds(1),
+        .intent_capacity = kExecutorQueueCapacity,
+        .pending_capacity = 1024,
+        .pending_slot_count = 1024,
+        .transport_capacity = 1024,
+    };
 
     FPGARxDecoder decoder0;
     FPGARxDecoder decoder1;
@@ -101,28 +106,15 @@ int main() {
     DummyStrategy strategy1;
     Executor executor0(kExecutorQueueCapacity);
     Executor executor1(kExecutorQueueCapacity);
-    const GatewayClientConfig tx_connection_config {
-        .bind_ip = std::string(kTxBindIp),
-        .server_ip = std::string(kTxServerIp),
-        .port = kTxServerPort,
-    };
+
     TxConnection tx_connection0(tx_connection_config);
     TxConnection tx_connection1(tx_connection_config);
-    const TxSenderConfig tx_sender_config {
-        .username = std::string(kTxUsername),
-        .password = std::string(kTxPassword),
-        .requested_session = std::string(kTxSession),
-        .heartbeat_interval = std::chrono::seconds(1),
-        .intent_capacity = kExecutorQueueCapacity,
-        .pending_capacity = 1024,
-        .pending_slot_count = 1024,
-        .transport_capacity = 1024,
-    };
+
     TxSender tx_sender0(tx_sender_config);
     TxSender tx_sender1(tx_sender_config);
-    LatencyTracker latency_tracker(kQueueCount, kLatencyQueueCapacity);
-    LatencyAnalyzer latency_analyzer(kQueueCount);
-    LogPrinter log_printer(kQueueCount, kLatencyLogCapacity);
+    LatencyTracker latency_tracker(kQueueNum, kLatencyQueueCapacity);
+    LatencyAnalyzer latency_analyzer(kQueueNum);
+    LogPrinter log_printer(kQueueNum, kLatencyLogCapacity);
     std::signal(SIGINT, handleStopSignal);
     latency_analyzer.setWarmupRecords(1000);
 
@@ -132,6 +124,8 @@ int main() {
     strategy1.attachLatenyTracker(&latency_tracker);
     executor0.attachLatenyTracker(&latency_tracker);
     executor1.attachLatenyTracker(&latency_tracker);
+    tx_sender0.attachLatenyTracker(&latency_tracker);
+    tx_sender1.attachLatenyTracker(&latency_tracker);
     executor0.attachQueueIdx(0);
     executor1.attachQueueIdx(1);
     
@@ -146,8 +140,7 @@ int main() {
     tx_connection1.attachSender(&tx_sender1);
     tx_sender0.attachLogPrinter(&log_printer);
     tx_sender1.attachLogPrinter(&log_printer);
-    tx_sender0.attachLatenyTracker(&latency_tracker);
-    tx_sender1.attachLatenyTracker(&latency_tracker);
+
     log_printer.setWorkerCpu(kMainAndLogPrinterCpu);
     log_printer.start();
     std::thread latency_thread([&latency_tracker]() {

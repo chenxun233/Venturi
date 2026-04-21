@@ -18,6 +18,7 @@ module pcs_pma_wrapper #(
     // outside
     input  wire                  i_drp_clk,
     input  wire                  i_rst_n, // active low
+    input  wire                  i_sw_reset_p, // active high
     input  wire                  i_gt_refclk_p,
     input  wire                  i_gt_refclk_n,
     input  wire                  i_gt_rx_p_0,
@@ -42,6 +43,7 @@ module pcs_pma_wrapper #(
   // Reset controller
   wire [0:0] gtwiz_reset_tx_done_int;
   wire [0:0] gtwiz_reset_rx_done_int;
+  wire       i_sync_rst_p;
 
   // TX/RX data
   wire [63:0] gtwiz_userdata_tx_int;
@@ -228,7 +230,7 @@ rst_synchronizer #(
     .OUT_ACTIVE_HIGH(1)
 ) sfp_ctrl_reset_sync_inst (
     .i_clk   (i_drp_clk),
-    .rst_in  (i_rst_n),
+    .rst_in  (i_rst_n & ~i_sw_reset_p),
     .rst_out (i_sync_rst_p)
 );
 

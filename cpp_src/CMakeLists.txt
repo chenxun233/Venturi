@@ -89,9 +89,7 @@ set(FPGA_PROTOCOL_DIR ${FPGA_ROOT}/protocol)
 set(FPGA_RUNTIME_DIR ${FPGA_ROOT}/runtime)
 set(FPGA_SYNC_DIR ${FPGA_ROOT}/sync)
 set(FPGA_STRATEGY_DIR ${FPGA_ROOT}/strategy)
-set(FPGA_TUNER_DIR ${FPGA_ROOT}/tuner)
 set(FPGA_TX_DIR ${FPGA_ROOT}/tx_engine)
-set(FPGA_VALIDATION_DIR ${FPGA_ROOT}/validation)
 set(FPGA_EXCHANGE_DIR ${FPGA_ROOT}/exchange)
 set(FPGA_APP_DIR ${FPGA_ROOT}/app)
 set(FPGA_TEST_DIR ${FPGA_ROOT}/tests)
@@ -130,11 +128,9 @@ add_executable(Venturi
     ${FPGA_LATENCY_DIR}/latency_tracker.cpp
     ${FPGA_SYNC_DIR}/FPGA_regression.cpp
     ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
-    ${FPGA_TUNER_DIR}/tuner.cpp
     ${FPGA_TX_DIR}/executor.cpp
     ${FPGA_TX_DIR}/tx_connection.cpp
     ${FPGA_TX_DIR}/tx_sender.cpp
-    ${FPGA_VALIDATION_DIR}/runtime_payload_validator.cpp
     ${FPGA_APP_DIR}/Venturi.cpp
 )
 # target_compile_definitions(Venturi PRIVATE ISO=1)
@@ -148,12 +144,11 @@ target_include_directories(Venturi PRIVATE
     ${FPGA_PROTOCOL_DIR}
     ${FPGA_SYNC_DIR}
     ${FPGA_STRATEGY_DIR}
-    ${FPGA_TUNER_DIR}
     ${FPGA_TX_DIR}
-    ${FPGA_VALIDATION_DIR}
 )
 
 add_executable(dummy_server
+    ${FPGA_COMMON_DIR}/thread_affinity.cpp
     ${FPGA_EXCHANGE_DIR}/dummy_server.cpp
     ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
     ${FPGA_EXCHANGE_DIR}/exchange_transport.cpp

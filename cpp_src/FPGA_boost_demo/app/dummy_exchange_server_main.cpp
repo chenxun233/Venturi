@@ -1,4 +1,5 @@
 #include "../exchange/dummy_server.h"
+#include "../common/thread_affinity.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -6,6 +7,8 @@
 #include <string>
 
 namespace {
+
+constexpr int kDummyServerCpu = 10;
 
 void applyArg(DummyExchangeConfig& config, const std::string& key, const std::string& value) {
     if (key == "--listen-ip") {
@@ -35,6 +38,8 @@ void applyArg(DummyExchangeConfig& config, const std::string& key, const std::st
 
 int main(int argc, char** argv) {
     try {
+        pinCurrentThreadToCpu(kDummyServerCpu);
+
         DummyExchangeConfig config {};
         for (int i = 1; i < argc; i += 2) {
             if (i + 1 >= argc) {

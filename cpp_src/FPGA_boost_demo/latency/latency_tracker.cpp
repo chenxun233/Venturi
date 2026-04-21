@@ -29,8 +29,7 @@ constexpr std::size_t kMaxCommandsPerQueuePerPass = 4U;
 LatencyTracker::LatencyTracker(uint16_t producer_num,
                                std::size_t buffer_capacity,
                                std::size_t command_capacity)
-    : m_trace_command_overflow_slots(producer_num),
-      m_queue_num(producer_num),
+    : m_queue_num(producer_num),
       m_active_trace_ids(producer_num),
       m_started_trace_counts(producer_num),
       m_finalize_request_counts(producer_num),
@@ -45,7 +44,6 @@ LatencyTracker::LatencyTracker(uint16_t producer_num,
             std::make_unique<SpscRingQueue<TimeRecord>>(buffer_capacity));
         m_trace_command_queues.push_back(
             std::make_unique<SpscRingQueue<TraceCommand>>(command_capacity));
-        m_trace_command_overflow_slots[producer_idx].store(0ULL, std::memory_order_relaxed);
         m_active_trace_ids[producer_idx].store(0U, std::memory_order_relaxed);
         m_started_trace_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
         m_finalize_request_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
@@ -116,12 +114,11 @@ bool LatencyTracker::requestDrop(uint16_t command_queue_idx,
 
 void LatencyTracker::run() noexcept {
     while (!m_should_stop.load(std::memory_order_acquire)) {
-        if (!_drainCommandPass()) {
+        if (!_drainCommand()) {
             std::this_thread::yield();
         }
     }
-
-    _drainAllCommands();
+    _drainCommand();
 }
 
 void LatencyTracker::stop() noexcept {
@@ -155,6 +152,7 @@ void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept
     if (que_idx >= m_latency_queues.size() ||
         trace_id == 0U ||
         m_active_trace_ids[que_idx].load(std::memory_order_acquire) != trace_id) {
+        dropTrace(que_idx, trace_id);
         return;
     }
 
@@ -342,14 +340,14 @@ void LatencyTracker::dropTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
     _clearActiveTrace(que_idx, trace_id);
 }
 
-bool LatencyTracker::_drainCommandPass() noexcept {
+bool LatencyTracker::_drainCommand() noexcept {
     if (m_trace_command_queues.empty()) {
         return false;
     }
 
     bool did_work = false;
     const uint16_t start_queue_idx =
-        static_cast<uint16_t>(m_next_command_queue_idx % m_trace_command_queues.size());
+        static_cast<uint16_t>(m_next_command_queue_idx % m_queue_num);
 
     for (uint16_t queue_offset = 0; queue_offset < m_queue_num; ++queue_offset) {
         const uint16_t queue_idx =
@@ -363,11 +361,6 @@ bool LatencyTracker::_drainCommandPass() noexcept {
             _processCommand(command);
             ++commands_processed;
         }
-
-        if (_tryConsumeOverflowCommand(queue_idx, command)) {
-            did_work = true;
-            _processCommand(command);
-        }
     }
 
     m_next_command_queue_idx =
@@ -375,10 +368,7 @@ bool LatencyTracker::_drainCommandPass() noexcept {
     return did_work;
 }
 
-void LatencyTracker::_drainAllCommands() noexcept {
-    while (_drainCommandPass()) {
-    }
-}
+
 
 bool LatencyTracker::_enqueueCommand(uint16_t command_queue_idx,
                                      uint16_t target_queue_idx,
@@ -393,39 +383,7 @@ bool LatencyTracker::_enqueueCommand(uint16_t command_queue_idx,
         return true;
     }
 
-    return _tryStoreOverflowCommand(command_queue_idx, command);
-}
-
-bool LatencyTracker::_tryStoreOverflowCommand(uint16_t command_queue_idx,
-                                              const TraceCommand& command) noexcept {
-    if (command_queue_idx >= m_trace_command_overflow_slots.size()) {
-        return false;
-    }
-
-    const uint64_t encoded_command = _encodeOverflowCommand(command);
-    uint64_t expected_command = 0ULL;
-    return m_trace_command_overflow_slots[command_queue_idx].compare_exchange_strong(
-        expected_command,
-        encoded_command,
-        std::memory_order_acq_rel,
-        std::memory_order_acquire);
-}
-
-bool LatencyTracker::_tryConsumeOverflowCommand(uint16_t command_queue_idx,
-                                                TraceCommand& command) noexcept {
-    if (command_queue_idx >= m_trace_command_overflow_slots.size()) {
-        return false;
-    }
-
-    const uint64_t encoded_command =
-        m_trace_command_overflow_slots[command_queue_idx].exchange(0ULL,
-                                                                   std::memory_order_acq_rel);
-    if (encoded_command == 0ULL) {
-        return false;
-    }
-
-    command = _decodeOverflowCommand(encoded_command);
-    return true;
+    return false;
 }
 
 void LatencyTracker::_processCommand(const TraceCommand& command) noexcept {
@@ -437,20 +395,6 @@ void LatencyTracker::_processCommand(const TraceCommand& command) noexcept {
             dropTrace(command.que_idx, command.trace_id);
             break;
     }
-}
-
-uint64_t LatencyTracker::_encodeOverflowCommand(const TraceCommand& command) noexcept {
-    return (static_cast<uint64_t>(command.que_idx) << 48U) |
-           (static_cast<uint64_t>(command.trace_id) << 16U) |
-           static_cast<uint64_t>(static_cast<uint8_t>(command.op));
-}
-
-TraceCommand LatencyTracker::_decodeOverflowCommand(uint64_t encoded_command) noexcept {
-    return TraceCommand {
-        .que_idx = static_cast<uint16_t>((encoded_command >> 48U) & 0xFFFFU),
-        .trace_id = static_cast<uint32_t>((encoded_command >> 16U) & 0xFFFFFFFFULL),
-        .op = static_cast<TraceCommandOp>(encoded_command & 0xFFU),
-    };
 }
 
 int64_t LatencyTracker::_readSignedDelta(uint64_t later_tick, uint64_t earlier_tick) noexcept {

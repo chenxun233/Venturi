@@ -640,6 +640,7 @@ pcs_pma_wrapper #(
 pcs_pma_wrapper_inst (
     .i_drp_clk                      (sys_clk_100        ),
     .i_rst_n                        (i_pcie_rst_n       ),
+    .i_sw_reset_p                   (rx_logic_reset_250 ),
     .i_gt_refclk_p                  (i_gt_refclk_p      ),
     .i_gt_refclk_n                  (i_gt_refclk_n      ),
     .i_gt_rx_p_0                    (i_gt_rx_p_0        ),
