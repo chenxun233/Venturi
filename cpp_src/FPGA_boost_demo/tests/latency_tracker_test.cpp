@@ -95,6 +95,35 @@ TEST(LatencyTrackerTest, queueRejectsLaterFirstEventWhileTraceIsActive) {
     EXPECT_EQ(tracker.tryAllocateTraceId(0, true), 0U);
 }
 
+TEST(LatencyTrackerTest, differentQueuesCanReuseTheSameTraceIdValue) {
+    LatencyTracker tracker(2, 8);
+
+    const uint32_t queue0_trace_id = tracker.tryAllocateTraceId(0, true);
+    const uint32_t queue1_trace_id = tracker.tryAllocateTraceId(1, true);
+
+    ASSERT_NE(queue0_trace_id, 0U);
+    ASSERT_NE(queue1_trace_id, 0U);
+    EXPECT_EQ(queue0_trace_id, 1U);
+    EXPECT_EQ(queue1_trace_id, 1U);
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 1U);
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), 1U);
+}
+
+TEST(LatencyTrackerTest, queueTraceIdAllocationRemainsMonotonicAfterClearingActiveTrace) {
+    LatencyTracker tracker(2, 8);
+
+    const uint32_t first_trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_EQ(first_trace_id, 1U);
+
+    tracker.m_active_trace_ids[0].store(0U, std::memory_order_release);
+
+    const uint32_t second_trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_EQ(second_trace_id, 2U);
+
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 2U);
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), 0U);
+}
+
 TEST(LatencyTrackerTest, requestFinalizeQueuesCommandWithoutRunningFinalizeInline) {
     LatencyTracker tracker(1, 32, 8);
     LatencyAnalyzer analyzer(1);
