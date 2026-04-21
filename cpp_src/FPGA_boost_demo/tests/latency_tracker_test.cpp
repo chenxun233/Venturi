@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <limits>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -122,6 +123,36 @@ TEST(LatencyTrackerTest, queueTraceIdAllocationRemainsMonotonicAfterClearingActi
 
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 2U);
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), 0U);
+}
+
+TEST(LatencyTrackerTest, failedTraceIdClaimDoesNotAdvanceQueueCounter) {
+    LatencyTracker tracker(1, 8);
+
+    const uint32_t first_trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_EQ(first_trace_id, 1U);
+
+    const uint32_t rejected_trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_EQ(rejected_trace_id, 0U);
+
+    tracker.m_active_trace_ids[0].store(0U, std::memory_order_release);
+
+    const uint32_t next_trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_EQ(next_trace_id, 2U);
+}
+
+TEST(LatencyTrackerTest, traceIdWraparoundSkipsZeroSentinel) {
+    LatencyTracker tracker(1, 8);
+    tracker.m_next_trace_ids[0] = std::numeric_limits<uint32_t>::max();
+
+    const uint32_t max_trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_EQ(max_trace_id, std::numeric_limits<uint32_t>::max());
+    ASSERT_NE(max_trace_id, 0U);
+
+    tracker.m_active_trace_ids[0].store(0U, std::memory_order_release);
+
+    const uint32_t wrapped_trace_id = tracker.tryAllocateTraceId(0, true);
+    ASSERT_EQ(wrapped_trace_id, 1U);
+    ASSERT_NE(wrapped_trace_id, 0U);
 }
 
 TEST(LatencyTrackerTest, requestFinalizeQueuesCommandWithoutRunningFinalizeInline) {
