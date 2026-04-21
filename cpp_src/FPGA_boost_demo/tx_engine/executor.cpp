@@ -24,7 +24,7 @@ void Executor::attachLatenyTracker(LatencyTracker* latency_tracker) {
 bool Executor::acceptIntent(const OrderIntent& intent) {
     if (m_has_queue_idx && intent.que_idx != m_queue_idx) {
         if (intent.trace_id != 0U && m_latency_tracker != nullptr) {
-            (void)m_latency_tracker->requestDrop(m_queue_idx, intent.que_idx, intent.trace_id);
+            (void)m_latency_tracker->requestDrop(m_queue_idx, intent.trace_id);
         }
         return false;
     }

@@ -42,6 +42,7 @@ wire                            ff_o_valid;
 wire                            ff_push;
 wire                            ff_pop;
 wire                            ff_not_empty;
+wire                            order_book_init_done;
 wire [7:0]    msg_type          = ff_o_msg[265:258];
 wire [63:0]   msg_order_ref_num = ff_o_msg[241:178];
 wire [63:0]   msg_new_order_ref = ff_o_msg[177:114];
@@ -50,15 +51,15 @@ wire [31:0]   msg_shares        = ff_o_msg[111:80];
 wire [31:0]   msg_price         = ff_o_msg[79:48];
 wire [47:0]   frame_ts          = ff_o_msg[47:0];
 
-assign ff_push = i_parser_msg[PARSER_MSG_BIT-1] && i_stock_valid;
-assign ff_pop  = ff_not_empty && (book_upd_state == IDLE) && !ff_o_valid;
+assign ff_push = i_parser_msg[PARSER_MSG_BIT-1] && i_stock_valid && order_book_init_done;
+assign ff_pop  = order_book_init_done && ff_not_empty && (book_upd_state == IDLE) && !ff_o_valid;
 
 fifo #(
     .DEPTH          (8              ),
     .DATA_W         (PARSER_MSG_BIT)
 ) msg_fifo_inst (
     .i_clk          (i_clk_156      ),
-    .i_rst          (i_rst          ),
+    .i_rst          (i_rst | !order_book_init_done),
     .i_do_push      (ff_push        ),
     .i_data         (i_parser_msg   ),
     .o_push_ready   (               ),
@@ -93,11 +94,12 @@ bram #(
     .i_addr          (book_addr         ),
     .i_op            (book_op           ),
     .i_data          (book_i_data       ),
-    .o_data          (book_o_data       )
+    .o_data          (book_o_data       ),
+    .o_init_done     (order_book_init_done)
 );
 
 always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
+    if (i_rst || !order_book_init_done) begin
         book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
         book_upd_state   <= IDLE;
         book_op          <= IDLE;

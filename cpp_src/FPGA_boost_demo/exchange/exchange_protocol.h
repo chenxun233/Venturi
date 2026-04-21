@@ -13,9 +13,9 @@ constexpr std::size_t kOuchExecutedSize       = 36;
 constexpr std::size_t kMaxSoupPayloadSize     = 64;
 constexpr std::size_t kMaxSoupFrameSize       = 3 + kMaxSoupPayloadSize;
 constexpr std::size_t kMaxOutboundMsg         = 1;
-constexpr std::size_t kReadBufferSize         = 4096;
-constexpr std::size_t kMaxPendingFills        = 1024;
-constexpr std::size_t kOutboundQueueSize      = 1024;
+constexpr std::size_t kReadBufferSize         = 8192;
+constexpr std::size_t kMaxPendingFills        = 8192;
+constexpr std::size_t kOutboundQueueSize      = 8192;
 
 enum class ExchangeValidationKind : uint8_t {
     Accepted,

@@ -51,7 +51,7 @@ void pushCompleteTraceRecords(LatencyTracker& tracker,
                                   trace_id,
                                   stage::TX_EXECUTION_ACCEPTED,
                                   1500U));
-    tracker.pushRecord(makeRecord(que_idx, event_tag, trace_id, stage::TX_ENQUEUE, 1540U));
+    tracker.pushRecord(makeRecord(que_idx, event_tag, trace_id, stage::TX_SEND_ENQUEUE, 1540U));
     tracker.pushRecord(makeRecord(que_idx, event_tag, trace_id, stage::TX_SEND_ENTER, 1550U));
     tracker.pushRecord(makeRecord(que_idx,
                                   event_tag,
@@ -70,6 +70,13 @@ TEST(LatencyTrackerTest, monotonicRawReadRemainsMonotonic) {
     EXPECT_GT(first, 0U);
     EXPECT_GT(second, 0U);
     EXPECT_LE(first, second);
+}
+
+TEST(LatencyTrackerTest, constructorOwnsUsableHostTickScale) {
+    LatencyTracker tracker(1, 8);
+
+    EXPECT_FALSE(tracker.m_host_tick_scale.use_clock_fallback);
+    EXPECT_NE(tracker.m_host_tick_scale.tsc_hz, 0U);
 }
 
 TEST(LatencyTrackerTest, nonFirstEventCannotAllocateTraceId) {
@@ -170,7 +177,7 @@ TEST(LatencyTrackerTest, requestFinalizeQueuesCommandWithoutRunningFinalizeInlin
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), trace_id);
 
     TraceCommand command {};
-    ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(command));
+    ASSERT_TRUE(tracker.m_command_queues[0]->pop(command));
     EXPECT_EQ(command.que_idx, 0U);
     EXPECT_EQ(command.trace_id, trace_id);
     EXPECT_EQ(command.op, TraceCommandOp::Finalize);
@@ -183,15 +190,14 @@ TEST(LatencyTrackerTest, requestDropCanUseProducerQueueDifferentFromTargetQueue)
 
     tracker.pushRecord(makeRecord(1, 1001ULL, trace_id, stage::FRAME_START, 100U));
 
-    EXPECT_TRUE(tracker.requestDrop(0, 1, trace_id));
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), trace_id);
 
     TraceCommand command {};
-    ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(command));
+    ASSERT_TRUE(tracker.m_command_queues[0]->pop(command));
     EXPECT_EQ(command.que_idx, 1U);
     EXPECT_EQ(command.trace_id, trace_id);
     EXPECT_EQ(command.op, TraceCommandOp::Drop);
-    EXPECT_FALSE(tracker.m_trace_command_queues[1]->pop(command));
+    EXPECT_FALSE(tracker.m_command_queues[1]->pop(command));
 }
 
 TEST(LatencyTrackerTest, defaultCommandQueueCapacityAbsorbsModerateBurst) {
@@ -216,16 +222,16 @@ TEST(LatencyTrackerTest, requestFinalizeFailsWhenCommandQueueIsFullWithoutOverfl
         .trace_id = trace_id + 99U,
         .op = TraceCommandOp::Drop,
     };
-    ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(stale_command));
+    ASSERT_TRUE(tracker.m_command_queues[0]->push(stale_command));
 
     EXPECT_FALSE(tracker.requestFinalize(0, trace_id));
 
     TraceCommand queued_command {};
-    ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(queued_command));
+    ASSERT_TRUE(tracker.m_command_queues[0]->pop(queued_command));
     EXPECT_EQ(queued_command.que_idx, stale_command.que_idx);
     EXPECT_EQ(queued_command.trace_id, stale_command.trace_id);
     EXPECT_EQ(queued_command.op, stale_command.op);
-    EXPECT_FALSE(tracker.m_trace_command_queues[0]->pop(queued_command));
+    EXPECT_FALSE(tracker.m_command_queues[0]->pop(queued_command));
 
     tracker.stop();
     tracker.run();
@@ -249,7 +255,7 @@ TEST(LatencyTrackerTest, requestFinalizeSucceedsAfterDrainFreesCommandQueueCapac
             .trace_id = trace_id + 100U + stale_offset,
             .op = TraceCommandOp::Drop,
         };
-        ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(stale_command));
+        ASSERT_TRUE(tracker.m_command_queues[0]->push(stale_command));
     }
 
     EXPECT_FALSE(tracker.requestFinalize(0, trace_id));
@@ -280,7 +286,7 @@ TEST(LatencyTrackerTest, stopCausesRunToDrainPendingCommandsBeforeExit) {
 
     ASSERT_EQ(analyzer.m_completed_records[0].size(), 1U);
     EXPECT_EQ(analyzer.m_completed_records[0][0].event_tag, 1001ULL);
-    EXPECT_EQ(analyzer.m_completed_records[0][0].frame_start_to_dma_emit_ns, 64U);
+    EXPECT_EQ(analyzer.m_completed_records[0][0].FRAME_START_to_DMA_EMIT, 64U);
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 0U);
 
     TimeRecord leftover {};
@@ -314,7 +320,7 @@ TEST(LatencyTrackerTest, runProcessesQueuedFinalizeBeforeStopIsCalled) {
 
     ASSERT_EQ(analyzer.m_completed_records[0].size(), 1U);
     EXPECT_EQ(analyzer.m_completed_records[0][0].event_tag, 1001ULL);
-    EXPECT_EQ(analyzer.m_completed_records[0][0].frame_start_to_dma_emit_ns, 64U);
+    EXPECT_EQ(analyzer.m_completed_records[0][0].FRAME_START_to_DMA_EMIT, 64U);
 }
 
 TEST(LatencyTrackerTest, runConsumesQueuedDropAndClearsActiveTrace) {

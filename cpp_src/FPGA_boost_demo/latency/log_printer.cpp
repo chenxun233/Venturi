@@ -268,21 +268,21 @@ void LogPrinter::_recordLatencySamples(const LatencyLogRecord& record) {
 
     auto& stats = m_latency_summary_stats[record.que_idx];
     stats[static_cast<std::size_t>(LatencyField::FrameStartToDmaEmit)].samples.push_back(
-        static_cast<int64_t>(record.frame_start_to_dma_emit_ns));
+        static_cast<int64_t>(record.FRAME_START_to_DMA_EMIT));
     stats[static_cast<std::size_t>(LatencyField::BatchDuration)].samples.push_back(
-        record.batch_duration_ns);
+        record.BATCH_DURATION);
     stats[static_cast<std::size_t>(LatencyField::BatchEndToStrategyStart)].samples.push_back(
-        record.batch_end_to_strategy_start_ns);
+        record.BATCH_END_to_STRATEGY_START);
     stats[static_cast<std::size_t>(LatencyField::StrategyStartToTxExecutionAccepted)]
-        .samples.push_back(record.strategy_start_to_tx_execution_accepted_ns);
+        .samples.push_back(record.STRATEGY_START_to_TX_SEND_ACCEPTED);
     stats[static_cast<std::size_t>(LatencyField::TxExecutionAcceptedToTxEnqueue)]
-        .samples.push_back(record.tx_execution_accepted_to_tx_enqueue_ns);
+        .samples.push_back(record.TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE);
     stats[static_cast<std::size_t>(LatencyField::TxEnqueueToTxSendEnter)].samples.push_back(
-        record.tx_enqueue_to_tx_send_enter_ns);
+        record.TX_SEND_ENQUEUE_to_TX_SEND_ENTER);
     stats[static_cast<std::size_t>(LatencyField::TxSendEnterToTxSendSyscallEnter)]
-        .samples.push_back(record.tx_send_enter_to_tx_send_syscall_enter_ns);
+        .samples.push_back(record.TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER);
     stats[static_cast<std::size_t>(LatencyField::TxSendSyscallEnterToTxSend)]
-        .samples.push_back(record.tx_send_syscall_enter_to_tx_send_ns);
+        .samples.push_back(record.TX_SEND_SYSCALL_ENTER_to_TX_SEND);
 }
 
 void LogPrinter::_run() {
@@ -310,14 +310,14 @@ void LogPrinter::_printLatencyQueueSummary(uint16_t queue_idx) {
     constexpr int kLatencyLabelWidth = 48;
     static constexpr std::array<const char*, static_cast<std::size_t>(LatencyField::Count)>
         kLatencyLabels = {
-            "frame_start -> dma_emit_ns",
-            "batch_duration_ns",
-            "batch_end -> strategy_start_ns",
-            "strategy_start -> tx_execution_accepted_ns",
-            "tx_execution_accepted -> tx_enqueue_ns",
-            "tx_enqueue -> tx_send_enter_ns",
-            "tx_send_enter -> tx_send_syscall_enter_ns",
-            "tx_send_syscall_enter -> tx_send_ns",
+            "FRAME_START_to_DMA_EMIT",
+            "BATCH_DURATION",
+            "BATCH_END_to_STRATEGY_START",
+            "STRATEGY_START_to_TX_SEND_ACCEPTED",
+            "TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE",
+            "TX_SEND_ENQUEUE_to_TX_SEND_ENTER",
+            "TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER",
+            "TX_SEND_SYSCALL_ENTER_to_TX_SEND",
         };
 
     const auto& queue_stats = m_latency_summary_stats[queue_idx];
@@ -349,13 +349,13 @@ void LogPrinter::_printLatencyQueueSummary(uint16_t queue_idx) {
 
 void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
     constexpr int kLatencyLabelWidth = 48;
-    const bool has_negative = (record.batch_duration_ns < 0) ||
-                              (record.batch_end_to_strategy_start_ns < 0) ||
-                              (record.strategy_start_to_tx_execution_accepted_ns < 0) ||
-                              (record.tx_execution_accepted_to_tx_enqueue_ns < 0) ||
-                              (record.tx_enqueue_to_tx_send_enter_ns < 0) ||
-                              (record.tx_send_enter_to_tx_send_syscall_enter_ns < 0) ||
-                              (record.tx_send_syscall_enter_to_tx_send_ns < 0);
+    const bool has_negative = (record.BATCH_DURATION < 0) ||
+                              (record.BATCH_END_to_STRATEGY_START < 0) ||
+                              (record.STRATEGY_START_to_TX_SEND_ACCEPTED < 0) ||
+                              (record.TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE < 0) ||
+                              (record.TX_SEND_ENQUEUE_to_TX_SEND_ENTER < 0) ||
+                              (record.TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER < 0) ||
+                              (record.TX_SEND_SYSCALL_ENTER_to_TX_SEND < 0);
     auto printSignedLatency = [kLatencyLabelWidth](const char* label, long long value) {
         std::printf("%-*s = %lld\n", kLatencyLabelWidth, label, value);
     };
@@ -368,20 +368,20 @@ void LogPrinter::_printLatencyRecord(const LatencyLogRecord& record) {
                 static_cast<unsigned int>(record.que_idx),
                 static_cast<unsigned long long>(record.event_tag));
     printUnsignedLatency("frame_start -> dma_emit_ns",
-                         static_cast<unsigned long long>(record.frame_start_to_dma_emit_ns));
-    printSignedLatency("batch_duration_ns", static_cast<long long>(record.batch_duration_ns));
+                         static_cast<unsigned long long>(record.FRAME_START_to_DMA_EMIT));
+    printSignedLatency("BATCH_DURATION", static_cast<long long>(record.BATCH_DURATION));
     printSignedLatency("batch_end -> strategy_start_ns",
-                       static_cast<long long>(record.batch_end_to_strategy_start_ns));
+                       static_cast<long long>(record.BATCH_END_to_STRATEGY_START));
     printSignedLatency("strategy_start -> tx_execution_accepted_ns",
-                       static_cast<long long>(record.strategy_start_to_tx_execution_accepted_ns));
+                       static_cast<long long>(record.STRATEGY_START_to_TX_SEND_ACCEPTED));
     printSignedLatency("tx_execution_accepted -> tx_enqueue_ns",
-                       static_cast<long long>(record.tx_execution_accepted_to_tx_enqueue_ns));
+                       static_cast<long long>(record.TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE));
     printSignedLatency("tx_enqueue -> tx_send_enter_ns",
-                       static_cast<long long>(record.tx_enqueue_to_tx_send_enter_ns));
+                       static_cast<long long>(record.TX_SEND_ENQUEUE_to_TX_SEND_ENTER));
     printSignedLatency("tx_send_enter -> tx_send_syscall_enter_ns",
-                       static_cast<long long>(record.tx_send_enter_to_tx_send_syscall_enter_ns));
+                       static_cast<long long>(record.TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER));
     printSignedLatency("tx_send_syscall_enter -> tx_send_ns",
-                       static_cast<long long>(record.tx_send_syscall_enter_to_tx_send_ns));
+                       static_cast<long long>(record.TX_SEND_SYSCALL_ENTER_to_TX_SEND));
     std::fflush(stdout);
 }
 

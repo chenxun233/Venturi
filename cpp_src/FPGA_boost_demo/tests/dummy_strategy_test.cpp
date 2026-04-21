@@ -100,11 +100,11 @@ TEST(DummyStrategyTest, rejectedTracedEventQueuesDropRequestInsteadOfDroppingInl
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), trace_id);
 
     TraceCommand command {};
-    ASSERT_TRUE(tracker.m_trace_command_queues[0]->pop(command));
+    ASSERT_TRUE(tracker.m_command_queues[0]->pop(command));
     EXPECT_EQ(command.que_idx, 0U);
     EXPECT_EQ(command.trace_id, trace_id);
     EXPECT_EQ(command.op, TraceCommandOp::Drop);
-    ASSERT_TRUE(tracker.m_trace_command_queues[0]->push(command));
+    ASSERT_TRUE(tracker.m_command_queues[0]->push(command));
 
     tracker.stop();
     tracker.run();

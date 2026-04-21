@@ -5,6 +5,7 @@ module qty_builder #(
 )(
     input   wire                          i_clk_156,
     input   wire                          i_rst,               // active high
+    input   wire                          i_mem_init_done,
     input   wire [QTY_MSG_BIT-1:0]        i_qty_msg,
     input   wire [31:0]                   i_price_base,
     input   wire [31:0]                   i_bram_o_data,
@@ -35,7 +36,7 @@ localparam PRICE_DEPTH                   = 1 << QTY_PRICE_LVL_BIT;
 
 wire [1:0]                  i_qty_side          = i_qty_msg[QTY_MSG_BIT-1:QTY_MSG_BIT-2];
 
-wire                        ff_push             = i_qty_side == BID_OR_ASK;
+wire                        ff_push             = (i_qty_side == BID_OR_ASK) && i_mem_init_done;
 wire                        ff_not_empty;
 wire                        ff_pop;
 wire [QTY_MSG_BIT-1:0]      ff_o_qty_msg;
@@ -70,7 +71,7 @@ fifo #(
     .DATA_W         (QTY_MSG_BIT)
 ) qty_msg_fifo_inst (
     .i_clk          (i_clk_156),
-    .i_rst          (i_rst),
+    .i_rst          (i_rst | !i_mem_init_done),
     .i_do_push      (ff_push),
     .o_push_ready   (       ),
     .i_data         (i_qty_msg),
@@ -81,7 +82,7 @@ fifo #(
 );
 
 always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
+    if (i_rst || !i_mem_init_done) begin
         latch_qty_prc_idx    <= {QTY_PRICE_LVL_BIT{1'b0}};
         latch_qty_is_add     <= 1'b0;
         latch_qty_d_shares   <= {32{1'b0}};
@@ -97,7 +98,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
 end
 
 always @(posedge i_clk_156 or posedge i_rst) begin
-    if (i_rst) begin
+    if (i_rst || !i_mem_init_done) begin
         qty_upd_state        <= IDLE;
         qty_upd_op           <= IDLE;
         qty_i_shares         <= {32{1'b0}};

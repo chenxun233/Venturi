@@ -16,7 +16,7 @@ constexpr std::array<stage, 10> kRequiredStages = {{
     stage::BATCH_END,
     stage::STRATEGY_START,
     stage::TX_EXECUTION_ACCEPTED,
-    stage::TX_ENQUEUE,
+    stage::TX_SEND_ENQUEUE,
     stage::TX_SEND_ENTER,
     stage::TX_SEND_SYSCALL_ENTER,
     stage::TX_SEND,
@@ -38,12 +38,17 @@ LatencyTracker::LatencyTracker(uint16_t producer_num,
       m_drop_request_counts(producer_num),
       m_missing_trace_record_counts(producer_num),
       m_stage_mismatch_drop_counts(producer_num) {
+    m_host_tick_scale = calibrateHostTickScale();
+    if (m_host_tick_scale.use_clock_fallback || m_host_tick_scale.tsc_hz == 0U) {
+        throw std::runtime_error("Failed to calibrate host tick scale");
+    }
+
     m_latency_queues.reserve(producer_num);
-    m_trace_command_queues.reserve(producer_num);
+    m_command_queues.reserve(producer_num);
     for (uint16_t producer_idx = 0; producer_idx < producer_num; ++producer_idx) {
         m_latency_queues.push_back(
             std::make_unique<SpscRingQueue<TimeRecord>>(buffer_capacity));
-        m_trace_command_queues.push_back(
+        m_command_queues.push_back(
             std::make_unique<SpscRingQueue<TraceCommand>>(command_capacity));
         m_active_trace_ids[producer_idx].store(0U, std::memory_order_relaxed);
         m_started_trace_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
@@ -67,8 +72,8 @@ uint32_t LatencyTracker::tryAllocateTraceId(uint16_t que_idx, bool is_first_even
     }
 
     uint32_t expected_trace_id = 0U;
-    if (!m_active_trace_ids[que_idx].compare_exchange_strong(expected_trace_id,
-                                                             trace_id,
+    if (!m_active_trace_ids[que_idx].compare_exchange_strong(expected_trace_id, // if current active trace_id is 0, set to new trace_id
+                                                             trace_id,          // if current active trace_id is not 0, return false, assign current active trace_id to expected_trace_id.
                                                              std::memory_order_acq_rel,
                                                              std::memory_order_acquire)) {
         return 0U;
@@ -92,27 +97,23 @@ void LatencyTracker::pushRecord(const TimeRecord& record) noexcept {
 }
 
 bool LatencyTracker::requestFinalize(uint16_t que_idx, uint32_t trace_id) noexcept {
-    if (que_idx >= m_trace_command_queues.size() || trace_id == 0U) {
+    if (que_idx >= m_command_queues.size() || trace_id == 0U) {
         return false;
     }
     m_finalize_request_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-    return _enqueueCommand(que_idx, que_idx, TraceCommandOp::Finalize, trace_id);
+    return _enqueueCommand(que_idx, TraceCommandOp::Finalize, trace_id);
 }
 
-bool LatencyTracker::requestDrop(uint16_t que_idx, uint32_t trace_id) noexcept {
-    return requestDrop(que_idx, que_idx, trace_id);
-}
 
-bool LatencyTracker::requestDrop(uint16_t command_queue_idx,
-                                 uint16_t target_queue_idx,
+
+bool LatencyTracker::requestDrop(uint16_t queue_idx,
                                  uint32_t trace_id) noexcept {
-    if (command_queue_idx >= m_trace_command_queues.size() ||
-        target_queue_idx >= m_latency_queues.size() ||
+    if (queue_idx >= m_command_queues.size() ||
         trace_id == 0U) {
         return false;
     }
-    m_drop_request_counts[target_queue_idx].fetch_add(1ULL, std::memory_order_relaxed);
-    return _enqueueCommand(command_queue_idx, target_queue_idx, TraceCommandOp::Drop, trace_id);
+    m_drop_request_counts[queue_idx].fetch_add(1ULL, std::memory_order_relaxed);
+    return _enqueueCommand(queue_idx, TraceCommandOp::Drop, trace_id);
 }
 
 void LatencyTracker::run() noexcept {
@@ -151,11 +152,12 @@ void LatencyTracker::printDebugSummary() const noexcept {
     std::fflush(stdout);
 }
 
-void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
+void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
     if (que_idx >= m_latency_queues.size() ||
         trace_id == 0U ||
-        m_active_trace_ids[que_idx].load(std::memory_order_acquire) != trace_id) {
-        dropTrace(que_idx, trace_id);
+        m_active_trace_ids[que_idx].load(std::memory_order_relaxed) != trace_id) {
+        _cleanLatencyQueue(que_idx);
+        _clearActiveTraceID(que_idx, trace_id);
         return;
     }
 
@@ -172,7 +174,7 @@ void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept
 
     if (!found_matching_trace) {
         m_missing_trace_record_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-        _clearActiveTrace(que_idx, trace_id);
+        _clearActiveTraceID(que_idx, trace_id);
         return;
     }
 
@@ -189,8 +191,8 @@ void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept
     for (std::size_t stage_idx = 0; stage_idx < kRequiredStages.size(); ++stage_idx) {
         if (record.trace_id != trace_id || record.event_stage != kRequiredStages[stage_idx]) {
             m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-            _dropQueueUntilEmpty(que_idx);
-            _clearActiveTrace(que_idx, trace_id);
+            _cleanLatencyQueue(que_idx);
+            _clearActiveTraceID(que_idx, trace_id);
             return;
         }
 
@@ -204,14 +206,14 @@ void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept
                 break;
             case stage::DMA_EMIT: {
                 const int64_t delta_ns =
-                    _readSignedDelta(record.time_captured, frame_start_tick);
+                    _FPGATick2ns(record.time_captured, frame_start_tick);
                 if (delta_ns < 0) {
                     m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _dropQueueUntilEmpty(que_idx);
-                    _clearActiveTrace(que_idx, trace_id);
+                    _cleanLatencyQueue(que_idx);
+                    _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.frame_start_to_dma_emit_ns =
+                completed_record.FRAME_START_to_DMA_EMIT =
                     static_cast<uint64_t>(delta_ns);
                 break;
             }
@@ -221,96 +223,96 @@ void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept
             case stage::BATCH_END: {
                 batch_end_tick = record.time_captured;
                 const int64_t delta_ns =
-                    _readSignedHostDeltaNs(record.time_captured, batch_start_tick);
+                    _hostTick2ns(record.time_captured, batch_start_tick);
                 if (delta_ns < 0) {
                     m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _dropQueueUntilEmpty(que_idx);
-                    _clearActiveTrace(que_idx, trace_id);
+                    _cleanLatencyQueue(que_idx);
+                    _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.batch_duration_ns = delta_ns;
+                completed_record.BATCH_DURATION = delta_ns;
                 break;
             }
             case stage::STRATEGY_START: {
                 strategy_start_tick = record.time_captured;
                 const int64_t delta_ns =
-                    _readSignedHostDeltaNs(record.time_captured, batch_end_tick);
+                    _hostTick2ns(record.time_captured, batch_end_tick);
                 if (delta_ns < 0) {
                     m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _dropQueueUntilEmpty(que_idx);
-                    _clearActiveTrace(que_idx, trace_id);
+                    _cleanLatencyQueue(que_idx);
+                    _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.batch_end_to_strategy_start_ns = delta_ns;
+                completed_record.BATCH_END_to_STRATEGY_START = delta_ns;
                 break;
             }
             case stage::TX_EXECUTION_ACCEPTED: {
                 tx_execution_accepted_tick = record.time_captured;
                 const int64_t delta_ns =
-                    _readSignedHostDeltaNs(record.time_captured, strategy_start_tick);
+                    _hostTick2ns(record.time_captured, strategy_start_tick);
                 if (delta_ns < 0) {
                     m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _dropQueueUntilEmpty(que_idx);
-                    _clearActiveTrace(que_idx, trace_id);
+                    _cleanLatencyQueue(que_idx);
+                    _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.strategy_start_to_tx_execution_accepted_ns = delta_ns;
+                completed_record.STRATEGY_START_to_TX_SEND_ACCEPTED = delta_ns;
                 break;
             }
-            case stage::TX_ENQUEUE: {
+            case stage::TX_SEND_ENQUEUE: {
                 tx_enqueue_tick = record.time_captured;
                 const int64_t delta_ns =
-                    _readSignedHostDeltaNs(record.time_captured, tx_execution_accepted_tick);
+                    _hostTick2ns(record.time_captured, tx_execution_accepted_tick);
                 if (delta_ns < 0) {
                     m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _dropQueueUntilEmpty(que_idx);
-                    _clearActiveTrace(que_idx, trace_id);
+                    _cleanLatencyQueue(que_idx);
+                    _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.tx_execution_accepted_to_tx_enqueue_ns = delta_ns;
+                completed_record.TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE = delta_ns;
                 break;
             }
             case stage::TX_SEND_ENTER: {
                 tx_send_enter_tick = record.time_captured;
                 const int64_t delta_ns =
-                    _readSignedHostDeltaNs(record.time_captured, tx_enqueue_tick);
+                    _hostTick2ns(record.time_captured, tx_enqueue_tick);
                 if (delta_ns < 0) {
                     m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _dropQueueUntilEmpty(que_idx);
-                    _clearActiveTrace(que_idx, trace_id);
+                    _cleanLatencyQueue(que_idx);
+                    _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.tx_enqueue_to_tx_send_enter_ns = delta_ns;
+                completed_record.TX_SEND_ENQUEUE_to_TX_SEND_ENTER = delta_ns;
                 break;
             }
             case stage::TX_SEND_SYSCALL_ENTER: {
                 tx_send_syscall_enter_tick = record.time_captured;
                 const int64_t delta_ns =
-                    _readSignedHostDeltaNs(record.time_captured, tx_send_enter_tick);
+                    _hostTick2ns(record.time_captured, tx_send_enter_tick);
                 if (delta_ns < 0) {
                     m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _dropQueueUntilEmpty(que_idx);
-                    _clearActiveTrace(que_idx, trace_id);
+                    _cleanLatencyQueue(que_idx);
+                    _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.tx_send_enter_to_tx_send_syscall_enter_ns = delta_ns;
+                completed_record.TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER = delta_ns;
                 break;
             }
             case stage::TX_SEND: {
                 const int64_t delta_ns =
-                    _readSignedHostDeltaNs(record.time_captured, tx_send_syscall_enter_tick);
+                    _hostTick2ns(record.time_captured, tx_send_syscall_enter_tick);
                 if (delta_ns < 0) {
-                    _dropQueueUntilEmpty(que_idx);
-                    _clearActiveTrace(que_idx, trace_id);
+                    _cleanLatencyQueue(que_idx);
+                    _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.tx_send_syscall_enter_to_tx_send_ns = delta_ns;
+                completed_record.TX_SEND_SYSCALL_ENTER_to_TX_SEND = delta_ns;
                 break;
             }
             default:
                 m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                _dropQueueUntilEmpty(que_idx);
-                _clearActiveTrace(que_idx, trace_id);
+                _cleanLatencyQueue(que_idx);
+                _clearActiveTraceID(que_idx, trace_id);
                 return;
         }
 
@@ -320,7 +322,7 @@ void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept
 
         if (!queue.pop(record)) {
             m_missing_trace_record_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-            _clearActiveTrace(que_idx, trace_id);
+            _clearActiveTraceID(que_idx, trace_id);
             return;
         }
     }
@@ -329,22 +331,22 @@ void LatencyTracker::finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept
         m_latency_analyzer->pushCompletedRecord(completed_record);
     }
     m_completed_trace_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-    _clearActiveTrace(que_idx, trace_id);
+    _cleanLatencyQueue(que_idx);
+    _clearActiveTraceID(que_idx, trace_id);
 }
 
-void LatencyTracker::dropTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
+void LatencyTracker::_dropTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
     if (que_idx >= m_latency_queues.size() ||
         trace_id == 0U ||
         m_active_trace_ids[que_idx].load(std::memory_order_acquire) != trace_id) {
         return;
     }
-
-    _dropQueueUntilEmpty(que_idx);
-    _clearActiveTrace(que_idx, trace_id);
+    _cleanLatencyQueue(que_idx);
+    _clearActiveTraceID(que_idx, trace_id);
 }
 
 bool LatencyTracker::_drainCommand() noexcept {
-    if (m_trace_command_queues.empty()) {
+    if (m_command_queues.empty()) {
         return false;
     }
 
@@ -359,30 +361,25 @@ bool LatencyTracker::_drainCommand() noexcept {
         std::size_t commands_processed = 0U;
 
         while (commands_processed < kMaxCommandsPerQueuePerPass &&
-               m_trace_command_queues[queue_idx]->pop(command)) {
+               m_command_queues[queue_idx]->pop(command)) {
             did_work = true;
             _processCommand(command);
             ++commands_processed;
         }
     }
-
     m_next_command_queue_idx =
         static_cast<uint16_t>((start_queue_idx + 1U) % m_queue_num);
     return did_work;
 }
 
 
-
-bool LatencyTracker::_enqueueCommand(uint16_t command_queue_idx,
-                                     uint16_t target_queue_idx,
-                                     TraceCommandOp op,
-                                     uint32_t trace_id) noexcept {
+bool LatencyTracker::_enqueueCommand(uint16_t queue_idx,TraceCommandOp op,uint32_t trace_id) noexcept {
     TraceCommand command {
-        .que_idx = target_queue_idx,
+        .que_idx = queue_idx,
         .trace_id = trace_id,
         .op = op,
     };
-    if (m_trace_command_queues[command_queue_idx]->push(command)) {
+    if (m_command_queues[queue_idx]->push(command)) {
         return true;
     }
 
@@ -392,15 +389,15 @@ bool LatencyTracker::_enqueueCommand(uint16_t command_queue_idx,
 void LatencyTracker::_processCommand(const TraceCommand& command) noexcept {
     switch (command.op) {
         case TraceCommandOp::Finalize:
-            finalizeTrace(command.que_idx, command.trace_id);
+            _finalizeTrace(command.que_idx, command.trace_id);
             break;
         case TraceCommandOp::Drop:
-            dropTrace(command.que_idx, command.trace_id);
+            _dropTrace(command.que_idx, command.trace_id);
             break;
     }
 }
 
-int64_t LatencyTracker::_readSignedDelta(uint64_t later_tick, uint64_t earlier_tick) noexcept {
+int64_t LatencyTracker::_FPGATick2ns(uint64_t later_tick, uint64_t earlier_tick) noexcept {
     if (later_tick < earlier_tick) {
         return -1;
     }
@@ -410,23 +407,18 @@ int64_t LatencyTracker::_readSignedDelta(uint64_t later_tick, uint64_t earlier_t
     return static_cast<int64_t>(delta_ns);
 }
 
-int64_t LatencyTracker::_readSignedHostDeltaNs(uint64_t later_tick,
-                                               uint64_t earlier_tick) noexcept {
+int64_t LatencyTracker::_hostTick2ns(uint64_t later_tick, uint64_t earlier_tick) noexcept {
     if (later_tick < earlier_tick) {
         return -1;
     }
 
     const uint64_t delta_tick = later_tick - earlier_tick;
-    const HostTickScale& host_scale = readHostTickScale();
-    if (host_scale.use_clock_fallback || host_scale.tsc_hz == 0U) {
-        return static_cast<int64_t>(delta_tick);
-    }
-
     return static_cast<int64_t>(
-        (static_cast<__uint128_t>(delta_tick) * 1000000000ULL) / host_scale.tsc_hz);
+        (static_cast<__uint128_t>(delta_tick) * 1000000000ULL) /
+        m_host_tick_scale.tsc_hz);
 }
 
-void LatencyTracker::_clearActiveTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
+void LatencyTracker::_clearActiveTraceID(uint16_t que_idx, uint32_t trace_id) noexcept {
     if (que_idx >= m_active_trace_ids.size()) {
         return;
     }
@@ -438,7 +430,7 @@ void LatencyTracker::_clearActiveTrace(uint16_t que_idx, uint32_t trace_id) noex
                                                               std::memory_order_acquire);
 }
 
-void LatencyTracker::_dropQueueUntilEmpty(uint16_t que_idx) noexcept {
+void LatencyTracker::_cleanLatencyQueue(uint16_t que_idx) noexcept {
     if (que_idx >= m_latency_queues.size()) {
         return;
     }

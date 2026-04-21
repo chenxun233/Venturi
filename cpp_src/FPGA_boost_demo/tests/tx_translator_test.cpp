@@ -532,7 +532,7 @@ TEST(TxTranslatorTest, buildOutboundFramesPushesTxEnqueueWithTraceId) {
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_ENQUEUE);
+    EXPECT_EQ(record.event_stage, stage::TX_SEND_ENQUEUE);
     EXPECT_EQ(record.trace_id, 1U);
     EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
@@ -601,7 +601,7 @@ TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass
         failed_send_stages.push_back(record.event_stage);
     }
 
-    EXPECT_NE(std::find(failed_send_stages.begin(), failed_send_stages.end(), stage::TX_ENQUEUE),
+    EXPECT_NE(std::find(failed_send_stages.begin(), failed_send_stages.end(), stage::TX_SEND_ENQUEUE),
               failed_send_stages.end());
     EXPECT_EQ(std::find(failed_send_stages.begin(),
                         failed_send_stages.end(),
@@ -645,7 +645,7 @@ TEST(TxTranslatorTest, tracedEnqueuePreservesTraceId) {
     TimeRecord record {};
     std::vector<TimeRecord> enqueue_records;
     while (tracker.m_latency_queues[1]->pop(record)) {
-        if (record.event_stage == stage::TX_ENQUEUE) {
+        if (record.event_stage == stage::TX_SEND_ENQUEUE) {
             enqueue_records.push_back(record);
         }
     }
@@ -790,7 +790,7 @@ TEST(TxTranslatorTest, backpressuredFinalizeIsRetriedLater) {
         .trace_id = 99U,
         .op = TraceCommandOp::Drop,
     };
-    ASSERT_TRUE(tracker.m_trace_command_queues[1]->push(blocker));
+    ASSERT_TRUE(tracker.m_command_queues[1]->push(blocker));
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,
@@ -841,7 +841,7 @@ TEST(TxTranslatorTest, backpressuredDropIsRetriedLater) {
         .trace_id = 99U,
         .op = TraceCommandOp::Finalize,
     };
-    ASSERT_TRUE(tracker.m_trace_command_queues[1]->push(blocker));
+    ASSERT_TRUE(tracker.m_command_queues[1]->push(blocker));
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
         .stock_locate = 0x0ee8,

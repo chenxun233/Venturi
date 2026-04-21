@@ -48,7 +48,7 @@ enum stage {
     TX_EXECUTION_DEQUEUE = 7,
     TX_ORDER_FRAME_BUILT = 8,
     TX_PENDING_RECORDED = 9,
-    TX_ENQUEUE = 10,
+    TX_SEND_ENQUEUE = 10,
     TX_SEND_ENTER = 11,
     TX_SEND_SYSCALL_ENTER = 12,
     TX_SEND = 13,
@@ -86,14 +86,14 @@ struct LatencyStats {
 struct LatencyLogRecord {
     uint16_t    que_idx {0};
     uint64_t    event_tag {0};
-    uint64_t    frame_start_to_dma_emit_ns {0};
-    int64_t     batch_duration_ns {0};
-    int64_t     batch_end_to_strategy_start_ns {0};
-    int64_t     strategy_start_to_tx_execution_accepted_ns {0};
-    int64_t     tx_execution_accepted_to_tx_enqueue_ns {0};
-    int64_t     tx_enqueue_to_tx_send_enter_ns {0};
-    int64_t     tx_send_enter_to_tx_send_syscall_enter_ns {0};
-    int64_t     tx_send_syscall_enter_to_tx_send_ns {0};
+    uint64_t    FRAME_START_to_DMA_EMIT {0};
+    int64_t     BATCH_DURATION {0};
+    int64_t     BATCH_END_to_STRATEGY_START {0};
+    int64_t     STRATEGY_START_to_TX_SEND_ACCEPTED {0};
+    int64_t     TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE {0};
+    int64_t     TX_SEND_ENQUEUE_to_TX_SEND_ENTER {0};
+    int64_t     TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER {0};
+    int64_t     TX_SEND_SYSCALL_ENTER_to_TX_SEND {0};
 };
 
 enum class TraceCommandOp : uint8_t {

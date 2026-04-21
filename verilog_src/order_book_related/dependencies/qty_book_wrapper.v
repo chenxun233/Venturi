@@ -36,6 +36,7 @@ wire                         op_done;
 wire                         t_op_done;
 wire [47:0]                 qty_frame_ts;
 wire [47:0]                 tree_frame_ts;
+wire                        qty_mem_init_done;
 qty_builder #(
     .QTY_MSG_BIT       (QTY_MSG_BIT),
     .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
@@ -43,6 +44,7 @@ qty_builder #(
 ) qty_builder_inst (
     .i_clk_156          (i_clk_156      ),
     .i_rst              (i_rst          ),
+    .i_mem_init_done    (qty_mem_init_done),
     .i_qty_msg          (i_qty_msg      ),
     .i_price_base       (i_price_base   ),
     .i_bram_o_data      (bram_o_data_a  ),
@@ -101,7 +103,8 @@ bram_dp #(
     .i_addr_b (bram_addr_b),
     .i_op_b   (bram_op_b),
     .i_data_b (bram_i_data_b),
-    .o_data_b (bram_o_data_b)
+    .o_data_b (bram_o_data_b),
+    .o_init_done(qty_mem_init_done)
 );
 
 

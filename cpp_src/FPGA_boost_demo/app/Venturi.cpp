@@ -16,7 +16,9 @@
 #include <csignal>
 #include <cstdint>
 #include <ctime>
+#include <exception>
 #include <cstdio>
+#include <memory>
 #include <string_view>
 #include <thread>
 #include <utility>
@@ -112,7 +114,15 @@ int main() {
 
     TxSender tx_sender0(tx_sender_config);
     TxSender tx_sender1(tx_sender_config);
-    LatencyTracker latency_tracker(kQueueNum, kLatencyQueueCapacity);
+    std::unique_ptr<LatencyTracker> latency_tracker_storage;
+    try {
+        latency_tracker_storage =
+            std::make_unique<LatencyTracker>(kQueueNum, kLatencyQueueCapacity);
+    } catch (const std::exception& ex) {
+        error("Failed to construct latency tracker: %s", ex.what());
+        return 1;
+    }
+    LatencyTracker& latency_tracker = *latency_tracker_storage;
     LatencyAnalyzer latency_analyzer(kQueueNum);
     LogPrinter log_printer(kQueueNum, kLatencyLogCapacity);
     std::signal(SIGINT, handleStopSignal);

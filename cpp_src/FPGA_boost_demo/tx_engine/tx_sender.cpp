@@ -525,7 +525,7 @@ void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
                 .que_idx = record.que_idx,
                 .event_tag = record.event_tag,
                 .trace_id = record.trace_id,
-                .event_stage = stage::TX_ENQUEUE,
+                .event_stage = stage::TX_SEND_ENQUEUE,
                 .time_captured = readMonotonicRawNs(),
             });
         } catch (...) {

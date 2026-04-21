@@ -12,35 +12,35 @@ constexpr int kStageLabelWidth = 40;
 using SampleReader = int64_t (*)(const LatencyLogRecord&);
 
 int64_t readFrameStartToDmaEmit(const LatencyLogRecord& record) {
-    return static_cast<int64_t>(record.frame_start_to_dma_emit_ns);
+    return static_cast<int64_t>(record.FRAME_START_to_DMA_EMIT);
 }
 
 int64_t readBatchDuration(const LatencyLogRecord& record) {
-    return record.batch_duration_ns;
+    return record.BATCH_DURATION;
 }
 
 int64_t readBatchEndToStrategyStart(const LatencyLogRecord& record) {
-    return record.batch_end_to_strategy_start_ns;
+    return record.BATCH_END_to_STRATEGY_START;
 }
 
 int64_t readStrategyStartToTxExecutionAccepted(const LatencyLogRecord& record) {
-    return record.strategy_start_to_tx_execution_accepted_ns;
+    return record.STRATEGY_START_to_TX_SEND_ACCEPTED;
 }
 
 int64_t readTxExecutionAcceptedToTxEnqueue(const LatencyLogRecord& record) {
-    return record.tx_execution_accepted_to_tx_enqueue_ns;
+    return record.TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE;
 }
 
 int64_t readTxEnqueueToTxSendEnter(const LatencyLogRecord& record) {
-    return record.tx_enqueue_to_tx_send_enter_ns;
+    return record.TX_SEND_ENQUEUE_to_TX_SEND_ENTER;
 }
 
 int64_t readTxSendEnterToTxSendSyscallEnter(const LatencyLogRecord& record) {
-    return record.tx_send_enter_to_tx_send_syscall_enter_ns;
+    return record.TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER;
 }
 
 int64_t readTxSendSyscallEnterToTxSend(const LatencyLogRecord& record) {
-    return record.tx_send_syscall_enter_to_tx_send_ns;
+    return record.TX_SEND_SYSCALL_ENTER_to_TX_SEND;
 }
 
 struct SummaryField {
@@ -49,15 +49,15 @@ struct SummaryField {
 };
 
 constexpr std::array<SummaryField, 8> kSummaryFields = {{
-    {"frame_start_to_dma_emit_ns", &readFrameStartToDmaEmit},
-    {"batch_duration_ns", &readBatchDuration},
-    {"batch_end_to_strategy_start_ns", &readBatchEndToStrategyStart},
-    {"strategy_start_to_tx_execution_accepted_ns",
+    {"FRAME_START_to_DMA_EMIT", &readFrameStartToDmaEmit},
+    {"BATCH_DURATION", &readBatchDuration},
+    {"BATCH_END_to_STRATEGY_START", &readBatchEndToStrategyStart},
+    {"STRATEGY_START_to_TX_SEND_ACCEPTED",
      &readStrategyStartToTxExecutionAccepted},
-    {"tx_execution_accepted_to_tx_enqueue_ns", &readTxExecutionAcceptedToTxEnqueue},
-    {"tx_enqueue_to_tx_send_enter_ns", &readTxEnqueueToTxSendEnter},
-    {"tx_send_enter_to_tx_send_syscall_enter_ns", &readTxSendEnterToTxSendSyscallEnter},
-    {"tx_send_syscall_enter_to_tx_send_ns", &readTxSendSyscallEnterToTxSend},
+    {"TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE", &readTxExecutionAcceptedToTxEnqueue},
+    {"TX_SEND_ENQUEUE_to_TX_SEND_ENTER", &readTxEnqueueToTxSendEnter},
+    {"TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER", &readTxSendEnterToTxSendSyscallEnter},
+    {"TX_SEND_SYSCALL_ENTER_to_TX_SEND", &readTxSendSyscallEnterToTxSend},
 }};
 
 } // namespace

@@ -11,26 +11,26 @@ TEST(LatencyAnalyzerTest, warmupDropsLeadingRecordsPerQueue) {
     analyzer.pushCompletedRecord(LatencyLogRecord {
         .que_idx = 0,
         .event_tag = 1,
-        .frame_start_to_dma_emit_ns = 10,
-        .batch_duration_ns = 100,
-        .batch_end_to_strategy_start_ns = 200,
-        .strategy_start_to_tx_execution_accepted_ns = 300,
-        .tx_execution_accepted_to_tx_enqueue_ns = 400,
-        .tx_enqueue_to_tx_send_enter_ns = 500,
-        .tx_send_enter_to_tx_send_syscall_enter_ns = 600,
-        .tx_send_syscall_enter_to_tx_send_ns = 700,
+        .FRAME_START_to_DMA_EMIT = 10,
+        .BATCH_DURATION = 100,
+        .BATCH_END_to_STRATEGY_START = 200,
+        .STRATEGY_START_to_TX_SEND_ACCEPTED = 300,
+        .TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE = 400,
+        .TX_SEND_ENQUEUE_to_TX_SEND_ENTER = 500,
+        .TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER = 600,
+        .TX_SEND_SYSCALL_ENTER_to_TX_SEND = 700,
     });
     analyzer.pushCompletedRecord(LatencyLogRecord {
         .que_idx = 0,
         .event_tag = 2,
-        .frame_start_to_dma_emit_ns = 20,
-        .batch_duration_ns = 120,
-        .batch_end_to_strategy_start_ns = 220,
-        .strategy_start_to_tx_execution_accepted_ns = 320,
-        .tx_execution_accepted_to_tx_enqueue_ns = 420,
-        .tx_enqueue_to_tx_send_enter_ns = 520,
-        .tx_send_enter_to_tx_send_syscall_enter_ns = 620,
-        .tx_send_syscall_enter_to_tx_send_ns = 720,
+        .FRAME_START_to_DMA_EMIT = 20,
+        .BATCH_DURATION = 120,
+        .BATCH_END_to_STRATEGY_START = 220,
+        .STRATEGY_START_to_TX_SEND_ACCEPTED = 320,
+        .TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE = 420,
+        .TX_SEND_ENQUEUE_to_TX_SEND_ENTER = 520,
+        .TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER = 620,
+        .TX_SEND_SYSCALL_ENTER_to_TX_SEND = 720,
     });
 
     testing::internal::CaptureStdout();
@@ -40,5 +40,5 @@ TEST(LatencyAnalyzerTest, warmupDropsLeadingRecordsPerQueue) {
     EXPECT_NE(output.find("completed_records=2"), std::string::npos);
     EXPECT_NE(output.find("warmup=1"), std::string::npos);
     EXPECT_NE(output.find("analyzed=1"), std::string::npos);
-    EXPECT_NE(output.find("frame_start_to_dma_emit_ns"), std::string::npos);
+    EXPECT_NE(output.find("FRAME_START_to_DMA_EMIT"), std::string::npos);
 }
