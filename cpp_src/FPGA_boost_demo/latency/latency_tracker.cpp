@@ -30,6 +30,7 @@ LatencyTracker::LatencyTracker(uint16_t producer_num,
                                std::size_t buffer_capacity,
                                std::size_t command_capacity)
     : m_queue_num(producer_num),
+      m_next_trace_ids(producer_num, 1U),
       m_active_trace_ids(producer_num),
       m_started_trace_counts(producer_num),
       m_finalize_request_counts(producer_num),
@@ -59,9 +60,10 @@ uint32_t LatencyTracker::tryAllocateTraceId(uint16_t que_idx, bool is_first_even
         return 0U;
     }
 
-    const uint32_t trace_id = _allocateTraceId();
-    if (trace_id == 0U) {
-        return 0U;
+    const uint32_t trace_id = m_next_trace_ids[que_idx];
+    uint32_t next_trace_id = trace_id + 1U;
+    if (next_trace_id == 0U) {
+        next_trace_id = 1U;
     }
 
     uint32_t expected_trace_id = 0U;
@@ -72,6 +74,7 @@ uint32_t LatencyTracker::tryAllocateTraceId(uint16_t que_idx, bool is_first_even
         return 0U;
     }
 
+    m_next_trace_ids[que_idx] = next_trace_id;
     m_started_trace_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
     return trace_id;
 }
@@ -421,23 +424,6 @@ int64_t LatencyTracker::_readSignedHostDeltaNs(uint64_t later_tick,
 
     return static_cast<int64_t>(
         (static_cast<__uint128_t>(delta_tick) * 1000000000ULL) / host_scale.tsc_hz);
-}
-
-uint32_t LatencyTracker::_allocateTraceId() noexcept {
-    uint32_t current = m_next_trace_id.load(std::memory_order_relaxed);
-    for (;;) {
-        uint32_t next = current + 1U;
-        if (next == 0U) {
-            next = 1U;
-        }
-
-        if (m_next_trace_id.compare_exchange_weak(current,
-                                                  next,
-                                                  std::memory_order_relaxed,
-                                                  std::memory_order_relaxed)) {
-            return current;
-        }
-    }
 }
 
 void LatencyTracker::_clearActiveTrace(uint16_t que_idx, uint32_t trace_id) noexcept {

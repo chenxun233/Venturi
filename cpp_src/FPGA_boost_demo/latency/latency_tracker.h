@@ -33,7 +33,6 @@ public:
 private:
     static int64_t _readSignedDelta(uint64_t later_tick, uint64_t earlier_tick) noexcept;
     static int64_t _readSignedHostDeltaNs(uint64_t later_tick, uint64_t earlier_tick) noexcept;
-    uint32_t _allocateTraceId() noexcept;
     void finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept;
     void dropTrace(uint16_t que_idx, uint32_t trace_id) noexcept;
     bool _drainCommand() noexcept;
@@ -48,7 +47,7 @@ private:
     std::vector<std::unique_ptr<SpscRingQueue<TimeRecord>>> m_latency_queues;
     std::vector<std::unique_ptr<SpscRingQueue<TraceCommand>>> m_trace_command_queues;
     uint16_t m_queue_num {0};
-    std::atomic<uint32_t> m_next_trace_id {1U};
+    std::vector<uint32_t> m_next_trace_ids;
     std::vector<std::atomic<uint32_t>> m_active_trace_ids;
     std::vector<std::atomic<uint64_t>> m_started_trace_counts;
     std::vector<std::atomic<uint64_t>> m_finalize_request_counts;
