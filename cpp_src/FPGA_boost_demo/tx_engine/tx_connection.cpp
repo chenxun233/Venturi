@@ -104,7 +104,6 @@ bool TxConnection::pollConnect() {
     const int new_fd = connectBlocking(m_config);
     const auto connected_at = std::chrono::steady_clock::now();
     if (new_fd < 0) {
-        _logConnectionIssue(static_cast<uint16_t>(errno));
         if (m_socket_fd < 0) {
             m_next_connect_attempt_time = connected_at + m_config.reconnect_delay;
         }
@@ -118,20 +117,17 @@ bool TxConnection::pollConnect() {
 
     m_socket_fd = new_fd;
     if (!_enableNonBlocking()) {
-        _logConnectionIssue(static_cast<uint16_t>(errno));
         _closeConnection();
         m_next_connect_attempt_time = connected_at + m_config.reconnect_delay;
         return true;
     }
     if (!_enableTCP_NODELAY()) {
-        _logConnectionIssue(static_cast<uint16_t>(errno));
         _closeConnection();
         m_next_connect_attempt_time = connected_at + m_config.reconnect_delay;
         return true;
     }
 
     if (!_updateConnectedInfo()) {
-        _logConnectionIssue(static_cast<uint16_t>(errno));
         _closeConnection();
         m_next_connect_attempt_time = connected_at + m_config.reconnect_delay;
         return true;
@@ -261,22 +257,18 @@ void TxConnection::_updateDisconInfo(uint64_t generation) {
     m_has_sender_connection_info = true;
 }
 
-void TxConnection::_logConnectionIssue(uint16_t reason) {
-    _pushTxEvent(TxLogRecord {
-        .event = TxEventKind::ConnectionIssue,
-        .reason = reason,
-    });
-}
-
 void TxConnection::_logConnectionEstablished() {
     _pushTxEvent(TxLogRecord {
+        .queue_idx = m_queue_idx,
         .event = TxEventKind::ConnectionEstablished,
     });
 }
 
 void TxConnection::_logConnectionLost() {
     _pushTxEvent(TxLogRecord {
+        .queue_idx = m_queue_idx,
         .event = TxEventKind::ConnectionLost,
+        
     });
 }
 
@@ -284,7 +276,5 @@ void TxConnection::_pushTxEvent(const TxLogRecord& record) {
     if (m_log_printer == nullptr || !m_has_queue_idx) {
         return;
     }
-    TxLogRecord queued_record = record;
-    queued_record.queue_idx = m_queue_idx;
-    (void)m_log_printer->pushTxLog(queued_record);
+    (void)m_log_printer->pushTxLog(record);
 }

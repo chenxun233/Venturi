@@ -44,7 +44,6 @@ private:
     bool _updateConnectedInfo();
     bool _drainDisconNotices();
     void _updateDisconInfo(uint64_t generation);
-    void _logConnectionIssue(uint16_t reason);
     void _closeConnection();
     void _handleDisconnect();
     void _logConnectionEstablished();

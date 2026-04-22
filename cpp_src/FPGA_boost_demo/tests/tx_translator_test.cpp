@@ -493,7 +493,7 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
         records.push_back(record);
     }
     ASSERT_FALSE(records.empty());
-    EXPECT_EQ(records.back().event_stage, stage::TX_EXECUTION_ACCEPTED);
+    EXPECT_EQ(records.back().event_stage, stage::TX_SENDER_EXECUTION_ACCEPTED);
     EXPECT_EQ(records.back().que_idx, 1U);
     EXPECT_EQ(records.back().event_tag, 0x12345678ULL);
     EXPECT_EQ(records.back().trace_id, 1U);

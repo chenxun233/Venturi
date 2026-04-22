@@ -190,7 +190,7 @@ bool TxSender::acceptExecution(const OrderExecution& execution) noexcept {
                 .que_idx = execution.que_idx,
                 .event_tag = execution.event_tag,
                 .trace_id = execution.trace_id,
-                .event_stage = stage::TX_EXECUTION_ACCEPTED,
+                .event_stage = stage::TX_SENDER_EXECUTION_ACCEPTED,
                 .time_captured = readMonotonicRawNs(),
             });
         } catch (...) {
@@ -643,7 +643,6 @@ void TxSender::_handleAccepted(uint32_t user_ref_num, uint32_t shares, uint32_t 
     const uint16_t queue_idx = found->record.que_idx;
     const uint16_t stock_locate = found->record.stock_locate;
     _clearPendingSlot(*found);
-    _logOrderAccepted(queue_idx, user_ref_num, stock_locate, shares, price);
 }
 
 void TxSender::_handleExecuted(uint32_t user_ref_num,
@@ -656,7 +655,7 @@ void TxSender::_handleExecuted(uint32_t user_ref_num,
     }
     const uint16_t queue_idx = found->record.que_idx;
     _clearPendingSlot(*found);
-    _logOrderFilled(queue_idx, user_ref_num, executed_shares, price, match_number);
+
 }
 
 void TxSender::_handleRejected(uint32_t user_ref_num, uint16_t reason) {
@@ -666,58 +665,8 @@ void TxSender::_handleRejected(uint32_t user_ref_num, uint16_t reason) {
     }
     const uint16_t queue_idx = found->record.que_idx;
     _clearPendingSlot(*found);
-    _logOrderRejected(queue_idx, user_ref_num, reason);
 }
 
-void TxSender::_logOrderAccepted(uint16_t queue_idx,
-                                 uint32_t user_ref_num,
-                                 uint16_t stock_locate,
-                                 uint32_t shares,
-                                 uint32_t price) {
-    // _pushTxEvent(queue_idx, TxLogRecord {
-    //     .event = TxEventKind::OrderAccepted,
-    //     .user_ref_num = user_ref_num,
-    //     .stock_locate = stock_locate,
-    //     .price = price,
-    //     .shares = shares,
-    // });
-}
-
-void TxSender::_logOrderRejected(uint16_t queue_idx, uint32_t user_ref_num, uint16_t reason) {
-    // _pushTxEvent(queue_idx, TxLogRecord {
-    //     .event = TxEventKind::OrderRejected,
-    //     .user_ref_num = user_ref_num,
-    //     .reason = reason,
-    // });
-}
-
-void TxSender::_logOrderFilled(uint16_t queue_idx,
-                               uint32_t user_ref_num,
-                               uint32_t shares,
-                               uint32_t price,
-                               uint64_t match_number) {
-    _pushTxEvent(queue_idx, TxLogRecord {
-        .event = TxEventKind::OrderFilled,
-        .user_ref_num = user_ref_num,
-        .price = price,
-        .shares = shares,
-        .match_number = match_number,
-    });
-}
-
-void TxSender::_logOrderDropped(uint16_t queue_idx,
-                                uint32_t user_ref_num,
-                                uint16_t stock_locate,
-                                uint32_t shares,
-                                uint32_t price) {
-    // _pushTxEvent(queue_idx, TxLogRecord {
-    //     .event = TxEventKind::OrderDropped,
-    //     .user_ref_num = user_ref_num,
-    //     .stock_locate = stock_locate,
-    //     .price = price,
-    //     .shares = shares,
-    // });
-}
 
 void TxSender::_pushTxEvent(uint16_t queue_idx, const TxLogRecord& record) {
     if (m_log_printer == nullptr) {

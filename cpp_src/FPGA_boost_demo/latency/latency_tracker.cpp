@@ -15,7 +15,7 @@ constexpr std::array<stage, 10> kRequiredStages = {{
     stage::BATCH_START,
     stage::BATCH_END,
     stage::STRATEGY_START,
-    stage::TX_EXECUTION_ACCEPTED,
+    stage::TX_SENDER_EXECUTION_ACCEPTED,
     stage::TX_SEND_ENQUEUE,
     stage::TX_SEND_ENTER,
     stage::TX_SEND_SYSCALL_ENTER,
@@ -246,7 +246,7 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                 completed_record.BATCH_END_to_STRATEGY_START = delta_ns;
                 break;
             }
-            case stage::TX_EXECUTION_ACCEPTED: {
+            case stage::TX_SENDER_EXECUTION_ACCEPTED: {
                 tx_execution_accepted_tick = record.time_captured;
                 const int64_t delta_ns =
                     _hostTick2ns(record.time_captured, strategy_start_tick);

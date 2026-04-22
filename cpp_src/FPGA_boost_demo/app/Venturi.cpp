@@ -140,8 +140,6 @@ int main() {
     executor1.attachQueueIdx(1);
     
     latency_tracker.attachAnalyzer(&latency_analyzer);
-    executor0.attachLogPrinter(&log_printer);
-    executor1.attachLogPrinter(&log_printer);
     tx_connection0.attachQueueIdx(0);
     tx_connection1.attachQueueIdx(1);
     tx_connection0.attachLogPrinter(&log_printer);
@@ -178,7 +176,7 @@ int main() {
                 }
             } 
 
-            while (executor0.takeReadyExecution(execution)) {
+            while (executor0.popExecution(execution)) {
                 tx_sender0.acceptExecution(execution);
             }
             
@@ -210,7 +208,7 @@ int main() {
                 }
             }
 
-            while (executor1.takeReadyExecution(execution)) {
+            while (executor1.popExecution(execution)) {
                 tx_sender1.acceptExecution(execution);
             }
 

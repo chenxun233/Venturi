@@ -33,7 +33,7 @@ TEST(ExecutorTest, acceptsIntentAndMakesExecutionAvailable) {
     ASSERT_TRUE(executor.acceptIntent(intent));
 
     OrderExecution ready {};
-    ASSERT_TRUE(executor.takeReadyExecution(ready));
+    ASSERT_TRUE(executor.popExecution(ready));
     EXPECT_EQ(ready.stock_locate, 0x000d);
     EXPECT_EQ(ready.que_idx, 1U);
     EXPECT_EQ(ready.event_tag, 11ULL);

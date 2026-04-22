@@ -1,16 +1,11 @@
 #include "executor.h"
 
 #include "../latency/latency_tracker.h"
-#include "../latency/log_printer.h"
 
 #include <utility>
 
 Executor::Executor(std::size_t buffer_capacity)
     : m_execution_buffer(buffer_capacity) {}
-
-void Executor::attachLogPrinter(LogPrinter* log_printer) {
-    m_log_printer = log_printer;
-}
 
 void Executor::attachQueueIdx(uint16_t queue_idx) {
     m_queue_idx = queue_idx;
@@ -43,6 +38,6 @@ bool Executor::acceptIntent(const OrderIntent& intent) {
     return pushed;
 }
 
-bool Executor::takeReadyExecution(OrderExecution& execution) {
+bool Executor::popExecution(OrderExecution& execution) {
     return m_execution_buffer.pop(execution);
 }

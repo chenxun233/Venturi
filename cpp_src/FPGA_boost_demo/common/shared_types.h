@@ -44,7 +44,7 @@ enum stage {
     STRATEGY_START = 3,
     EXECUTOR = 4,
     EXECUTION_TAKEN = 5,
-    TX_EXECUTION_ACCEPTED = 6,
+    TX_SENDER_EXECUTION_ACCEPTED = 6,
     TX_EXECUTION_DEQUEUE = 7,
     TX_ORDER_FRAME_BUILT = 8,
     TX_PENDING_RECORDED = 9,
@@ -148,13 +148,7 @@ struct ExecutionLogRecord {
 
 enum class TxEventKind : uint8_t {
     ConnectionEstablished,
-    ConnectionIssue,
     ConnectionLost,
-    OrderSent,
-    OrderAccepted,
-    OrderRejected,
-    OrderFilled,
-    OrderDropped
 };
 
 struct TxOutboundRecord {
@@ -171,14 +165,8 @@ struct TxOutboundRecord {
 };
 
 struct TxLogRecord {
-    uint16_t queue_idx     {0};
-    TxEventKind event       {TxEventKind::ConnectionEstablished};
-    uint32_t user_ref_num   {0};
-    uint16_t stock_locate   {0};
-    uint32_t price          {0};
-    uint32_t shares         {0};
-    uint16_t reason         {0};
-    uint64_t match_number   {0};
+    uint16_t queue_idx {0};
+    TxEventKind event {TxEventKind::ConnectionEstablished};
 };
 
 struct TxInboundFrame {

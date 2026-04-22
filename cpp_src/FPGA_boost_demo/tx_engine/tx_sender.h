@@ -90,22 +90,7 @@ private:
                          uint32_t price,
                          uint64_t match_number);
     void _handleRejected(uint32_t user_ref_num, uint16_t reason);
-    void _logOrderAccepted(uint16_t queue_idx,
-                           uint32_t user_ref_num,
-                           uint16_t stock_locate,
-                           uint32_t shares,
-                           uint32_t price);
-    void _logOrderRejected(uint16_t queue_idx, uint32_t user_ref_num, uint16_t reason);
-    void _logOrderFilled(uint16_t queue_idx,
-                         uint32_t user_ref_num,
-                         uint32_t shares,
-                         uint32_t price,
-                         uint64_t match_number);
-    void _logOrderDropped(uint16_t queue_idx,
-                          uint32_t user_ref_num,
-                          uint16_t stock_locate,
-                          uint32_t shares,
-                          uint32_t price);
+
     void _pushTxEvent(uint16_t queue_idx, const TxLogRecord& record);
     void _clearReadyRecords();
     void _normalizeReadyRecords();

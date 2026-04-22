@@ -49,7 +49,7 @@ void pushCompleteTraceRecords(LatencyTracker& tracker,
     tracker.pushRecord(makeRecord(que_idx,
                                   event_tag,
                                   trace_id,
-                                  stage::TX_EXECUTION_ACCEPTED,
+                                  stage::TX_SENDER_EXECUTION_ACCEPTED,
                                   1500U));
     tracker.pushRecord(makeRecord(que_idx, event_tag, trace_id, stage::TX_SEND_ENQUEUE, 1540U));
     tracker.pushRecord(makeRecord(que_idx, event_tag, trace_id, stage::TX_SEND_ENTER, 1550U));
