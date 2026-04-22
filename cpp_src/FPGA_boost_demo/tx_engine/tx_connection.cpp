@@ -63,13 +63,11 @@ TxConnection::TxConnection(GatewayClientConfig config)
       m_next_connect_attempt_time(std::chrono::steady_clock::now()) {}
 
 TxConnection::~TxConnection() {
-    if (m_has_sender_connection_info &&
-        m_sender_connection_info.kind == TxConnectionKind::Connected &&
+    if (m_sender_connection_info.kind == TxConnectionKind::Connected &&
         m_sender_connection_info.fd >= 0) {
         ::close(m_sender_connection_info.fd);
         m_sender_connection_info.fd = -1;
     }
-    m_has_sender_connection_info = false;
     _closeConnection();
 }
 
@@ -198,8 +196,7 @@ bool TxConnection::_updateConnectedInfo() {
         return false;
     }
 
-    if (m_has_sender_connection_info &&
-        m_sender_connection_info.kind == TxConnectionKind::Connected &&
+    if (m_sender_connection_info.kind == TxConnectionKind::Connected &&
         m_sender_connection_info.fd >= 0) {
         ::close(m_sender_connection_info.fd);
     }
@@ -210,23 +207,11 @@ bool TxConnection::_updateConnectedInfo() {
         .generation = m_socket_generation,
         .fd = fd,
     };
-    m_has_sender_connection_info = true;
+    m_sender->updateConnectionInfo(m_sender_connection_info);
     return true;
 }
 
-bool TxConnection::takeSenderConnectionInfo(TxConnectionInfo& info) {
-#ifdef ISO
-    (void)info;
-    return false;
-#else
-    if (!m_has_sender_connection_info) {
-        return false;
-    }
-    info = m_sender_connection_info;
-    m_has_sender_connection_info = false;
-    return true;
-#endif
-}
+
 
 bool TxConnection::_drainDisconNotices() {
     bool did_work = false;
@@ -243,8 +228,7 @@ bool TxConnection::_drainDisconNotices() {
 }
 
 void TxConnection::_updateDisconInfo(uint64_t generation) {
-    if (m_has_sender_connection_info &&
-        m_sender_connection_info.kind == TxConnectionKind::Connected &&
+    if (m_sender_connection_info.kind == TxConnectionKind::Connected &&
         m_sender_connection_info.fd >= 0) {
         ::close(m_sender_connection_info.fd);
     }
@@ -254,7 +238,6 @@ void TxConnection::_updateDisconInfo(uint64_t generation) {
         .generation = generation,
         .fd = -1,
     };
-    m_has_sender_connection_info = true;
 }
 
 void TxConnection::_logConnectionEstablished() {

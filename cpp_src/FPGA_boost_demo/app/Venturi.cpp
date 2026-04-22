@@ -181,9 +181,6 @@ int main() {
             }
             
             tx_connection0.pollConnect();
-            while (tx_connection0.takeSenderConnectionInfo(connection_info)) {
-                tx_sender0.updateConnectionInfo(connection_info);
-            }
             tx_sender0.runOnce();
         }
     });
@@ -213,9 +210,7 @@ int main() {
             }
 
             tx_connection1.pollConnect();
-            while (tx_connection1.takeSenderConnectionInfo(connection_info)) {
-                tx_sender1.updateConnectionInfo(connection_info);
-            }
+
             tx_sender1.runOnce();
         }
     });

@@ -36,7 +36,7 @@ public:
     bool pollConnect();
     bool pushSenderDisconNotice(const TxDisconnectNotice& notice);
     bool isConnected() const;
-    bool takeSenderConnectionInfo(TxConnectionInfo& info);
+
 
 private:
     bool _enableNonBlocking();
@@ -58,7 +58,6 @@ private:
     SpscRingQueue<TxDisconnectNotice> m_sender_disconnect_notices{8};
     int m_socket_fd {-1};
     uint64_t m_socket_generation {0};
-    bool m_has_sender_connection_info {false};
     TxConnectionInfo m_sender_connection_info {};
     std::chrono::steady_clock::time_point m_next_connect_attempt_time {};
 };

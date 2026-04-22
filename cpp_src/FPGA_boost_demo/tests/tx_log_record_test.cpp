@@ -20,7 +20,6 @@ static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::attachSe
 static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::pollConnect)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::pushSenderDisconNotice)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::isConnected)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::takeSenderConnectionInfo)>);
 
 TEST(TxLogRecordTest, connectionInfoCanCarryConnectedGenerationAndSenderFd) {
     TxConnectionInfo info {
@@ -62,11 +61,9 @@ TEST(TxLogRecordTest, successfulConnectPublishesConnectedInfoIntoAttachedSenderQ
     connection.m_socket_fd = kStableFd;
     connection.m_socket_generation = 0;
     ASSERT_TRUE(connection._updateConnectedInfo());
-    ASSERT_TRUE(connection.m_has_sender_connection_info);
-    TxConnectionInfo info {};
-    ASSERT_TRUE(connection.takeSenderConnectionInfo(info));
-    ASSERT_FALSE(connection.m_has_sender_connection_info);
-    sender.updateConnectionInfo(info);
+    EXPECT_EQ(connection.m_sender_connection_info.kind, TxConnectionKind::Connected);
+    EXPECT_EQ(connection.m_sender_connection_info.generation, 1U);
+    EXPECT_GE(connection.m_sender_connection_info.fd, 0);
 
     (void)sender.runOnce();
 
@@ -119,10 +116,11 @@ TEST(TxLogRecordTest, txConnectionDestructorClosesUnreadPublishedSenderFd) {
     int published_fd = -1;
     {
         TxConnection connection {};
+        TxSender sender(4);
+        connection.attachSender(&sender);
         connection.m_socket_fd = sockets[0];
         connection.m_socket_generation = 0;
         ASSERT_TRUE(connection._updateConnectedInfo());
-        ASSERT_TRUE(connection.m_has_sender_connection_info);
         published_fd = connection.m_sender_connection_info.fd;
         ASSERT_GE(published_fd, 0);
     }
@@ -154,19 +152,19 @@ TEST(TxLogRecordTest, txConnectionEnablesTcpNoDelayOnConnectedSocket) {
 
 TEST(TxLogRecordTest, updateConnectedInfoMakesDirectSenderConnectionInfoAvailable) {
     TxConnection connection {};
+    TxSender sender(4);
+    connection.attachSender(&sender);
 
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
     connection.m_socket_fd = sockets[0];
     ASSERT_TRUE(connection._updateConnectedInfo());
-    ASSERT_TRUE(connection.m_has_sender_connection_info);
+    EXPECT_EQ(connection.m_sender_connection_info.kind, TxConnectionKind::Connected);
+    EXPECT_EQ(connection.m_sender_connection_info.generation, 1U);
+    EXPECT_GE(connection.m_sender_connection_info.fd, 0);
+    EXPECT_EQ(sender.m_transport_generation, 1U);
+    EXPECT_EQ(sender.m_send_fd, connection.m_sender_connection_info.fd);
 
-    TxConnectionInfo info {};
-    ASSERT_TRUE(connection.takeSenderConnectionInfo(info));
-    EXPECT_EQ(info.kind, TxConnectionKind::Connected);
-    EXPECT_GE(info.fd, 0);
-
-    ::close(info.fd);
     ::close(sockets[1]);
 }
