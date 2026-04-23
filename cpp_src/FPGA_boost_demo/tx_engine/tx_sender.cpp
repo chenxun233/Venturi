@@ -146,13 +146,11 @@ TxSender::TxSender(TxSenderConfig config)
           .capacity = m_config.pending_capacity,
           .live_count = 0,
           .slots = std::vector<PendingSlot>(m_config.pending_capacity),
-      },
-      m_blocked_outbound {} {
+      }
+{
     if (!isPowerOfTwo(m_config.pending_capacity)) {
         throw std::invalid_argument("pending_capacity must be a non-zero power-of-two");
     }
-
-    m_blocked_outbound.reserve(m_config.pending_capacity);
     m_last_successful_send = std::chrono::steady_clock::now();
 }
 
@@ -256,9 +254,6 @@ bool TxSender::_popReadyOutbound(TxOutboundRecord& record) {
     }
     return true;
 }
-
-
-
 
 
 
@@ -394,7 +389,6 @@ void TxSender::_onTransportDisconnected() {
     m_ready_outbound.clear();
     m_login_pending = false;
     m_logged_in = false;
-    _rebuildBlockedRecords();
 }
 
 bool TxSender::_queueHeartbeat() {
@@ -490,32 +484,10 @@ void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
     }
 }
 
-void TxSender::_queueBlockedRecord(const TxOutboundRecord& record) {
-    m_blocked_outbound.push_back(record);
-}
 
-void TxSender::_flushBlockedRecords() {
-    for (const TxOutboundRecord& record : m_blocked_outbound) {
-        _queueReadyRecord(record);
-    }
-    m_blocked_outbound.clear();
-}
 
-void TxSender::_rebuildBlockedRecords() {
-    m_blocked_outbound.clear();
-    m_blocked_outbound.reserve(m_pending_orders.live_count);
-    for (const PendingSlot& slot : m_pending_orders.slots) {
-        if (slot.occupied) {
-            m_blocked_outbound.push_back(slot.record);
-        }
-    }
 
-    std::sort(m_blocked_outbound.begin(),
-              m_blocked_outbound.end(),
-              [](const TxOutboundRecord& lhs, const TxOutboundRecord& rhs) {
-                  return lhs.user_ref_num < rhs.user_ref_num;
-              });
-}
+
 
 std::size_t TxSender::_computePendingSlotIndex(uint32_t user_ref_num) const noexcept {
     if (m_pending_orders.slots.empty()) {

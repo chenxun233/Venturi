@@ -213,14 +213,14 @@ TEST(TxTranslatorTest, activeGenerationDisconnectRebuildsReplayAndSessionState) 
 
     connectSender(sender, 21);
     disconnectSender(sender, 21);
-    ASSERT_EQ(sender.m_blocked_outbound.size(), 1U);
+
 
     connectSender(sender, 22);
     TxOutboundRecord login {};
     ASSERT_TRUE(takeReadyOutbound(sender, login));
     EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
 
-    sender._flushBlockedRecords();
+
     TxOutboundRecord replayed {};
     ASSERT_TRUE(takeReadyOutbound(sender, replayed));
     EXPECT_EQ(replayed.que_idx, 1U);
@@ -305,7 +305,6 @@ TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingBlockedQueueReco
     EXPECT_FALSE(sender.buildOutboundFrames());
 
     sender._onTransportDisconnected();
-    sender._flushBlockedRecords();
 
     TxOutboundRecord first {};
     TxOutboundRecord second {};
@@ -334,7 +333,6 @@ TEST(TxTranslatorTest, replayedOutboundPreservesMetadataAfterDisconnect) {
     ASSERT_TRUE(takeReadyOutbound(sender, login));
     EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
 
-    sender._flushBlockedRecords();
     TxOutboundRecord replayed {};
     ASSERT_TRUE(takeReadyOutbound(sender, replayed));
     EXPECT_EQ(replayed.que_idx, 1U);
@@ -431,12 +429,6 @@ TEST(TxTranslatorTest, rebuildBlockedRecordsRestoresAscendingUserRefOrder) {
         .record = TxOutboundRecord {.user_ref_num = 11, .price = 1100},
     };
 
-    sender._rebuildBlockedRecords();
-
-    ASSERT_EQ(sender.m_blocked_outbound.size(), 3U);
-    EXPECT_EQ(sender.m_blocked_outbound[0].user_ref_num, 2U);
-    EXPECT_EQ(sender.m_blocked_outbound[1].user_ref_num, 7U);
-    EXPECT_EQ(sender.m_blocked_outbound[2].user_ref_num, 11U);
 }
 
 TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) {

@@ -71,9 +71,6 @@ private:
     void _closeSendFd(bool clear_generation = true);
     bool _buildOrderFrame(const OrderExecution& execution, TxOutboundRecord& record);
     void _queueReadyRecord(const TxOutboundRecord& record);
-    void _queueBlockedRecord(const TxOutboundRecord& record);
-    void _flushBlockedRecords();
-    void _rebuildBlockedRecords();
     std::size_t _computePendingSlotIndex(uint32_t user_ref_num) const noexcept;
     PendingSlot* _lookupPendingSlot(uint32_t user_ref_num) noexcept;
     const PendingSlot* _lookupPendingSlot(uint32_t user_ref_num) const noexcept;
@@ -96,7 +93,6 @@ private:
     PendingOrderState m_pending_orders {};
     RingBuffer<OrderExecution, kExecutionBufferCapacity> m_execution_buffer;
     RingBuffer<TxOutboundRecord, 8192> m_ready_outbound {};
-    std::vector<TxOutboundRecord> m_blocked_outbound {};
     uint32_t m_next_tag {1};
     uint64_t m_next_expected_sequence {1};
     uint64_t m_transport_generation {0};
