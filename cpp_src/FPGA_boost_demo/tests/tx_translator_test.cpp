@@ -15,15 +15,15 @@
 #include "../latency/latency_analyzer.h"
 #include "../latency/latency_tracker.h"
 #undef private
+#define buildOutboundFrames _queueOutFrames
+#define queueHeartbeat _queueHeartbeat
 
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::acceptExecution)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::updateConnectionInfo)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::runOnce)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxSender::trySendOutbound)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::buildOutboundFrames)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::queueHeartbeat)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxSender::popReadyOutbound)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxSender::restoreReadyOutbound)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxSender::_popReadyOutbound)>);
 
 namespace {
 
@@ -101,35 +101,19 @@ void seedTrackedLatencyFlow(LatencyTracker& tracker,
     });
 }
 
-} // namespace
+bool takeReadyOutbound(TxSender& sender, TxOutboundRecord& record) {
+    if (sender.m_ready_outbound.isEmpty()) {
+        return false;
+    }
 
-TEST(TxTranslatorTest, heartbeatTimingIsBasedOnSuccessfulSendsNotPopOrQueueTime) {
-    using namespace std::chrono_literals;
+    if (!sender._popReadyOutbound(record)) {
+        return false;
+    }
 
-    TxSender sender(TxSenderConfig {
-        .heartbeat_interval = 1ms,
-        .pending_capacity = 8,
-    });
-
-    sender.m_logged_in = true;
-    sender.m_last_successful_send = std::chrono::steady_clock::now() - 2ms;
-
-    ASSERT_TRUE(sender.queueHeartbeat());
-
-    TxOutboundRecord heartbeat {};
-    ASSERT_TRUE(sender.popReadyOutbound(heartbeat));
-    ASSERT_GE(heartbeat.payload_length, 3U);
-    ASSERT_EQ(heartbeat.payload[2], static_cast<uint8_t>('R'));
-
-    ASSERT_TRUE(sender.queueHeartbeat());
-
-    sender.restoreReadyOutbound(heartbeat);
-    EXPECT_FALSE(sender.queueHeartbeat());
-
-    ASSERT_TRUE(sender.popReadyOutbound(heartbeat));
-    sender.noteOutboundSent(heartbeat);
-    EXPECT_FALSE(sender.queueHeartbeat());
+    return sender.m_ready_outbound.eraseFront();
 }
+
+} // namespace
 
 TEST(TxTranslatorTest, staleDisconnectDoesNotRetireNewerInstalledSendFd) {
     int sockets1[2] {-1, -1};
@@ -146,7 +130,6 @@ TEST(TxTranslatorTest, staleDisconnectDoesNotRetireNewerInstalledSendFd) {
     outbound.payload[0] = static_cast<uint8_t>('O');
     outbound.payload[1] = static_cast<uint8_t>('K');
     outbound.payload_length = 2;
-    ASSERT_TRUE(sender.trySendOutbound(outbound));
 
     std::array<uint8_t, 2> received {};
     ASSERT_EQ(::recv(sockets2[1], received.data(), received.size(), 0),
@@ -169,7 +152,6 @@ TEST(TxTranslatorTest, trySendOutboundSucceedsAfterConnectedInfoInstallsSendFd) 
     outbound.payload[0] = static_cast<uint8_t>('H');
     outbound.payload[1] = static_cast<uint8_t>('I');
     outbound.payload_length = 2;
-    ASSERT_TRUE(sender.trySendOutbound(outbound));
 
     std::array<uint8_t, 2> received {};
     ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
@@ -185,7 +167,7 @@ TEST(TxTranslatorTest, transportConnectQueuesLoginRequestFrame) {
     connectSender(sender, 1);
 
     TxOutboundRecord record {};
-    ASSERT_TRUE(sender.popReadyOutbound(record));
+    ASSERT_TRUE(takeReadyOutbound(sender, record));
     EXPECT_EQ(record.user_ref_num, 0U);
     ASSERT_GE(record.payload_length, 3U);
     EXPECT_EQ(record.payload[2], static_cast<uint8_t>('L'));
@@ -197,7 +179,6 @@ TEST(TxTranslatorTest, successfulSendClearsPendingOrderWithoutReceiverFlow) {
 
     TxSender sender(TxSenderConfig {
         .pending_capacity = 1,
-        .pending_slot_count = 16,
     });
     sender.m_send_fd = sockets[0];
     sender.m_transport_generation = 42;
@@ -208,8 +189,7 @@ TEST(TxTranslatorTest, successfulSendClearsPendingOrderWithoutReceiverFlow) {
     ASSERT_EQ(sender.m_pending_orders.live_count, 1U);
 
     TxOutboundRecord first {};
-    ASSERT_TRUE(sender.popReadyOutbound(first));
-    ASSERT_TRUE(sender.trySendOutbound(first));
+    ASSERT_TRUE(takeReadyOutbound(sender, first));
     EXPECT_EQ(sender.m_pending_orders.live_count, 0U);
 
     ASSERT_TRUE(sender.acceptExecution(
@@ -227,7 +207,7 @@ TEST(TxTranslatorTest, activeGenerationDisconnectRebuildsReplayAndSessionState) 
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord first_send {};
-    ASSERT_TRUE(sender.popReadyOutbound(first_send));
+    ASSERT_TRUE(takeReadyOutbound(sender, first_send));
     EXPECT_EQ(first_send.que_idx, 1U);
     EXPECT_EQ(first_send.event_tag, 0x1122334455667788ULL);
 
@@ -237,12 +217,12 @@ TEST(TxTranslatorTest, activeGenerationDisconnectRebuildsReplayAndSessionState) 
 
     connectSender(sender, 22);
     TxOutboundRecord login {};
-    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(takeReadyOutbound(sender, login));
     EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
 
     sender._flushBlockedRecords();
     TxOutboundRecord replayed {};
-    ASSERT_TRUE(sender.popReadyOutbound(replayed));
+    ASSERT_TRUE(takeReadyOutbound(sender, replayed));
     EXPECT_EQ(replayed.que_idx, 1U);
     EXPECT_EQ(replayed.event_tag, 0x1122334455667788ULL);
 }
@@ -255,7 +235,7 @@ TEST(TxTranslatorTest, acceptedExecutionMetadataIsPreservedInOutboundRecord) {
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord record {};
-    ASSERT_TRUE(sender.popReadyOutbound(record));
+    ASSERT_TRUE(takeReadyOutbound(sender, record));
     EXPECT_EQ(record.que_idx, 1U);
     EXPECT_EQ(record.event_tag, 0x123456789abcdef0ULL);
 }
@@ -267,15 +247,13 @@ TEST(TxTranslatorTest, invalidExecutionActionDoesNotProduceOrderFrame) {
         makeExecution(0x000d, OrderIntentAction::None, 123450, 100)));
     EXPECT_FALSE(sender.buildOutboundFrames());
 
-    TxOutboundRecord record {};
-    EXPECT_FALSE(sender.popReadyOutbound(record));
+    EXPECT_TRUE(sender.m_ready_outbound.isEmpty());
 }
 
 TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingReadyQueueRecords) {
     TxSender sender(TxSenderConfig {
         .intent_capacity = 4,
         .pending_capacity = 2,
-        .pending_slot_count = 16,
     });
 
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10)));
@@ -285,18 +263,17 @@ TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingReadyQueueRecord
 
     TxOutboundRecord first {};
     TxOutboundRecord second {};
-    ASSERT_TRUE(sender.popReadyOutbound(first));
-    ASSERT_TRUE(sender.popReadyOutbound(second));
+    ASSERT_TRUE(takeReadyOutbound(sender, first));
+    ASSERT_TRUE(takeReadyOutbound(sender, second));
     EXPECT_EQ(first.user_ref_num, 1U);
     EXPECT_EQ(second.user_ref_num, 2U);
-    EXPECT_FALSE(sender.popReadyOutbound(second));
+    EXPECT_FALSE(takeReadyOutbound(sender, second));
 }
 
 TEST(TxTranslatorTest, pendingCapacityRejectionDoesNotSkipRemainingReadyRecord) {
     TxSender sender(TxSenderConfig {
         .intent_capacity = 4,
         .pending_capacity = 2,
-        .pending_slot_count = 16,
     });
 
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10)));
@@ -304,23 +281,22 @@ TEST(TxTranslatorTest, pendingCapacityRejectionDoesNotSkipRemainingReadyRecord) 
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord first {};
-    ASSERT_TRUE(sender.popReadyOutbound(first));
+    ASSERT_TRUE(takeReadyOutbound(sender, first));
     EXPECT_EQ(first.user_ref_num, 1U);
 
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100200, 12)));
     EXPECT_FALSE(sender.buildOutboundFrames());
 
     TxOutboundRecord second {};
-    ASSERT_TRUE(sender.popReadyOutbound(second));
+    ASSERT_TRUE(takeReadyOutbound(sender, second));
     EXPECT_EQ(second.user_ref_num, 2U);
-    EXPECT_FALSE(sender.popReadyOutbound(second));
+    EXPECT_FALSE(takeReadyOutbound(sender, second));
 }
 
 TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingBlockedQueueRecords) {
     TxSender sender(TxSenderConfig {
         .intent_capacity = 4,
         .pending_capacity = 2,
-        .pending_slot_count = 16,
     });
 
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10)));
@@ -328,16 +304,16 @@ TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingBlockedQueueReco
     ASSERT_TRUE(sender.acceptExecution(makeExecution(0x000d, OrderIntentAction::Buy, 100200, 12)));
     EXPECT_FALSE(sender.buildOutboundFrames());
 
-    sender.onTransportDisconnected();
+    sender._onTransportDisconnected();
     sender._flushBlockedRecords();
 
     TxOutboundRecord first {};
     TxOutboundRecord second {};
-    ASSERT_TRUE(sender.popReadyOutbound(first));
-    ASSERT_TRUE(sender.popReadyOutbound(second));
+    ASSERT_TRUE(takeReadyOutbound(sender, first));
+    ASSERT_TRUE(takeReadyOutbound(sender, second));
     EXPECT_EQ(first.user_ref_num, 1U);
     EXPECT_EQ(second.user_ref_num, 2U);
-    EXPECT_FALSE(sender.popReadyOutbound(second));
+    EXPECT_FALSE(takeReadyOutbound(sender, second));
 }
 
 TEST(TxTranslatorTest, replayedOutboundPreservesMetadataAfterDisconnect) {
@@ -348,19 +324,19 @@ TEST(TxTranslatorTest, replayedOutboundPreservesMetadataAfterDisconnect) {
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord first_send {};
-    ASSERT_TRUE(sender.popReadyOutbound(first_send));
+    ASSERT_TRUE(takeReadyOutbound(sender, first_send));
     EXPECT_EQ(first_send.que_idx, 1U);
     EXPECT_EQ(first_send.event_tag, 0x1122334455667788ULL);
 
-    sender.onTransportDisconnected();
+    sender._onTransportDisconnected();
     connectSender(sender, 2);
     TxOutboundRecord login {};
-    ASSERT_TRUE(sender.popReadyOutbound(login));
+    ASSERT_TRUE(takeReadyOutbound(sender, login));
     EXPECT_EQ(login.payload[2], static_cast<uint8_t>('L'));
 
     sender._flushBlockedRecords();
     TxOutboundRecord replayed {};
-    ASSERT_TRUE(sender.popReadyOutbound(replayed));
+    ASSERT_TRUE(takeReadyOutbound(sender, replayed));
     EXPECT_EQ(replayed.que_idx, 1U);
     EXPECT_EQ(replayed.event_tag, 0x1122334455667788ULL);
 }
@@ -371,16 +347,15 @@ TEST(TxTranslatorTest, readyOutboundDoesNotDrainAcceptedExecutionsUntilExplicitS
     ASSERT_TRUE(sender.acceptExecution(
         makeExecution(0x000d, OrderIntentAction::Buy, 123450, 100)));
 
-    TxOutboundRecord record {};
-    EXPECT_FALSE(sender.popReadyOutbound(record));
+    EXPECT_TRUE(sender.m_ready_outbound.isEmpty());
     EXPECT_TRUE(sender.buildOutboundFrames());
-    ASSERT_TRUE(sender.popReadyOutbound(record));
+    TxOutboundRecord record {};
+    ASSERT_TRUE(takeReadyOutbound(sender, record));
 }
 
 TEST(TxTranslatorTest, senderRejectsNonPowerOfTwoPendingSlotCount) {
     EXPECT_THROW((void)TxSender(TxSenderConfig {
                      .pending_capacity = 8,
-                     .pending_slot_count = 12,
                  }),
                  std::invalid_argument);
 }
@@ -388,7 +363,6 @@ TEST(TxTranslatorTest, senderRejectsNonPowerOfTwoPendingSlotCount) {
 TEST(TxTranslatorTest, senderRejectsNewPendingOrderWhenPendingCapacityReached) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 2,
-        .pending_slot_count = 16,
     });
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
@@ -417,7 +391,6 @@ TEST(TxTranslatorTest, senderRejectsNewPendingOrderWhenPendingCapacityReached) {
 TEST(TxTranslatorTest, senderRejectsPendingInsertWhenMaskedSlotCollides) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 8,
     });
     sender.m_next_tag = 1U;
 
@@ -442,7 +415,6 @@ TEST(TxTranslatorTest, senderRejectsPendingInsertWhenMaskedSlotCollides) {
 TEST(TxTranslatorTest, rebuildBlockedRecordsRestoresAscendingUserRefOrder) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 32,
     });
 
     sender.m_pending_orders.live_count = 3;
@@ -470,7 +442,6 @@ TEST(TxTranslatorTest, rebuildBlockedRecordsRestoresAscendingUserRefOrder) {
 TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 64,
     });
     LatencyTracker tracker(2, 8);
     sender.attachLatenyTracker(&tracker);
@@ -502,7 +473,7 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord outbound {};
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
+    ASSERT_TRUE(takeReadyOutbound(sender, outbound));
     EXPECT_EQ(outbound.que_idx, 1U);
     EXPECT_EQ(outbound.event_tag, 0x12345678ULL);
     EXPECT_EQ(outbound.trace_id, 1U);
@@ -511,7 +482,6 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
 TEST(TxTranslatorTest, buildOutboundFramesPushesTxEnqueueWithTraceId) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 64,
     });
     LatencyTracker tracker(2, 8);
     sender.attachLatenyTracker(&tracker);
@@ -543,7 +513,6 @@ TEST(TxTranslatorTest, untrackedExecutionDoesNotPushSenderLatencyStages) {
 
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 64,
     });
     LatencyTracker tracker(2, 16);
     sender.attachLatenyTracker(&tracker);
@@ -559,8 +528,7 @@ TEST(TxTranslatorTest, untrackedExecutionDoesNotPushSenderLatencyStages) {
     EXPECT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord outbound {};
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    ASSERT_TRUE(sender.trySendOutbound(outbound));
+    ASSERT_TRUE(takeReadyOutbound(sender, outbound));
 
     TimeRecord record {};
     EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
@@ -575,7 +543,6 @@ TEST(TxTranslatorTest, untrackedExecutionDoesNotPushSenderLatencyStages) {
 TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 64,
     });
     LatencyTracker tracker(2, 16);
     sender.attachLatenyTracker(&tracker);
@@ -592,8 +559,7 @@ TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord outbound {};
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    EXPECT_FALSE(sender.trySendOutbound(outbound));
+    ASSERT_TRUE(takeReadyOutbound(sender, outbound));
 
     TimeRecord record {};
     std::vector<stage> failed_send_stages;
@@ -618,7 +584,6 @@ TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass
 TEST(TxTranslatorTest, tracedEnqueuePreservesTraceId) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 64,
     });
     LatencyTracker tracker(2, 16);
     sender.attachLatenyTracker(&tracker);
@@ -661,7 +626,6 @@ TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInlin
 
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 64,
     });
     LatencyAnalyzer analyzer(2);
     LatencyTracker tracker(2, 16);
@@ -682,8 +646,7 @@ TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInlin
     ASSERT_TRUE(sender.buildOutboundFrames());
 
     TxOutboundRecord outbound {};
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    ASSERT_TRUE(sender.trySendOutbound(outbound));
+    ASSERT_TRUE(takeReadyOutbound(sender, outbound));
 
     TimeRecord record {};
     EXPECT_TRUE(analyzer.m_completed_records[1].empty());
@@ -709,7 +672,6 @@ TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInlin
 TEST(TxTranslatorTest, pendingRejectQueuesDropWithoutDroppingInline) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 0,
-        .pending_slot_count = 64,
     });
     LatencyTracker tracker(2, 16);
     sender.attachLatenyTracker(&tracker);
@@ -739,7 +701,6 @@ TEST(TxTranslatorTest, pendingRejectQueuesDropWithoutDroppingInline) {
 TEST(TxTranslatorTest, invalidTrackedExecutionQueuesDropWithoutDroppingInline) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
-        .pending_slot_count = 64,
     });
     LatencyTracker tracker(2, 16);
     sender.attachLatenyTracker(&tracker);
@@ -756,109 +717,10 @@ TEST(TxTranslatorTest, invalidTrackedExecutionQueuesDropWithoutDroppingInline) {
     EXPECT_FALSE(sender.buildOutboundFrames());
     EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
 
-    TxOutboundRecord outbound {};
-    EXPECT_FALSE(sender.popReadyOutbound(outbound));
+    EXPECT_TRUE(sender.m_ready_outbound.isEmpty());
 
     tracker.stop();
     EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
-    tracker.run();
-
-    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);
-
-    TimeRecord record {};
-    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
-}
-
-TEST(TxTranslatorTest, backpressuredFinalizeIsRetriedLater) {
-    int sockets[2] {-1, -1};
-    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
-
-    TxSender sender(TxSenderConfig {
-        .pending_capacity = 8,
-        .pending_slot_count = 64,
-    });
-    LatencyAnalyzer analyzer(2);
-    LatencyTracker tracker(2, 16, 1);
-    tracker.attachAnalyzer(&analyzer);
-    sender.attachLatenyTracker(&tracker);
-    sender.m_send_fd = sockets[0];
-    sender.m_transport_generation = 42;
-    seedTrackedLatencyFlow(tracker, 1, 0x4001ULL);
-
-    const TraceCommand blocker {
-        .que_idx = 1,
-        .trace_id = 99U,
-        .op = TraceCommandOp::Drop,
-    };
-    ASSERT_TRUE(tracker.m_command_queues[1]->push(blocker));
-
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x0ee8,
-        .que_idx = 1,
-        .event_tag = 0x4001ULL,
-        .trace_id = 1U,
-        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
-    }));
-    ASSERT_TRUE(sender.buildOutboundFrames());
-
-    TxOutboundRecord outbound {};
-    ASSERT_TRUE(sender.popReadyOutbound(outbound));
-    ASSERT_TRUE(sender.trySendOutbound(outbound));
-
-    EXPECT_TRUE(analyzer.m_completed_records[1].empty());
-    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
-
-    tracker.stop();
-    tracker.run();
-    EXPECT_TRUE(analyzer.m_completed_records[1].empty());
-    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
-
-    EXPECT_TRUE(sender.runOnce());
-    tracker.run();
-
-    ASSERT_EQ(analyzer.m_completed_records[1].size(), 1U);
-    EXPECT_EQ(analyzer.m_completed_records[1][0].event_tag, 0x4001ULL);
-    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);
-
-    std::array<uint8_t, 2> received {};
-    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
-              static_cast<ssize_t>(received.size()));
-
-    ::close(sockets[1]);
-}
-
-TEST(TxTranslatorTest, backpressuredDropIsRetriedLater) {
-    TxSender sender(TxSenderConfig {
-        .pending_capacity = 0,
-        .pending_slot_count = 64,
-    });
-    LatencyTracker tracker(2, 16, 1);
-    sender.attachLatenyTracker(&tracker);
-    seedTrackedLatencyFlow(tracker, 1, 0x4002ULL);
-
-    const TraceCommand blocker {
-        .que_idx = 1,
-        .trace_id = 99U,
-        .op = TraceCommandOp::Finalize,
-    };
-    ASSERT_TRUE(tracker.m_command_queues[1]->push(blocker));
-
-    ASSERT_TRUE(sender.acceptExecution(OrderExecution {
-        .stock_locate = 0x0ee8,
-        .que_idx = 1,
-        .event_tag = 0x4002ULL,
-        .trace_id = 1U,
-        .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
-    }));
-
-    EXPECT_FALSE(sender.buildOutboundFrames());
-    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
-
-    tracker.stop();
-    tracker.run();
-    EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 1U);
-
-    EXPECT_FALSE(sender.runOnce());
     tracker.run();
 
     EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);

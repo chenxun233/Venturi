@@ -32,7 +32,7 @@ LogPrinter::LogPrinter(uint16_t queue_num, std::size_t capacity)
     m_tx_log_queues.reserve(queue_num);
     for (uint16_t idx = 0; idx < queue_num; ++idx) {
         m_tx_log_queues.push_back(
-            std::make_unique<SpscRingQueue<TxLogRecord>>(capacity));
+            std::make_unique<SpscRingBuffer<TxLogRecord>>(capacity));
     }
 }
 
@@ -45,9 +45,9 @@ void LogPrinter::setWorkerCpu(int cpu_id) {
 }
 
 bool LogPrinter::pushTxLog(const TxLogRecord& record) {
-    const uint16_t queue_idx = record.queue_idx;
+    const uint16_t que_idx = record.que_idx;
 
-    const bool pushed = m_tx_log_queues[queue_idx]->push(record);
+    const bool pushed = m_tx_log_queues[que_idx]->push(record);
     if (!pushed) {
         m_drop_count.fetch_add(1, std::memory_order_relaxed);
         return false;
@@ -82,13 +82,13 @@ bool LogPrinter::_drainTxLogRecord() {
     TxLogRecord record {};
     const std::size_t queue_num = m_queue_num;
     for (std::size_t offset = 0; offset < queue_num; ++offset) {
-        const std::size_t queue_idx =
+        const std::size_t que_idx =
             (static_cast<std::size_t>(m_next_tx_log_queue_idx) + offset) % queue_num;
-        if (!m_tx_log_queues[queue_idx]->pop(record)) {
+        if (!m_tx_log_queues[que_idx]->pop(record)) {
             continue;
         }
 
-        m_next_tx_log_queue_idx = static_cast<uint16_t>((queue_idx + 1U) % queue_num);
+        m_next_tx_log_queue_idx = static_cast<uint16_t>((que_idx + 1U) % queue_num);
         _printTxLogRecord(record);
         return true;
     }
@@ -113,7 +113,7 @@ void LogPrinter::_run() {
 
 void LogPrinter::_printTxLogRecord(const TxLogRecord& record) {
     std::printf("TxEvent queue=%u event=%s\n",
-                static_cast<unsigned int>(record.queue_idx),
+                static_cast<unsigned int>(record.que_idx),
                 readTxEventLabel(record.event));
     std::fflush(stdout);
 }

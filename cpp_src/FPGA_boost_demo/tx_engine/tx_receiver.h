@@ -24,7 +24,7 @@ private:
     bool _tryEnqueueRecord(const TxSenderInboundRecord& record);
     bool _retryRetainedRecord();
 
-    TxConnection& m_connection;
+    TxConnection& p_connection;
     TxSender& m_sender;
     bool m_has_retained_record {false};
     TxSenderInboundRecord m_retained_record {};

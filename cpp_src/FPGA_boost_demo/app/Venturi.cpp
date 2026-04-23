@@ -95,7 +95,6 @@ int main() {
         .heartbeat_interval = std::chrono::seconds(1),
         .intent_capacity = kExecutorQueueCapacity,
         .pending_capacity = 1024,
-        .pending_slot_count = 1024,
         .transport_capacity = 1024,
     };
 
@@ -146,8 +145,7 @@ int main() {
     tx_connection1.attachLogPrinter(&log_printer);
     tx_connection0.attachSender(&tx_sender0);
     tx_connection1.attachSender(&tx_sender1);
-    tx_sender0.attachLogPrinter(&log_printer);
-    tx_sender1.attachLogPrinter(&log_printer);
+
 
     log_printer.setWorkerCpu(kMainAndLogPrinterCpu);
     log_printer.start();
@@ -175,12 +173,13 @@ int main() {
                     }
                 }
             } 
-
+            // batch
             while (executor0.popExecution(execution)) {
                 tx_sender0.acceptExecution(execution);
             }
             
             tx_connection0.pollConnect();
+            //batch
             tx_sender0.runOnce();
         }
     });
@@ -210,7 +209,6 @@ int main() {
             }
 
             tx_connection1.pollConnect();
-
             tx_sender1.runOnce();
         }
     });

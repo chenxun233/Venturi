@@ -8,7 +8,7 @@
 namespace {
 
 TEST(FixedCircularBufferTest, pushBackAndPopFrontPreserveOrderAcrossWraparound) {
-    FixedCircularBuffer<uint32_t, 4> buffer;
+    RingBuffer<uint32_t, 4> buffer;
 
     EXPECT_TRUE(buffer.pushBack(1U));
     EXPECT_TRUE(buffer.pushBack(2U));
@@ -31,7 +31,7 @@ TEST(FixedCircularBufferTest, pushBackAndPopFrontPreserveOrderAcrossWraparound) 
 }
 
 TEST(FixedCircularBufferTest, writeCopiesWrappedByteRangesAndPopFrontNAdvancesPrefix) {
-    FixedCircularBuffer<uint8_t, 8> buffer;
+    RingBuffer<uint8_t, 8> buffer;
     const std::array<uint8_t, 5> first {1, 2, 3, 4, 5};
     const std::array<uint8_t, 4> second {6, 7, 8, 9};
     std::array<uint8_t, 4> prefix {};
@@ -54,7 +54,7 @@ TEST(FixedCircularBufferTest, writeCopiesWrappedByteRangesAndPopFrontNAdvancesPr
 }
 
 TEST(FixedCircularBufferTest, writeRejectsOverflowWithoutPartiallyAppending) {
-    FixedCircularBuffer<uint8_t, 4> buffer;
+    RingBuffer<uint8_t, 4> buffer;
     const std::array<uint8_t, 4> full {1, 2, 3, 4};
     const std::array<uint8_t, 2> overflow {5, 6};
 

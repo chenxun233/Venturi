@@ -40,5 +40,5 @@ private:
     std::atomic<uint64_t> m_decoded_count {0};
     std::atomic<uint64_t> m_first_event_count {0};
     // Attach before polling; tracker must outlive engine and not be swapped concurrently.
-    LatencyTracker* m_latency_tracker {nullptr};
+    LatencyTracker* p_latency_tracker {nullptr};
 };

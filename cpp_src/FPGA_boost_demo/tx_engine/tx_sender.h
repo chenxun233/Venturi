@@ -11,7 +11,6 @@
 
 class LatencyTracker;
 class TxConnection;
-class LogPrinter;
 
 struct TxSenderConfig {
     std::string username {"client"};
@@ -20,7 +19,6 @@ struct TxSenderConfig {
     std::chrono::steady_clock::duration heartbeat_interval {std::chrono::seconds(1)};
     std::size_t intent_capacity {1024};
     std::size_t pending_capacity {1024};
-    std::size_t pending_slot_count {65536};
     std::size_t transport_capacity {1024};
 };
 
@@ -30,25 +28,25 @@ public:
     explicit TxSender(TxSenderConfig config);
     ~TxSender();
 
-    void attachLogPrinter(LogPrinter* log_printer);
     void attachLatenyTracker(LatencyTracker* latency_tracker);
     void attachConnection(TxConnection* connection);
 
     bool acceptExecution(const OrderExecution& execution) noexcept;
-    void updateConnectionInfo(const TxConnectionInfo& info);
+
     bool runOnce();
 
-    bool popReadyOutbound(TxOutboundRecord& record);
-    void restoreReadyOutbound(const TxOutboundRecord& record);
-    bool trySendOutbound(const TxOutboundRecord& record);
-    void noteOutboundSent(const TxOutboundRecord& record);
-
     void login();
-    void onTransportDisconnected();
-    bool queueHeartbeat();
-    bool buildOutboundFrames();
+
+
 
 private:
+    friend class TxConnection;
+    void updateConnectionInfo(const TxConnectionInfo& info);
+    bool _queueHeartbeat();
+    bool _queueOutFrames();
+    bool _popReadyOutbound(TxOutboundRecord& record);
+    void _onTransportDisconnected();
+
     struct PendingSlot {
         bool occupied {false};
         TxOutboundRecord record {};
@@ -91,20 +89,13 @@ private:
                          uint64_t match_number);
     void _handleRejected(uint32_t user_ref_num, uint16_t reason);
 
-    void _pushTxEvent(uint16_t queue_idx, const TxLogRecord& record);
-    void _clearReadyRecords();
-    void _normalizeReadyRecords();
-    bool _flushPendingLatencyCommand() noexcept;
-    bool _requestLatencyCommand(uint16_t que_idx,
-                                TraceCommandOp op,
-                                uint32_t trace_id) noexcept;
+
+
 
     TxSenderConfig m_config {};
     PendingOrderState m_pending_orders {};
-    PendingLatencyCommandState m_pending_latency_command {};
-    FixedCircularBuffer<OrderExecution, kExecutionBufferCapacity> m_execution_buffer;
-    std::vector<TxOutboundRecord> m_ready_outbound {};
-    std::size_t m_ready_head {0};
+    RingBuffer<OrderExecution, kExecutionBufferCapacity> m_execution_buffer;
+    RingBuffer<TxOutboundRecord, 8192> m_ready_outbound {};
     std::vector<TxOutboundRecord> m_blocked_outbound {};
     uint32_t m_next_tag {1};
     uint64_t m_next_expected_sequence {1};
@@ -115,7 +106,6 @@ private:
     bool m_logged_in {false};
     std::chrono::steady_clock::time_point m_last_successful_send {};
     std::size_t m_heartbeat_ready_count {0};
-    TxConnection* m_connection {nullptr};
-    LogPrinter* m_log_printer {nullptr};
-    LatencyTracker* m_latency_tracker {nullptr};
+    TxConnection* p_connection {nullptr};
+    LatencyTracker* p_latency_tracker {nullptr};
 };

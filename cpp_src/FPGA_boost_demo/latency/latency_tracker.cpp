@@ -47,9 +47,9 @@ LatencyTracker::LatencyTracker(uint16_t producer_num,
     m_command_queues.reserve(producer_num);
     for (uint16_t producer_idx = 0; producer_idx < producer_num; ++producer_idx) {
         m_latency_queues.push_back(
-            std::make_unique<SpscRingQueue<TimeRecord>>(buffer_capacity));
+            std::make_unique<SpscRingBuffer<TimeRecord>>(buffer_capacity));
         m_command_queues.push_back(
-            std::make_unique<SpscRingQueue<TraceCommand>>(command_capacity));
+            std::make_unique<SpscRingBuffer<TraceCommand>>(command_capacity));
         m_active_trace_ids[producer_idx].store(0U, std::memory_order_relaxed);
         m_started_trace_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
         m_finalize_request_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
@@ -101,19 +101,35 @@ bool LatencyTracker::requestFinalize(uint16_t que_idx, uint32_t trace_id) noexce
         return false;
     }
     m_finalize_request_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-    return _enqueueCommand(que_idx, TraceCommandOp::Finalize, trace_id);
+    TraceCommand command {
+        .que_idx = que_idx,
+        .trace_id = trace_id,
+        .op = TraceCommandOp::Finalize,
+    };
+    if (m_command_queues[que_idx]->push(command)) {
+        return true;
+    }
+
+    return false;
 }
 
 
 
-bool LatencyTracker::requestDrop(uint16_t queue_idx,
+bool LatencyTracker::requestDrop(uint16_t que_idx,
                                  uint32_t trace_id) noexcept {
-    if (queue_idx >= m_command_queues.size() ||
+    if (que_idx >= m_command_queues.size() ||
         trace_id == 0U) {
         return false;
     }
-    m_drop_request_counts[queue_idx].fetch_add(1ULL, std::memory_order_relaxed);
-    return _enqueueCommand(queue_idx, TraceCommandOp::Drop, trace_id);
+    m_drop_request_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
+    TraceCommand command {
+        .que_idx = que_idx,
+        .trace_id = trace_id,
+        .op = TraceCommandOp::Drop,
+    };
+    if (m_command_queues[que_idx]->push(command)) {
+        return true;
+    }
 }
 
 void LatencyTracker::run() noexcept {
@@ -161,7 +177,7 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
         return;
     }
 
-    SpscRingQueue<TimeRecord>& queue = *m_latency_queues[que_idx];
+    SpscRingBuffer<TimeRecord>& queue = *m_latency_queues[que_idx];
     TimeRecord record {};
     bool found_matching_trace = false;
     while (queue.pop(record)) {
@@ -355,13 +371,13 @@ bool LatencyTracker::_drainCommand() noexcept {
         static_cast<uint16_t>(m_next_command_queue_idx % m_queue_num);
 
     for (uint16_t queue_offset = 0; queue_offset < m_queue_num; ++queue_offset) {
-        const uint16_t queue_idx =
+        const uint16_t que_idx =
             static_cast<uint16_t>((start_queue_idx + queue_offset) % m_queue_num);
         TraceCommand command {};
         std::size_t commands_processed = 0U;
 
         while (commands_processed < kMaxCommandsPerQueuePerPass &&
-               m_command_queues[queue_idx]->pop(command)) {
+               m_command_queues[que_idx]->pop(command)) {
             did_work = true;
             _processCommand(command);
             ++commands_processed;
@@ -373,18 +389,6 @@ bool LatencyTracker::_drainCommand() noexcept {
 }
 
 
-bool LatencyTracker::_enqueueCommand(uint16_t queue_idx,TraceCommandOp op,uint32_t trace_id) noexcept {
-    TraceCommand command {
-        .que_idx = queue_idx,
-        .trace_id = trace_id,
-        .op = op,
-    };
-    if (m_command_queues[queue_idx]->push(command)) {
-        return true;
-    }
-
-    return false;
-}
 
 void LatencyTracker::_processCommand(const TraceCommand& command) noexcept {
     switch (command.op) {

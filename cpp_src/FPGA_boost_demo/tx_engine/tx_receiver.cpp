@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 TxReceiver::TxReceiver(TxConnection& connection, TxSender& sender)
-    : m_connection(connection),
+    : p_connection(connection),
       m_sender(sender) {}
 
 TxReceiver::~TxReceiver() {
@@ -23,7 +23,7 @@ TxReceiver::~TxReceiver() {
 void TxReceiver::attachLogPrinter(LogPrinter* log_printer) {
     // Receiver is the inbound orchestrator in the split runtime. Forward the attachment so a user
     // attaching a logger to the receiver gets a logged TX stack by default.
-    m_connection.attachLogPrinter(log_printer);
+    p_connection.attachLogPrinter(log_printer);
     m_sender.attachLogPrinter(log_printer);
 }
 
@@ -58,10 +58,10 @@ bool TxReceiver::pollOnce() {
 
     bool did_work = had_retained_record;
 
-    did_work = m_connection.pollConnect() || did_work;
+    did_work = p_connection.pollConnect() || did_work;
 
     TxConnectionInfo transport_control {};
-    if (m_connection.takeConnectionInfo(transport_control)) {
+    if (p_connection.takeConnectionInfo(transport_control)) {
         if (!m_sender.acceptTransportControl(transport_control)) {
             m_retained_record = TxSenderInboundRecord {
                 .kind = TxSenderInboundKind::TransportEvent,
@@ -74,7 +74,7 @@ bool TxReceiver::pollOnce() {
     }
 
     TxInboundFrame frame {};
-    if (m_connection.readInboundFrame(frame)) {
+    if (p_connection.readInboundFrame(frame)) {
         const TxSenderInboundRecord inbound_record {
             .kind = TxSenderInboundKind::Frame,
             .frame = frame,
@@ -88,7 +88,7 @@ bool TxReceiver::pollOnce() {
         did_work = true;
     }
 
-    if (m_connection.takeConnectionInfo(transport_control)) {
+    if (p_connection.takeConnectionInfo(transport_control)) {
         if (!m_sender.acceptTransportControl(transport_control)) {
             m_retained_record = TxSenderInboundRecord {
                 .kind = TxSenderInboundKind::TransportEvent,

@@ -245,10 +245,6 @@ if(TARGET GTest::gtest_main)
     target_link_libraries(tx_translator_test PRIVATE
         GTest::gtest_main
     )
-    target_link_options(tx_translator_test PRIVATE
-        -Wl,--wrap=send
-    )
-
     add_executable(dummy_strategy_test
         ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp

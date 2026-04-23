@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 
 TEST(SpscRingQueueOverwriteTest, pushDropOldestOverwritesOldestRecord) {
-    SpscRingQueue<uint32_t> buffer(2);
+    SpscRingBuffer<uint32_t> buffer(2);
     ASSERT_TRUE(buffer.pushDropOldest(1));
     ASSERT_TRUE(buffer.pushDropOldest(2));
     EXPECT_FALSE(buffer.pushDropOldest(3));

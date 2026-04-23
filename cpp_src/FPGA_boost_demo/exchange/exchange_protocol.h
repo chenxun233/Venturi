@@ -132,9 +132,9 @@ private:
     uint64_t m_next_match_number {1};
     std::chrono::steady_clock::time_point m_last_send_time {};
     std::chrono::steady_clock::time_point m_last_receive_time {};
-    FixedCircularBuffer<uint8_t, kReadBufferSize> m_inbound_bytes {};
-    FixedCircularBuffer<OutboundFrameRaw, kOutboundQueueSize> m_outbound_frame_que {};
-    FixedCircularBuffer<PendingFill, kMaxPendingFills> m_pending_fills {};
+    RingBuffer<uint8_t, kReadBufferSize> m_inbound_bytes {};
+    RingBuffer<OutboundFrameRaw, kOutboundQueueSize> m_outbound_frame_que {};
+    RingBuffer<PendingFill, kMaxPendingFills> m_pending_fills {};
     std::vector<ReplayEntry> m_replay_entries {};
     std::size_t m_replay_count {0};
 };

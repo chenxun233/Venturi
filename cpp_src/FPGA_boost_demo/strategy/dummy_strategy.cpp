@@ -47,10 +47,10 @@ OrderIntentAction DummyStrategy::_readAction(const FPGAEventDesc& event) const {
 
 bool DummyStrategy::evaluateEvent(uint16_t que_idx,const FPGAEventDesc& event, OrderIntent& out_intent) {
     if (event.trace_id != 0U &&
-        m_latency_tracker != nullptr &&
+        p_latency_tracker != nullptr &&
         event.event_tk != 0U) {
         try {
-            m_latency_tracker->pushRecord(TimeRecord {
+            p_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = que_idx,
                 .event_tag = event.event_tk,
                 .trace_id = event.trace_id,
@@ -64,8 +64,8 @@ bool DummyStrategy::evaluateEvent(uint16_t que_idx,const FPGAEventDesc& event, O
 
     const OrderIntentAction action = _readAction(event);
     if (action == OrderIntentAction::None) {
-        if (event.trace_id != 0U && m_latency_tracker != nullptr) {
-            (void)m_latency_tracker->requestDrop(que_idx, event.trace_id);
+        if (event.trace_id != 0U && p_latency_tracker != nullptr) {
+            (void)p_latency_tracker->requestDrop(que_idx, event.trace_id);
         }
         return false;
     }

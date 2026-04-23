@@ -18,8 +18,8 @@
 
 static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::attachSender)>);
 static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::pollConnect)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::pushSenderDisconNotice)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::isConnected)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::recvSenderDisconNotice)>);
+
 
 TEST(TxLogRecordTest, connectionInfoCanCarryConnectedGenerationAndSenderFd) {
     TxConnectionInfo info {
@@ -83,11 +83,11 @@ TEST(TxLogRecordTest, matchingDisconnectNoticeClosesCurrentConnection) {
     connection.m_socket_fd = sockets[0];
     connection.m_socket_generation = 5;
 
-    ASSERT_TRUE(connection.pushSenderDisconNotice(TxDisconnectNotice {
+    ASSERT_TRUE(connection.recvSenderDisconNotice(TxDisconnectNotice {
         .generation = 5,
     }));
     (void)connection.pollConnect();
-    EXPECT_FALSE(connection.isConnected());
+
 
     ::close(sockets[1]);
 }

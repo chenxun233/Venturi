@@ -75,8 +75,8 @@ void TxConnection::attachLogPrinter(LogPrinter* log_printer) {
     m_log_printer = log_printer;
 }
 
-void TxConnection::attachQueueIdx(uint16_t queue_idx) {
-    m_queue_idx = queue_idx;
+void TxConnection::attachQueueIdx(uint16_t que_idx) {
+    m_queue_idx = que_idx;
     m_has_queue_idx = true;
 }
 
@@ -87,16 +87,17 @@ void TxConnection::attachSender(TxSender* sender) {
     }
 }
 
-bool TxConnection::pushSenderDisconNotice(const TxDisconnectNotice& notice) {
+bool TxConnection::recvSenderDisconNotice(const TxDisconnectNotice& notice) {
     return m_sender_disconnect_notices.push(notice);
 }
 
 bool TxConnection::pollConnect() {
 #ifndef ISO
     _drainDisconNotices();
-
-    const auto now = std::chrono::steady_clock::now();
-    if (m_socket_fd >= 0 || now < m_next_connect_attempt_time) {
+    if (m_socket_fd >= 0) {
+        return false;
+    }
+    if (std::chrono::steady_clock::now() < m_next_connect_attempt_time) {
         return false;
     }
     const int new_fd = connectBlocking(m_config);
@@ -107,12 +108,10 @@ bool TxConnection::pollConnect() {
         }
         return true;
     }
-
     if (m_socket_fd >= 0) {
         ::close(new_fd);
         return true;
     }
-
     m_socket_fd = new_fd;
     if (!_enableNonBlocking()) {
         _closeConnection();
@@ -135,13 +134,7 @@ bool TxConnection::pollConnect() {
     return true;
 }
 
-bool TxConnection::isConnected() const {
-#ifndef ISO
-    return m_socket_fd >= 0;
-#else
-    return true;
-#endif
-}
+
 
 void TxConnection::_closeConnection() {
 #ifndef ISO
@@ -155,12 +148,9 @@ void TxConnection::_closeConnection() {
 }
 
 void TxConnection::_handleDisconnect() {
-    const bool had_connection = isConnected();
-    if (!had_connection) {
-        return;
-    }else{
-        _updateDisconInfo(m_socket_generation);
-    }
+
+    _updateDisconInfo(m_socket_generation);
+    
     _closeConnection();
     m_next_connect_attempt_time = std::chrono::steady_clock::now() + m_config.reconnect_delay;
 }
@@ -212,7 +202,6 @@ bool TxConnection::_updateConnectedInfo() {
 }
 
 
-
 bool TxConnection::_drainDisconNotices() {
     bool did_work = false;
     TxDisconnectNotice notice {};
@@ -238,18 +227,19 @@ void TxConnection::_updateDisconInfo(uint64_t generation) {
         .generation = generation,
         .fd = -1,
     };
+    m_sender->updateConnectionInfo(m_sender_connection_info);
 }
 
 void TxConnection::_logConnectionEstablished() {
     _pushTxEvent(TxLogRecord {
-        .queue_idx = m_queue_idx,
+        .que_idx = m_queue_idx,
         .event = TxEventKind::ConnectionEstablished,
     });
 }
 
 void TxConnection::_logConnectionLost() {
     _pushTxEvent(TxLogRecord {
-        .queue_idx = m_queue_idx,
+        .que_idx = m_queue_idx,
         .event = TxEventKind::ConnectionLost,
         
     });

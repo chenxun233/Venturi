@@ -29,7 +29,7 @@ constexpr std::size_t kSequenceWidth = 20;
 constexpr std::size_t kUsernameWidth = 6;
 constexpr std::size_t kPasswordWidth = 10;
 constexpr std::size_t kOuchEnterOrderSize = 16;
-
+// comment
 bool isPowerOfTwo(std::size_t value) {
     return value != 0 && (value & (value - 1U)) == 0;
 }
@@ -122,7 +122,6 @@ void writeClientHeartbeatFrame(TxOutboundRecord& record) {
 
 void writeFramePayload(TxOutboundRecord& record, char side) {
     writeSoupHeader(record, kSoupUnsequencedDataType, kOuchEnterOrderSize);
-
     uint8_t* payload = record.payload.data() + static_cast<std::ptrdiff_t>(kSoupHeaderSize);
     payload[0] = kOuchEnterOrderType;
     writeBigEndian32(payload + 1, record.user_ref_num);
@@ -134,16 +133,10 @@ void writeFramePayload(TxOutboundRecord& record, char side) {
 
 } // namespace
 
-extern "C" ssize_t __attribute__((weak))
-__wrap_send(int sockfd, const void* buffer, size_t length, int flags) {
-    return ::sendto(sockfd, buffer, length, flags, nullptr, 0);
-}
-
 TxSender::TxSender(std::size_t pending_capacity)
     : TxSender(TxSenderConfig {
           .intent_capacity = pending_capacity,
-          .pending_capacity = pending_capacity,
-          .pending_slot_count = roundUpToPowerOfTwo(pending_capacity),
+          .pending_capacity = roundUpToPowerOfTwo(pending_capacity),
           .transport_capacity = pending_capacity,
       }) {}
 
@@ -152,15 +145,13 @@ TxSender::TxSender(TxSenderConfig config)
       m_pending_orders {
           .capacity = m_config.pending_capacity,
           .live_count = 0,
-          .slots = std::vector<PendingSlot>(m_config.pending_slot_count),
+          .slots = std::vector<PendingSlot>(m_config.pending_capacity),
       },
-      m_ready_outbound {},
       m_blocked_outbound {} {
-    if (!isPowerOfTwo(m_config.pending_slot_count)) {
-        throw std::invalid_argument("pending_slot_count must be a non-zero power-of-two");
+    if (!isPowerOfTwo(m_config.pending_capacity)) {
+        throw std::invalid_argument("pending_capacity must be a non-zero power-of-two");
     }
 
-    m_ready_outbound.reserve(m_config.pending_capacity + 4U);
     m_blocked_outbound.reserve(m_config.pending_capacity);
     m_last_successful_send = std::chrono::steady_clock::now();
 }
@@ -169,24 +160,22 @@ TxSender::~TxSender() {
     _closeSendFd();
 }
 
-void TxSender::attachLogPrinter(LogPrinter* log_printer) {
-    m_log_printer = log_printer;
-}
+
 
 void TxSender::attachLatenyTracker(LatencyTracker* latency_tracker) {
-    m_latency_tracker = latency_tracker;
+    p_latency_tracker = latency_tracker;
 }
 
 void TxSender::attachConnection(TxConnection* connection) {
-    m_connection = connection;
+    p_connection = connection;
 }
 
 bool TxSender::acceptExecution(const OrderExecution& execution) noexcept {
     const bool pushed = m_execution_buffer.pushBack(execution);
-    if (pushed && execution.trace_id != 0U && m_latency_tracker != nullptr) {
+    if (pushed && execution.trace_id != 0U && p_latency_tracker != nullptr) {
 
         try {
-            m_latency_tracker->pushRecord(TimeRecord {
+            p_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = execution.que_idx,
                 .event_tag = execution.event_tag,
                 .trace_id = execution.trace_id,
@@ -211,7 +200,7 @@ void TxSender::updateConnectionInfo(const TxConnectionInfo& info) {
         case TxConnectionKind::Disconnected:
             if (info.generation == m_transport_generation) {
                 _retireGeneration(info.generation);
-                onTransportDisconnected();
+                _onTransportDisconnected();
             }
             return;
     }
@@ -220,48 +209,46 @@ void TxSender::updateConnectionInfo(const TxConnectionInfo& info) {
 }
 
 bool TxSender::runOnce() {
-    (void)_flushPendingLatencyCommand();
 
-    buildOutboundFrames();
-    queueHeartbeat();
+    _queueOutFrames();
+    _queueHeartbeat();
 #ifndef ISO
     if (m_send_fd < 0) {
         return false;
     }
 #endif
     TxOutboundRecord record {};
-    while (popReadyOutbound(record)) {
-        if (!trySendOutbound(record)) {
-            restoreReadyOutbound(record);
-
+    while (_popReadyOutbound(record)) {
+        if (!_sendPayload(record)) {
+            if (record.payload_length >= 3 && record.payload[2] == static_cast<uint8_t>('R')) {
+                m_heartbeat_ready_count += 1;
+            }
             const bool transport_dropped =
                 (m_transport_generation != 0) && (m_send_fd < 0);
             if ((errno == EAGAIN || errno == EWOULDBLOCK) && !transport_dropped) {
                 break;
             }
 
-            onTransportDisconnected();
-            if (m_connection != nullptr && m_transport_generation != 0) {
-                (void)m_connection->pushSenderDisconNotice(TxDisconnectNotice {
+            _onTransportDisconnected();
+            if (p_connection != nullptr && m_transport_generation != 0) {
+                (void)p_connection->recvSenderDisconNotice(TxDisconnectNotice {
                     .generation = m_transport_generation,
                 });
             }
             break;
         }
-        noteOutboundSent(record);
+        m_ready_outbound.eraseFront();
+        m_last_successful_send = std::chrono::steady_clock::now();
     }
 
     return true;
 }
 
-bool TxSender::popReadyOutbound(TxOutboundRecord& record) {
-    _normalizeReadyRecords();
-    if (m_ready_head >= m_ready_outbound.size()) {
+bool TxSender::_popReadyOutbound(TxOutboundRecord& record) {
+    if (m_ready_outbound.isEmpty()) {
         return false;
     }
-
-    record = m_ready_outbound[m_ready_head];
-    ++m_ready_head;
+    record = m_ready_outbound.readFront();
     if (record.payload_length >= 3 &&
         record.payload[2] == static_cast<uint8_t>('R') &&
         m_heartbeat_ready_count > 0) {
@@ -270,34 +257,13 @@ bool TxSender::popReadyOutbound(TxOutboundRecord& record) {
     return true;
 }
 
-void TxSender::restoreReadyOutbound(const TxOutboundRecord& record) {
-    if (m_ready_head > 0) {
-        --m_ready_head;
-        m_ready_outbound[m_ready_head] = record;
-        if (record.payload_length >= 3 && record.payload[2] == static_cast<uint8_t>('R')) {
-            m_heartbeat_ready_count += 1;
-        }
-        return;
-    }
 
-    _normalizeReadyRecords();
-    m_ready_outbound.push_back(record);
-    if (record.payload_length >= 3 && record.payload[2] == static_cast<uint8_t>('R')) {
-        m_heartbeat_ready_count += 1;
-    }
-}
 
-bool TxSender::trySendOutbound(const TxOutboundRecord& record) {
-    return _sendPayload(record);
-}
 
-void TxSender::noteOutboundSent(const TxOutboundRecord& record) {
-    (void)record;
-    m_last_successful_send = std::chrono::steady_clock::now();
-}
+
 
 void TxSender::login() {
-    _clearReadyRecords();
+    m_ready_outbound.clear();
     TxOutboundRecord login_record {};
     writeLoginRequestFrame(login_record,
                            m_config.username,
@@ -330,7 +296,7 @@ void TxSender::_retireGeneration(uint64_t generation) {
 
 bool TxSender::_sendPayload(const TxOutboundRecord& record) {
     const bool should_track_latency =
-        (m_latency_tracker != nullptr && record.trace_id != 0U);
+        (p_latency_tracker != nullptr && record.trace_id != 0U);
 #ifndef ISO
     if (record.payload_length == 0 ||
         record.payload_length > record.payload.size() ||
@@ -341,7 +307,7 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
     if (should_track_latency) {
 
         try {
-            m_latency_tracker->pushRecord(TimeRecord {
+            p_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = record.que_idx,
                 .event_tag = record.event_tag,
                 .trace_id = record.trace_id,
@@ -357,7 +323,7 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
         if (offset == 0 && should_track_latency) {
 
             try {
-                m_latency_tracker->pushRecord(TimeRecord {
+                p_latency_tracker->pushRecord(TimeRecord {
                     .que_idx = record.que_idx,
                     .event_tag = record.event_tag,
                     .trace_id = record.trace_id,
@@ -396,16 +362,14 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
     if (should_track_latency) {
 
         try {
-            m_latency_tracker->pushRecord(TimeRecord {
+            p_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = record.que_idx,
                 .event_tag = record.event_tag,
                 .trace_id = record.trace_id,
                 .event_stage = stage::TX_SEND,
                 .time_captured = readMonotonicRawNs(),
             });
-            (void)_requestLatencyCommand(record.que_idx,
-                                         TraceCommandOp::Finalize,
-                                         record.trace_id);
+            (void)p_latency_tracker->requestFinalize(record.que_idx, record.trace_id);
         } catch (...) {
         }
     }
@@ -426,14 +390,14 @@ void TxSender::_closeSendFd(bool clear_generation) {
     }
 }
 
-void TxSender::onTransportDisconnected() {
-    _clearReadyRecords();
+void TxSender::_onTransportDisconnected() {
+    m_ready_outbound.clear();
     m_login_pending = false;
     m_logged_in = false;
     _rebuildBlockedRecords();
 }
 
-bool TxSender::queueHeartbeat() {
+bool TxSender::_queueHeartbeat() {
     if (!m_logged_in) {
         return false;
     }
@@ -453,8 +417,7 @@ bool TxSender::queueHeartbeat() {
     return true;
 }
 
-bool TxSender::buildOutboundFrames() {
-    (void)_flushPendingLatencyCommand();
+bool TxSender::_queueOutFrames() {
 
     bool did_work = false;
     bool did_reject_pending = false;
@@ -464,19 +427,15 @@ bool TxSender::buildOutboundFrames() {
         (void)m_execution_buffer.eraseFront();
 
         if (!_buildOrderFrame(execution, record)) {
-            if (execution.trace_id != 0U && m_latency_tracker != nullptr) {
-                (void)_requestLatencyCommand(execution.que_idx,
-                                             TraceCommandOp::Drop,
-                                             execution.trace_id);
+            if (execution.trace_id != 0U && p_latency_tracker != nullptr) {
+                (void)p_latency_tracker->requestDrop(execution.que_idx, execution.trace_id);
             }
             continue;
         }
 
         if (!_recordPendingOrder(record)) {
-            if (record.trace_id != 0U && m_latency_tracker != nullptr) {
-                (void)_requestLatencyCommand(record.que_idx,
-                                             TraceCommandOp::Drop,
-                                             record.trace_id);
+            if (record.trace_id != 0U && p_latency_tracker != nullptr) {
+                (void)p_latency_tracker->requestDrop(record.que_idx, record.trace_id);
             }
             did_reject_pending = true;
             continue;
@@ -485,7 +444,6 @@ bool TxSender::buildOutboundFrames() {
         did_work = true;
         _queueReadyRecord(record);
     }
-
     return did_work && !did_reject_pending;
 }
 
@@ -516,12 +474,11 @@ bool TxSender::_buildOrderFrame(const OrderExecution& execution, TxOutboundRecor
 }
 
 void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
-    _normalizeReadyRecords();
-    m_ready_outbound.push_back(record);
-    if (record.trace_id != 0U && m_latency_tracker != nullptr) {
+    m_ready_outbound.pushBack(record);
+    if (record.trace_id != 0U && p_latency_tracker != nullptr) {
 
         try {
-            m_latency_tracker->pushRecord(TimeRecord {
+            p_latency_tracker->pushRecord(TimeRecord {
                 .que_idx = record.que_idx,
                 .event_tag = record.event_tag,
                 .trace_id = record.trace_id,
@@ -609,9 +566,6 @@ bool TxSender::_recordPendingOrder(const TxOutboundRecord& record) {
     if (m_pending_orders.capacity == 0 || m_pending_orders.slots.empty()) {
         return false;
     }
-
-  
-
     if (m_pending_orders.live_count >= m_pending_orders.capacity) {
         return false;
     }
@@ -620,7 +574,6 @@ bool TxSender::_recordPendingOrder(const TxOutboundRecord& record) {
     if (slot.occupied) {
         return false;
     }
-
     slot.occupied = true;
     slot.record = record;
     m_pending_orders.live_count += 1U;
@@ -640,7 +593,7 @@ void TxSender::_handleAccepted(uint32_t user_ref_num, uint32_t shares, uint32_t 
     if (found == nullptr) {
         return;
     }
-    const uint16_t queue_idx = found->record.que_idx;
+    const uint16_t que_idx = found->record.que_idx;
     const uint16_t stock_locate = found->record.stock_locate;
     _clearPendingSlot(*found);
 }
@@ -653,7 +606,7 @@ void TxSender::_handleExecuted(uint32_t user_ref_num,
     if (found == nullptr) {
         return;
     }
-    const uint16_t queue_idx = found->record.que_idx;
+    const uint16_t que_idx = found->record.que_idx;
     _clearPendingSlot(*found);
 
 }
@@ -663,90 +616,11 @@ void TxSender::_handleRejected(uint32_t user_ref_num, uint16_t reason) {
     if (found == nullptr) {
         return;
     }
-    const uint16_t queue_idx = found->record.que_idx;
+    const uint16_t que_idx = found->record.que_idx;
     _clearPendingSlot(*found);
 }
 
 
-void TxSender::_pushTxEvent(uint16_t queue_idx, const TxLogRecord& record) {
-    if (m_log_printer == nullptr) {
-        return;
-    }
-    TxLogRecord queued_record = record;
-    queued_record.queue_idx = queue_idx;
-    (void)m_log_printer->pushTxLog(queued_record);
-}
 
-void TxSender::_clearReadyRecords() {
-    m_ready_outbound.clear();
-    m_ready_head = 0;
-    m_heartbeat_ready_count = 0;
-}
 
-void TxSender::_normalizeReadyRecords() {
-    if (m_ready_head == 0) {
-        return;
-    }
-    if (m_ready_head >= m_ready_outbound.size()) {
-        m_ready_outbound.clear();
-        m_ready_head = 0;
-        return;
-    }
 
-    m_ready_outbound.erase(m_ready_outbound.begin(),
-                           m_ready_outbound.begin() + static_cast<std::ptrdiff_t>(m_ready_head));
-    m_ready_head = 0;
-}
-
-bool TxSender::_flushPendingLatencyCommand() noexcept {
-    if (!m_pending_latency_command.occupied || m_latency_tracker == nullptr) {
-        return false;
-    }
-
-    const TraceCommand command = m_pending_latency_command.command;
-    const bool flushed =
-        (command.op == TraceCommandOp::Finalize)
-            ? m_latency_tracker->requestFinalize(command.que_idx, command.trace_id)
-            : m_latency_tracker->requestDrop(command.que_idx, command.trace_id);
-    if (flushed) {
-        m_pending_latency_command.occupied = false;
-        m_pending_latency_command.command = TraceCommand {};
-    }
-
-    return flushed;
-}
-
-bool TxSender::_requestLatencyCommand(uint16_t que_idx,
-                                      TraceCommandOp op,
-                                      uint32_t trace_id) noexcept {
-    if (m_latency_tracker == nullptr || trace_id == 0U) {
-        return false;
-    }
-
-    const TraceCommand command {
-        .que_idx = que_idx,
-        .trace_id = trace_id,
-        .op = op,
-    };
-    if (m_pending_latency_command.occupied) {
-        const TraceCommand& pending_command = m_pending_latency_command.command;
-        if (pending_command.que_idx == command.que_idx &&
-            pending_command.trace_id == command.trace_id &&
-            pending_command.op == command.op) {
-            return true;
-        }
-        return false;
-    }
-
-    const bool requested =
-        (op == TraceCommandOp::Finalize)
-            ? m_latency_tracker->requestFinalize(que_idx, trace_id)
-            : m_latency_tracker->requestDrop(que_idx, trace_id);
-    if (requested) {
-        return true;
-    }
-
-    m_pending_latency_command.occupied = true;
-    m_pending_latency_command.command = command;
-    return true;
-}

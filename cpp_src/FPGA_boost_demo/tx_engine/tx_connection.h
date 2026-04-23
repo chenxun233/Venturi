@@ -31,11 +31,10 @@ public:
     TxConnection& operator=(TxConnection&&) = delete;
 
     void attachLogPrinter(LogPrinter* log_printer);
-    void attachQueueIdx(uint16_t queue_idx);
+    void attachQueueIdx(uint16_t que_idx);
     void attachSender(TxSender* sender);
     bool pollConnect();
-    bool pushSenderDisconNotice(const TxDisconnectNotice& notice);
-    bool isConnected() const;
+    bool recvSenderDisconNotice(const TxDisconnectNotice& notice);
 
 
 private:
@@ -55,7 +54,7 @@ private:
     uint16_t m_queue_idx {0};
     bool m_has_queue_idx {false};
     TxSender* m_sender {nullptr};
-    SpscRingQueue<TxDisconnectNotice> m_sender_disconnect_notices{8};
+    SpscRingBuffer<TxDisconnectNotice> m_sender_disconnect_notices{8};
     int m_socket_fd {-1};
     uint64_t m_socket_generation {0};
     TxConnectionInfo m_sender_connection_info {};

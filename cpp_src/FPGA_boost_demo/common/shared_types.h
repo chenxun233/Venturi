@@ -141,7 +141,7 @@ struct OrderExecution {
 };
 
 struct ExecutionLogRecord {
-    uint16_t queue_idx {0};
+    uint16_t que_idx {0};
     uint16_t stock_locate {0};
     OrderIntentPayload intent {};
 };
@@ -165,7 +165,7 @@ struct TxOutboundRecord {
 };
 
 struct TxLogRecord {
-    uint16_t queue_idx {0};
+    uint16_t que_idx {0};
     TxEventKind event {TxEventKind::ConnectionEstablished};
 };
 

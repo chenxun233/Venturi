@@ -23,7 +23,7 @@ public:
     void attachAnalyzer(LatencyAnalyzer* latency_analyzer) noexcept;
     void pushRecord(const TimeRecord& record) noexcept;
     bool requestFinalize(uint16_t que_idx, uint32_t trace_id) noexcept;
-    bool requestDrop(uint16_t queue_idx,
+    bool requestDrop(uint16_t que_idx,
                      uint32_t trace_id) noexcept;
     void run() noexcept;
     void stop() noexcept;
@@ -35,15 +35,13 @@ private:
     void _finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept;
     void _dropTrace(uint16_t que_idx, uint32_t trace_id) noexcept;
     bool _drainCommand() noexcept;
-    bool _enqueueCommand(uint16_t queue_idx,
-                         TraceCommandOp op,
-                         uint32_t trace_id) noexcept;
+
     void _processCommand(const TraceCommand& command) noexcept;
     void _clearActiveTraceID(uint16_t que_idx, uint32_t trace_id) noexcept;
     void _cleanLatencyQueue(uint16_t que_idx) noexcept;
 
-    std::vector<std::unique_ptr<SpscRingQueue<TimeRecord>>> m_latency_queues;
-    std::vector<std::unique_ptr<SpscRingQueue<TraceCommand>>> m_command_queues;
+    std::vector<std::unique_ptr<SpscRingBuffer<TimeRecord>>> m_latency_queues;
+    std::vector<std::unique_ptr<SpscRingBuffer<TraceCommand>>> m_command_queues;
     uint16_t m_queue_num {0};
     HostTickScale m_host_tick_scale {};
     std::vector<uint32_t> m_next_trace_ids;

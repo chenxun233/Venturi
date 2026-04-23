@@ -27,7 +27,7 @@ private:
     void _printTxLogRecord(const TxLogRecord& record);
 
     uint16_t m_queue_num {0};
-    std::vector<std::unique_ptr<SpscRingQueue<TxLogRecord>>> m_tx_log_queues;
+    std::vector<std::unique_ptr<SpscRingBuffer<TxLogRecord>>> m_tx_log_queues;
     uint16_t m_next_tx_log_queue_idx {0};
     std::atomic<uint64_t> m_drop_count {0};
     std::atomic<bool> m_running {false};

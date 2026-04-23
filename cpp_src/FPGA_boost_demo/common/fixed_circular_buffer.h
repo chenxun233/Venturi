@@ -6,9 +6,9 @@
 #include <utility>
 
 template <typename T, std::size_t Capacity>
-class FixedCircularBuffer {
+class RingBuffer {
     static_assert(Capacity != 0 && (Capacity & (Capacity - 1)) == 0,
-                  "FixedCircularBuffer capacity must be a non-zero power of two");
+                  "RingBuffer capacity must be a non-zero power of two");
 
 public:
     bool        isEmpty() const;
@@ -39,33 +39,33 @@ private:
 };
 
 template <typename T, std::size_t Capacity>
-bool FixedCircularBuffer<T, Capacity>::isEmpty() const {
+bool RingBuffer<T, Capacity>::isEmpty() const {
     return m_count == 0;
 }
 
 template <typename T, std::size_t Capacity>
-bool FixedCircularBuffer<T, Capacity>::_isFull() const {
+bool RingBuffer<T, Capacity>::_isFull() const {
     return m_count == Capacity;
 }
 
 template <typename T, std::size_t Capacity>
-std::size_t FixedCircularBuffer<T, Capacity>::readSize() const {
+std::size_t RingBuffer<T, Capacity>::readSize() const {
     return m_count;
 }
 
 template <typename T, std::size_t Capacity>
-constexpr std::size_t FixedCircularBuffer<T, Capacity>::readCapacity() const {
+constexpr std::size_t RingBuffer<T, Capacity>::readCapacity() const {
     return Capacity;
 }
 
 template <typename T, std::size_t Capacity>
-void FixedCircularBuffer<T, Capacity>::clear() {
+void RingBuffer<T, Capacity>::clear() {
     m_head = 0;
     m_count = 0;
 }
 
 template <typename T, std::size_t Capacity>
-bool FixedCircularBuffer<T, Capacity>::pushBack(const T& value) {
+bool RingBuffer<T, Capacity>::pushBack(const T& value) {
     if (_isFull()) {
         return false;
     }
@@ -75,7 +75,7 @@ bool FixedCircularBuffer<T, Capacity>::pushBack(const T& value) {
 }
 
 template <typename T, std::size_t Capacity>
-bool FixedCircularBuffer<T, Capacity>::pushBack(T&& value) {
+bool RingBuffer<T, Capacity>::pushBack(T&& value) {
     if (_isFull()) {
         return false;
     }
@@ -86,7 +86,7 @@ bool FixedCircularBuffer<T, Capacity>::pushBack(T&& value) {
 }
 
 template <typename T, std::size_t Capacity>
-bool FixedCircularBuffer<T, Capacity>::write(const T* values, std::size_t count) {
+bool RingBuffer<T, Capacity>::write(const T* values, std::size_t count) {
     if (count > Capacity - m_count) {
         return false;
     }
@@ -107,13 +107,13 @@ bool FixedCircularBuffer<T, Capacity>::write(const T* values, std::size_t count)
 }
 
 template <typename T, std::size_t Capacity>
-bool FixedCircularBuffer<T, Capacity>::eraseFront() {
+bool RingBuffer<T, Capacity>::eraseFront() {
     return eraseFrontN(1);
 }
 
 
 template <typename T, std::size_t Capacity>
-bool FixedCircularBuffer<T, Capacity>::eraseFrontN(std::size_t count) {
+bool RingBuffer<T, Capacity>::eraseFrontN(std::size_t count) {
     if (count > m_count) {
         return false;
     }
@@ -127,28 +127,28 @@ bool FixedCircularBuffer<T, Capacity>::eraseFrontN(std::size_t count) {
 }
 
 template <typename T, std::size_t Capacity>
-T& FixedCircularBuffer<T, Capacity>::readFront() {
+T& RingBuffer<T, Capacity>::readFront() {
     return m_records[m_head];
 }
 
 template <typename T, std::size_t Capacity>
-const T& FixedCircularBuffer<T, Capacity>::readFront() const {
+const T& RingBuffer<T, Capacity>::readFront() const {
     return m_records[m_head];
 }
 
 template <typename T, std::size_t Capacity>
-T& FixedCircularBuffer<T, Capacity>::readAt(std::size_t offset) {
+T& RingBuffer<T, Capacity>::readAt(std::size_t offset) {
     return m_records[_wrapIndexP1(m_head + offset)];
 }
 
 template <typename T, std::size_t Capacity>
-const T& FixedCircularBuffer<T, Capacity>::readAt(std::size_t offset) const {
+const T& RingBuffer<T, Capacity>::readAt(std::size_t offset) const {
     return m_records[_wrapIndexP1(m_head + offset)];
 }
 
 
 template <typename T, std::size_t Capacity>
-bool FixedCircularBuffer<T, Capacity>::copyFrom(std::size_t offset, T* out, std::size_t count) const {
+bool RingBuffer<T, Capacity>::copyFrom(std::size_t offset, T* out, std::size_t count) const {
     if (offset + count > m_count) {
         return false;
     }
@@ -170,6 +170,6 @@ bool FixedCircularBuffer<T, Capacity>::copyFrom(std::size_t offset, T* out, std:
 }
 
 template <typename T, std::size_t Capacity>
-std::size_t FixedCircularBuffer<T, Capacity>::_wrapIndexP1(std::size_t idx) const {
+std::size_t RingBuffer<T, Capacity>::_wrapIndexP1(std::size_t idx) const {
     return idx & (Capacity - 1);
 }
