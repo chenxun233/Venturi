@@ -28,70 +28,10 @@ ProtocolConfig makeProtocolConfig(const DummyExchangeConfig& config) {
     return protocol;
 }
 
-const char* readSoupTypeName(uint8_t type) {
-    switch (type) {
-        case static_cast<uint8_t>('A'):
-            return "LOGIN_ACCEPTED";
-        case static_cast<uint8_t>('J'):
-            return "LOGIN_REJECTED";
-        case static_cast<uint8_t>('S'):
-            return "SEQUENCED_DATA";
-        case static_cast<uint8_t>('H'):
-            return "SERVER_HEARTBEAT";
-        case static_cast<uint8_t>('L'):
-            return "LOGIN_REQUEST";
-        case static_cast<uint8_t>('U'):
-            return "UNSEQUENCED_DATA";
-        case static_cast<uint8_t>('R'):
-            return "CLIENT_HEARTBEAT";
-        case static_cast<uint8_t>('O'):
-            return "LOGOUT_REQUEST";
-        default:
-            return "UNKNOWN";
-    }
-}
 
-const char* readOuchTypeName(uint8_t type) {
-    switch (type) {
-        case static_cast<uint8_t>('O'):
-            return "ENTER_ORDER";
-        case static_cast<uint8_t>('A'):
-            return "ACCEPTED";
-        case static_cast<uint8_t>('E'):
-            return "EXECUTED";
-        case static_cast<uint8_t>('J'):
-            return "REJECTED";
-        default:
-            return "UNKNOWN";
-    }
-}
 
-void printSOUPFrameInfo(uint64_t session_id, const uint8_t* bytes, std::size_t size) {
-    if (size < 3) {
-        std::printf("ExchangeTx session=%llu soup=SHORT_PACKET bytes=%zu\n",
-                    static_cast<unsigned long long>(session_id),
-                    size);
-        std::fflush(stdout);
-        return;
-    }
 
-    const uint8_t soup_type = bytes[2];
-    std::printf("ExchangeTx session=%llu soup=%s(%c) bytes=%zu",
-                static_cast<unsigned long long>(session_id),
-                readSoupTypeName(soup_type),
-                static_cast<char>(soup_type),
-                size);
 
-    if (soup_type == static_cast<uint8_t>('S') && size >= 4U) {
-        const uint8_t ouch_type = bytes[3];
-        std::printf(" ouch=%s(%c)",
-                    readOuchTypeName(ouch_type),
-                    static_cast<char>(ouch_type));
-    }
-
-    std::printf("\n");
-    std::fflush(stdout);
-}
 
 int openListenSocket(const DummyExchangeConfig& config) {
     const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -325,7 +265,6 @@ bool DummyServer::_flushRuntimeOutbound(int slot_idx) {
             return ::epoll_ctl(m_epoll_fd, EPOLL_CTL_MOD, m_transport.readFd(slot_idx), &server_slot.event) == 0;
         }
 
-        printSOUPFrameInfo(m_protocol.readSessionId(slot_idx), frame.payload.data(), frame.size);
         m_protocol.eraseFrontOutboundFrame(slot_idx);
     }
 

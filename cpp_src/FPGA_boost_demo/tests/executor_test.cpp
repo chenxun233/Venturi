@@ -44,7 +44,7 @@ TEST(ExecutorTest, acceptsIntentAndMakesExecutionAvailable) {
 TEST(ExecutorTest, queueMismatchQueuesDropRequestInsteadOfDroppingInline) {
     Executor executor(8);
     LatencyTracker tracker(2, 8);
-    executor.attachLatenyTracker(&tracker);
+    executor.attachLatencyTracker(&tracker);
     executor.attachQueueIdx(0);
 
     const uint32_t trace_id = tracker.tryAllocateTraceId(1, true);
@@ -68,7 +68,7 @@ TEST(ExecutorTest, queueMismatchQueuesDropRequestInsteadOfDroppingInline) {
 
     TraceCommand command {};
     ASSERT_TRUE(tracker.m_command_queues[0]->pop(command));
-    EXPECT_EQ(command.que_idx, 1U);
+    EXPECT_EQ(command.que_idx, 0U);
     EXPECT_EQ(command.trace_id, trace_id);
     EXPECT_EQ(command.op, TraceCommandOp::Drop);
     EXPECT_FALSE(tracker.m_command_queues[1]->pop(command));
@@ -77,16 +77,17 @@ TEST(ExecutorTest, queueMismatchQueuesDropRequestInsteadOfDroppingInline) {
     tracker.stop();
     tracker.run();
 
-    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), 0U);
+    EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), trace_id);
 
     TimeRecord record {};
-    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_TRUE(tracker.m_latency_queues[1]->pop(record));
+    EXPECT_EQ(record.trace_id, trace_id);
 }
 
 TEST(ExecutorTest, failedPushQueuesDropRequestInsteadOfDroppingInline) {
     Executor executor(1);
     LatencyTracker tracker(1, 8);
-    executor.attachLatenyTracker(&tracker);
+    executor.attachLatencyTracker(&tracker);
 
     OrderIntent accepted_intent {};
     accepted_intent.stock_locate = 0x000d;

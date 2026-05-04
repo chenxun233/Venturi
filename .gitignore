@@ -21,3 +21,4 @@ mkdocs/
 docs/
 build/
 cpp_src/FPGA_boost_demo/tests/
+progress/

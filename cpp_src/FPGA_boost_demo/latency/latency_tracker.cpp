@@ -9,15 +9,13 @@
 
 namespace {
 
-constexpr std::array<stage, 10> kRequiredStages = {{
+constexpr std::array<stage, 8> kRequiredStages = {{
     stage::FRAME_START,
     stage::DMA_EMIT,
     stage::BATCH_START,
     stage::BATCH_END,
     stage::STRATEGY_START,
     stage::TX_SENDER_EXECUTION_ACCEPTED,
-    stage::TX_SEND_ENQUEUE,
-    stage::TX_SEND_ENTER,
     stage::TX_SEND_SYSCALL_ENTER,
     stage::TX_SEND,
 }};
@@ -130,6 +128,7 @@ bool LatencyTracker::requestDrop(uint16_t que_idx,
     if (m_command_queues[que_idx]->push(command)) {
         return true;
     }
+    return false;
 }
 
 void LatencyTracker::run() noexcept {
@@ -148,7 +147,7 @@ void LatencyTracker::stop() noexcept {
 void LatencyTracker::printDebugSummary() const noexcept {
     std::printf("Latency Tracker Debug Summary\n");
     for (uint16_t que_idx = 0; que_idx < m_queue_num; ++que_idx) {
-        std::printf("queue=%u started=%llu finalize_requested=%llu completed=%llu drop_requested=%llu missing_trace=%llu stage_mismatch=%llu active_trace=%u\n",
+        std::printf("queue=%u traced_started=%llu traced_finalize_requested=%llu traced_completed=%llu traced_drop_requested=%llu traced_missing_records=%llu traced_stage_mismatch_drops=%llu active_trace_id=%u\n",
                     static_cast<unsigned int>(que_idx),
                     static_cast<unsigned long long>(
                         m_started_trace_counts[que_idx].load(std::memory_order_relaxed)),
@@ -200,8 +199,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
     uint64_t batch_end_tick = 0U;
     uint64_t strategy_start_tick = 0U;
     uint64_t tx_execution_accepted_tick = 0U;
-    uint64_t tx_enqueue_tick = 0U;
-    uint64_t tx_send_enter_tick = 0U;
     uint64_t tx_send_syscall_enter_tick = 0U;
 
     for (std::size_t stage_idx = 0; stage_idx < kRequiredStages.size(); ++stage_idx) {
@@ -275,8 +272,8 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                 completed_record.STRATEGY_START_to_TX_SEND_ACCEPTED = delta_ns;
                 break;
             }
-            case stage::TX_SEND_ENQUEUE: {
-                tx_enqueue_tick = record.time_captured;
+            case stage::TX_SEND_SYSCALL_ENTER: {
+                tx_send_syscall_enter_tick = record.time_captured;
                 const int64_t delta_ns =
                     _hostTick2ns(record.time_captured, tx_execution_accepted_tick);
                 if (delta_ns < 0) {
@@ -285,33 +282,7 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                     _clearActiveTraceID(que_idx, trace_id);
                     return;
                 }
-                completed_record.TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE = delta_ns;
-                break;
-            }
-            case stage::TX_SEND_ENTER: {
-                tx_send_enter_tick = record.time_captured;
-                const int64_t delta_ns =
-                    _hostTick2ns(record.time_captured, tx_enqueue_tick);
-                if (delta_ns < 0) {
-                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _cleanLatencyQueue(que_idx);
-                    _clearActiveTraceID(que_idx, trace_id);
-                    return;
-                }
-                completed_record.TX_SEND_ENQUEUE_to_TX_SEND_ENTER = delta_ns;
-                break;
-            }
-            case stage::TX_SEND_SYSCALL_ENTER: {
-                tx_send_syscall_enter_tick = record.time_captured;
-                const int64_t delta_ns =
-                    _hostTick2ns(record.time_captured, tx_send_enter_tick);
-                if (delta_ns < 0) {
-                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
-                    _cleanLatencyQueue(que_idx);
-                    _clearActiveTraceID(que_idx, trace_id);
-                    return;
-                }
-                completed_record.TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER = delta_ns;
+                completed_record.TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER = delta_ns;
                 break;
             }
             case stage::TX_SEND: {

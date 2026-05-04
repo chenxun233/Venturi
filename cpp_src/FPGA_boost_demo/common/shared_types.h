@@ -48,12 +48,10 @@ enum stage {
     TX_EXECUTION_DEQUEUE = 7,
     TX_ORDER_FRAME_BUILT = 8,
     TX_PENDING_RECORDED = 9,
-    TX_SEND_ENQUEUE = 10,
-    TX_SEND_ENTER = 11,
-    TX_SEND_SYSCALL_ENTER = 12,
-    TX_SEND = 13,
-    BATCH_START = 14,
-    BATCH_END = 15
+    TX_SEND_SYSCALL_ENTER = 11,
+    TX_SEND = 12,
+    BATCH_START = 13,
+    BATCH_END = 14
 };
 
 struct TimeRecord {
@@ -90,9 +88,7 @@ struct LatencyLogRecord {
     int64_t     BATCH_DURATION {0};
     int64_t     BATCH_END_to_STRATEGY_START {0};
     int64_t     STRATEGY_START_to_TX_SEND_ACCEPTED {0};
-    int64_t     TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE {0};
-    int64_t     TX_SEND_ENQUEUE_to_TX_SEND_ENTER {0};
-    int64_t     TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER {0};
+    int64_t     TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER {0};
     int64_t     TX_SEND_SYSCALL_ENTER_to_TX_SEND {0};
 };
 
@@ -140,11 +136,7 @@ struct OrderExecution {
     OrderIntentPayload order {};
 };
 
-struct ExecutionLogRecord {
-    uint16_t que_idx {0};
-    uint16_t stock_locate {0};
-    OrderIntentPayload intent {};
-};
+
 
 enum class TxEventKind : uint8_t {
     ConnectionEstablished,
@@ -164,25 +156,41 @@ struct TxOutboundRecord {
 
 };
 
+struct TxSentOrderRecord {
+    uint32_t user_ref_num {0};
+    uint16_t stock_locate {0};
+    uint16_t que_idx {0};
+    uint64_t event_tag {0};
+    uint32_t trace_id {0};
+    uint32_t price {0};
+    uint32_t shares {0};
+};
+
+struct TxReceiverStats {
+    uint64_t sent {0};
+    uint64_t accepted {0};
+    uint64_t filled {0};
+    uint64_t rejected {0};
+    uint64_t pending {0};
+    uint64_t malformed {0};
+    uint64_t ref_drops {0};
+    uint64_t connected {0};
+    uint64_t disconnected {0};
+};
+
 struct TxLogRecord {
     uint16_t que_idx {0};
     TxEventKind event {TxEventKind::ConnectionEstablished};
 };
 
-struct TxInboundFrame {
-    std::array<uint8_t, 67> payload {};
-    uint8_t payload_length {0};
-};
+
 
 enum class TxConnectionKind : uint8_t {
     Connected,
     Disconnected,
 };
 
-enum class TxTransportEvent : uint8_t {
-    Connected,
-    Disconnected,
-};
+
 
 struct TxConnectionInfo {
     TxConnectionKind kind {TxConnectionKind::Disconnected};
@@ -195,30 +203,7 @@ struct TxDisconnectNotice {
     uint16_t reason {0};
 };
 
-enum class TxSenderInboundKind : uint8_t {
-    Frame,
-    TransportEvent,
-};
 
-struct TxSenderInboundRecord {
-    TxSenderInboundKind kind {TxSenderInboundKind::Frame};
-    TxInboundFrame frame {};
-    TxConnectionInfo transport_event {};
-};
 
-enum class AsyncLogKind : uint8_t {
-    Latency,
-    Snapshot,
-    RegressionStatus,
-    Execution,
-    Tx
-};
 
-struct AsyncLogRecord {
-    AsyncLogKind kind {AsyncLogKind::Latency};
-    LatencyLogRecord latency {};
-    FpgaSyncSnapshot snapshot {};
-    RegressionStatusLogRecord regression_status {};
-    ExecutionLogRecord execution {};
-    TxLogRecord tx {};
-};
+

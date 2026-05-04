@@ -6,7 +6,7 @@ class LatencyTracker;
 class BasicStrategy {
 public:
     virtual ~BasicStrategy() = default;
-    void attachLatenyTracker(LatencyTracker* latency_tracker) {
+    void attachLatencyTracker(LatencyTracker* latency_tracker) {
         p_latency_tracker = latency_tracker;
     }
 

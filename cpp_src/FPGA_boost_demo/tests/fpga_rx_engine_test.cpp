@@ -62,7 +62,7 @@ TEST(FpgaRxEngineTest, pollDecodedBatchSyncDecodesSnapshotWithoutTracing) {
     FPGARxDecoder decoder {};
     FPGARxEngine engine(dev, decoder, 0);
     LatencyTracker tracker(1, 8);
-    engine.attachLatenyTracker(&tracker);
+    engine.attachLatencyTracker(&tracker);
     FPGAEventDesc out[1] {};
     FpgaSyncSnapshot snapshot {};
 
@@ -86,7 +86,7 @@ TEST(FpgaRxEngineTest, firstEventPushesTracingStagesWithOneSharedTraceId) {
     FPGARxDecoder decoder {};
     FPGARxEngine engine(dev, decoder, 0);
     LatencyTracker tracker(1, 8);
-    engine.attachLatenyTracker(&tracker);
+    engine.attachLatencyTracker(&tracker);
     FPGAEventDesc out[1] {};
 
     const uint64_t before_ns = readMonotonicRawNs();
@@ -124,7 +124,7 @@ TEST(FpgaRxEngineTest, nonFirstEventDoesNotAllocateTraceId) {
     FPGARxDecoder decoder {};
     FPGARxEngine engine(dev, decoder, 0);
     LatencyTracker tracker(1, 8);
-    engine.attachLatenyTracker(&tracker);
+    engine.attachLatencyTracker(&tracker);
     FPGAEventDesc out[1] {};
 
     ASSERT_EQ(engine.pollDecodedBatch(1, out), 1U);
@@ -145,7 +145,7 @@ TEST(FpgaRxEngineTest, activeTraceBlocksLaterFirstEventUntilFinalizeClearsIt) {
     FPGARxDecoder decoder {};
     FPGARxEngine engine(dev, decoder, 0);
     LatencyTracker tracker(1, 16);
-    engine.attachLatenyTracker(&tracker);
+    engine.attachLatencyTracker(&tracker);
     FPGAEventDesc out[2] {};
 
     ASSERT_EQ(engine.pollDecodedBatch(2, out), 2U);

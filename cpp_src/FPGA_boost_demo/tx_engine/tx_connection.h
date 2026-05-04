@@ -13,10 +13,10 @@ struct GatewayClientConfig {
     std::string server_ip                       {"192.168.51.2"};
     uint16_t port                               {9000};
     std::chrono::milliseconds reconnect_delay   {250};
-    std::chrono::microseconds idle_sleep        {100};
 };
 
 class TxSender;
+class TxReceiver;
 class LogPrinter;
 
 class TxConnection {
@@ -33,6 +33,7 @@ public:
     void attachLogPrinter(LogPrinter* log_printer);
     void attachQueueIdx(uint16_t que_idx);
     void attachSender(TxSender* sender);
+    void attachReceiver(TxReceiver* receiver);
     bool pollConnect();
     bool recvSenderDisconNotice(const TxDisconnectNotice& notice);
 
@@ -54,9 +55,11 @@ private:
     uint16_t m_queue_idx {0};
     bool m_has_queue_idx {false};
     TxSender* m_sender {nullptr};
+    TxReceiver* m_receiver {nullptr};
     SpscRingBuffer<TxDisconnectNotice> m_sender_disconnect_notices{8};
     int m_socket_fd {-1};
     uint64_t m_socket_generation {0};
     TxConnectionInfo m_sender_connection_info {};
+    TxConnectionInfo m_receiver_connection_info {};
     std::chrono::steady_clock::time_point m_next_connect_attempt_time {};
 };

@@ -521,7 +521,7 @@ ExchangeValidationResult ProtocolSession::_validateEnterOrder(const ExchangeEnte
 }
 
 bool ProtocolSession::_insertReplayResult(uint32_t user_ref_num, const HandledOrderResult& result) {
-    if (m_replay_entries.empty() || m_replay_count >= m_replay_entries.size()) {
+    if (m_replay_entries.empty()) {
         return false;
     }
 
@@ -541,7 +541,12 @@ bool ProtocolSession::_insertReplayResult(uint32_t user_ref_num, const HandledOr
             return true;
         }
     }
-    return false;
+
+    ReplayEntry& entry = m_replay_entries[start];
+    entry.is_occupied = true;
+    entry.user_ref_num = user_ref_num;
+    entry.result = result;
+    return true;
 }
 
 std::optional<HandledOrderResult> ProtocolSession::_findReplayResult(uint32_t user_ref_num) const {

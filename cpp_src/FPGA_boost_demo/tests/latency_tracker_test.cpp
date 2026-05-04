@@ -51,8 +51,6 @@ void pushCompleteTraceRecords(LatencyTracker& tracker,
                                   trace_id,
                                   stage::TX_SENDER_EXECUTION_ACCEPTED,
                                   1500U));
-    tracker.pushRecord(makeRecord(que_idx, event_tag, trace_id, stage::TX_SEND_ENQUEUE, 1540U));
-    tracker.pushRecord(makeRecord(que_idx, event_tag, trace_id, stage::TX_SEND_ENTER, 1550U));
     tracker.pushRecord(makeRecord(que_idx,
                                   event_tag,
                                   trace_id,
@@ -192,12 +190,14 @@ TEST(LatencyTrackerTest, requestDropCanUseProducerQueueDifferentFromTargetQueue)
 
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[1]), trace_id);
 
+    ASSERT_TRUE(tracker.requestDrop(1, trace_id));
+
     TraceCommand command {};
-    ASSERT_TRUE(tracker.m_command_queues[0]->pop(command));
+    ASSERT_TRUE(tracker.m_command_queues[1]->pop(command));
     EXPECT_EQ(command.que_idx, 1U);
     EXPECT_EQ(command.trace_id, trace_id);
     EXPECT_EQ(command.op, TraceCommandOp::Drop);
-    EXPECT_FALSE(tracker.m_command_queues[1]->pop(command));
+    EXPECT_FALSE(tracker.m_command_queues[0]->pop(command));
 }
 
 TEST(LatencyTrackerTest, defaultCommandQueueCapacityAbsorbsModerateBurst) {
@@ -287,6 +287,8 @@ TEST(LatencyTrackerTest, stopCausesRunToDrainPendingCommandsBeforeExit) {
     ASSERT_EQ(analyzer.m_completed_records[0].size(), 1U);
     EXPECT_EQ(analyzer.m_completed_records[0][0].event_tag, 1001ULL);
     EXPECT_EQ(analyzer.m_completed_records[0][0].FRAME_START_to_DMA_EMIT, 64U);
+    EXPECT_GT(analyzer.m_completed_records[0][0].TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER,
+              0);
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 0U);
 
     TimeRecord leftover {};
@@ -321,6 +323,8 @@ TEST(LatencyTrackerTest, runProcessesQueuedFinalizeBeforeStopIsCalled) {
     ASSERT_EQ(analyzer.m_completed_records[0].size(), 1U);
     EXPECT_EQ(analyzer.m_completed_records[0][0].event_tag, 1001ULL);
     EXPECT_EQ(analyzer.m_completed_records[0][0].FRAME_START_to_DMA_EMIT, 64U);
+    EXPECT_GT(analyzer.m_completed_records[0][0].TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER,
+              0);
 }
 
 TEST(LatencyTrackerTest, runConsumesQueuedDropAndClearsActiveTrace) {

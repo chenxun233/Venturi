@@ -85,8 +85,6 @@ set(FPGA_DRIVER_DIR ${FPGA_ROOT}/driver)
 set(FPGA_ADAPTER_DIR ${FPGA_ROOT}/decoder)
 set(FPGA_ENGINE_DIR ${FPGA_ROOT}/rx_engine)
 set(FPGA_LATENCY_DIR ${FPGA_ROOT}/latency)
-set(FPGA_PROTOCOL_DIR ${FPGA_ROOT}/protocol)
-set(FPGA_RUNTIME_DIR ${FPGA_ROOT}/runtime)
 set(FPGA_SYNC_DIR ${FPGA_ROOT}/sync)
 set(FPGA_STRATEGY_DIR ${FPGA_ROOT}/strategy)
 set(FPGA_TX_DIR ${FPGA_ROOT}/tx_engine)
@@ -130,6 +128,7 @@ add_executable(Venturi
     ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
     ${FPGA_TX_DIR}/executor.cpp
     ${FPGA_TX_DIR}/tx_connection.cpp
+    ${FPGA_TX_DIR}/tx_receiver.cpp
     ${FPGA_TX_DIR}/tx_sender.cpp
     ${FPGA_APP_DIR}/Venturi.cpp
 )
@@ -141,7 +140,6 @@ target_include_directories(Venturi PRIVATE
     ${FPGA_ADAPTER_DIR}
     ${FPGA_ENGINE_DIR}
     ${FPGA_LATENCY_DIR}
-    ${FPGA_PROTOCOL_DIR}
     ${FPGA_SYNC_DIR}
     ${FPGA_STRATEGY_DIR}
     ${FPGA_TX_DIR}
@@ -227,6 +225,7 @@ if(TARGET GTest::gtest_main)
 
     add_executable(tx_translator_test
         ${FPGA_TX_DIR}/tx_connection.cpp
+        ${FPGA_TX_DIR}/tx_receiver.cpp
         ${FPGA_TX_DIR}/tx_sender.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
@@ -328,6 +327,7 @@ if(TARGET GTest::gtest_main)
 
     add_executable(tx_log_record_test
         ${FPGA_TX_DIR}/tx_connection.cpp
+        ${FPGA_TX_DIR}/tx_receiver.cpp
         ${FPGA_TX_DIR}/tx_sender.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
@@ -344,6 +344,20 @@ if(TARGET GTest::gtest_main)
         ${FPGA_TEST_DIR}
     )
     target_link_libraries(tx_log_record_test PRIVATE
+        GTest::gtest_main
+    )
+
+    add_executable(tx_receiver_feedback_test
+        ${FPGA_TX_DIR}/tx_receiver.cpp
+        ${FPGA_COMMON_DIR}/thread_affinity.cpp
+        ${FPGA_TEST_DIR}/tx_receiver_feedback_test.cpp
+    )
+    target_include_directories(tx_receiver_feedback_test PRIVATE
+        ${FPGA_TX_DIR}
+        ${FPGA_ROOT}/common
+        ${FPGA_TEST_DIR}
+    )
+    target_link_libraries(tx_receiver_feedback_test PRIVATE
         GTest::gtest_main
     )
 
@@ -440,6 +454,7 @@ if(TARGET GTest::gtest_main)
     gtest_discover_tests(executor_test)
     gtest_discover_tests(dummy_exchange_server_test)
     gtest_discover_tests(tx_log_record_test)
+    gtest_discover_tests(tx_receiver_feedback_test)
     gtest_discover_tests(log_printer_test)
     gtest_discover_tests(latency_tracker_test)
     gtest_discover_tests(latency_analyzer_test)
@@ -461,7 +476,6 @@ message(STATUS "")
 message(STATUS "Build targets:")
 message(STATUS "  - test_app_loopsend    (Intel 82599 loop send test)")
 message(STATUS "  - test_app_pcap        (Intel 82599 packet capture)")
-message(STATUS "  - test_fpga_hello      (FPGA standalone test)")
 message(STATUS "  - test_fpga_hello_v2   (FPGA infrastructure test)")
 message(STATUS "  - test_fpga_rx_adapter (FPGA RX decoder event pollBatch demo)")
 message(STATUS "")

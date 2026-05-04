@@ -24,7 +24,7 @@ uint32_t readActiveTraceId(const TraceIdSlot& trace_id) {
 TEST(DummyStrategyTest, tracedEventPushesStrategyStartRecordAndPropagatesTraceId) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);
-    strategy.attachLatenyTracker(&tracker);
+    strategy.attachLatencyTracker(&tracker);
 
     FPGAEventDesc event {};
     event.stock_locate = 0x000d;
@@ -52,7 +52,7 @@ TEST(DummyStrategyTest, tracedEventPushesStrategyStartRecordAndPropagatesTraceId
 TEST(DummyStrategyTest, untracedEventDoesNotPushStrategyRecord) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);
-    strategy.attachLatenyTracker(&tracker);
+    strategy.attachLatencyTracker(&tracker);
 
     FPGAEventDesc event {};
     event.stock_locate = 0x000d;
@@ -74,7 +74,7 @@ TEST(DummyStrategyTest, untracedEventDoesNotPushStrategyRecord) {
 TEST(DummyStrategyTest, rejectedTracedEventQueuesDropRequestInsteadOfDroppingInline) {
     DummyStrategy strategy;
     LatencyTracker tracker(1, 8);
-    strategy.attachLatenyTracker(&tracker);
+    strategy.attachLatencyTracker(&tracker);
 
     const uint32_t trace_id = tracker.tryAllocateTraceId(0, true);
     ASSERT_NE(trace_id, 0U);

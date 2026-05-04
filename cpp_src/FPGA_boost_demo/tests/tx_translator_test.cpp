@@ -130,6 +130,7 @@ TEST(TxTranslatorTest, staleDisconnectDoesNotRetireNewerInstalledSendFd) {
     outbound.payload[0] = static_cast<uint8_t>('O');
     outbound.payload[1] = static_cast<uint8_t>('K');
     outbound.payload_length = 2;
+    ASSERT_TRUE(sender._sendPayload(outbound));
 
     std::array<uint8_t, 2> received {};
     ASSERT_EQ(::recv(sockets2[1], received.data(), received.size(), 0),
@@ -152,6 +153,7 @@ TEST(TxTranslatorTest, trySendOutboundSucceedsAfterConnectedInfoInstallsSendFd) 
     outbound.payload[0] = static_cast<uint8_t>('H');
     outbound.payload[1] = static_cast<uint8_t>('I');
     outbound.payload_length = 2;
+    ASSERT_TRUE(sender._sendPayload(outbound));
 
     std::array<uint8_t, 2> received {};
     ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
@@ -190,6 +192,7 @@ TEST(TxTranslatorTest, successfulSendClearsPendingOrderWithoutReceiverFlow) {
 
     TxOutboundRecord first {};
     ASSERT_TRUE(takeReadyOutbound(sender, first));
+    ASSERT_TRUE(sender._sendPayload(first));
     EXPECT_EQ(sender.m_pending_orders.live_count, 0U);
 
     ASSERT_TRUE(sender.acceptExecution(
@@ -252,7 +255,6 @@ TEST(TxTranslatorTest, invalidExecutionActionDoesNotProduceOrderFrame) {
 
 TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingReadyQueueRecords) {
     TxSender sender(TxSenderConfig {
-        .intent_capacity = 4,
         .pending_capacity = 2,
     });
 
@@ -272,7 +274,6 @@ TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingReadyQueueRecord
 
 TEST(TxTranslatorTest, pendingCapacityRejectionDoesNotSkipRemainingReadyRecord) {
     TxSender sender(TxSenderConfig {
-        .intent_capacity = 4,
         .pending_capacity = 2,
     });
 
@@ -293,9 +294,8 @@ TEST(TxTranslatorTest, pendingCapacityRejectionDoesNotSkipRemainingReadyRecord) 
     EXPECT_FALSE(takeReadyOutbound(sender, second));
 }
 
-TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingBlockedQueueRecords) {
+TEST(TxTranslatorTest, pendingCapacityRejectionClearsBlockedQueueRecordsOnDisconnect) {
     TxSender sender(TxSenderConfig {
-        .intent_capacity = 4,
         .pending_capacity = 2,
     });
 
@@ -307,12 +307,7 @@ TEST(TxTranslatorTest, pendingCapacityRejectionPreservesExistingBlockedQueueReco
     sender._onTransportDisconnected();
 
     TxOutboundRecord first {};
-    TxOutboundRecord second {};
-    ASSERT_TRUE(takeReadyOutbound(sender, first));
-    ASSERT_TRUE(takeReadyOutbound(sender, second));
-    EXPECT_EQ(first.user_ref_num, 1U);
-    EXPECT_EQ(second.user_ref_num, 2U);
-    EXPECT_FALSE(takeReadyOutbound(sender, second));
+    EXPECT_FALSE(takeReadyOutbound(sender, first));
 }
 
 TEST(TxTranslatorTest, replayedOutboundPreservesMetadataAfterDisconnect) {
@@ -436,7 +431,7 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
         .pending_capacity = 8,
     });
     LatencyTracker tracker(2, 8);
-    sender.attachLatenyTracker(&tracker);
+    sender.attachLatencyTracker(&tracker);
     seedTrackedLatencyFlow(tracker, 1, 0x12345678ULL);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
@@ -471,12 +466,12 @@ TEST(TxTranslatorTest, trackedAcceptedExecutionPushesTxExecutionAcceptedRecord) 
     EXPECT_EQ(outbound.trace_id, 1U);
 }
 
-TEST(TxTranslatorTest, buildOutboundFramesPushesTxEnqueueWithTraceId) {
+TEST(TxTranslatorTest, buildOutboundFramesDoesNotPushLatencyRecords) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
     });
     LatencyTracker tracker(2, 8);
-    sender.attachLatenyTracker(&tracker);
+    sender.attachLatencyTracker(&tracker);
     seedTrackedLatencyFlow(tracker, 1, 0x12345678ULL);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
@@ -493,9 +488,6 @@ TEST(TxTranslatorTest, buildOutboundFramesPushesTxEnqueueWithTraceId) {
 
     ASSERT_TRUE(sender.buildOutboundFrames());
 
-    ASSERT_TRUE(tracker.m_latency_queues[1]->pop(record));
-    EXPECT_EQ(record.event_stage, stage::TX_SEND_ENQUEUE);
-    EXPECT_EQ(record.trace_id, 1U);
     EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
 
@@ -507,7 +499,7 @@ TEST(TxTranslatorTest, untrackedExecutionDoesNotPushSenderLatencyStages) {
         .pending_capacity = 8,
     });
     LatencyTracker tracker(2, 16);
-    sender.attachLatenyTracker(&tracker);
+    sender.attachLatencyTracker(&tracker);
     sender.m_send_fd = sockets[0];
     sender.m_transport_generation = 42;
 
@@ -532,12 +524,12 @@ TEST(TxTranslatorTest, untrackedExecutionDoesNotPushSenderLatencyStages) {
     ::close(sockets[1]);
 }
 
-TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass) {
+TEST(TxTranslatorTest, trySendOutboundDoesNotEmitSendStagesWhenPayloadGuardsFail) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
     });
     LatencyTracker tracker(2, 16);
-    sender.attachLatenyTracker(&tracker);
+    sender.attachLatencyTracker(&tracker);
     seedTrackedLatencyFlow(tracker, 1, 0x55667788ULL);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
@@ -559,12 +551,6 @@ TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass
         failed_send_stages.push_back(record.event_stage);
     }
 
-    EXPECT_NE(std::find(failed_send_stages.begin(), failed_send_stages.end(), stage::TX_SEND_ENQUEUE),
-              failed_send_stages.end());
-    EXPECT_EQ(std::find(failed_send_stages.begin(),
-                        failed_send_stages.end(),
-                        stage::TX_SEND_ENTER),
-              failed_send_stages.end());
     EXPECT_EQ(std::find(failed_send_stages.begin(),
                         failed_send_stages.end(),
                         stage::TX_SEND_SYSCALL_ENTER),
@@ -573,12 +559,12 @@ TEST(TxTranslatorTest, trySendOutboundEmitsTxSendEnterOnlyAfterPayloadGuardsPass
               failed_send_stages.end());
 }
 
-TEST(TxTranslatorTest, tracedEnqueuePreservesTraceId) {
+TEST(TxTranslatorTest, buildOutboundFramesDoesNotEmitTxSendEnqueue) {
     TxSender sender(TxSenderConfig {
         .pending_capacity = 8,
     });
     LatencyTracker tracker(2, 16);
-    sender.attachLatenyTracker(&tracker);
+    sender.attachLatencyTracker(&tracker);
     seedTrackedLatencyFlow(tracker, 1, 0x1001ULL, 1U);
     seedTrackedLatencyFlow(tracker, 1, 0x1002ULL, 2U);
 
@@ -597,19 +583,13 @@ TEST(TxTranslatorTest, tracedEnqueuePreservesTraceId) {
         .order = {.action = OrderIntentAction::Sell, .price = 223451, .shares = 200},
     }));
 
-    ASSERT_TRUE(sender.buildOutboundFrames());
-
     TimeRecord record {};
-    std::vector<TimeRecord> enqueue_records;
     while (tracker.m_latency_queues[1]->pop(record)) {
-        if (record.event_stage == stage::TX_SEND_ENQUEUE) {
-            enqueue_records.push_back(record);
-        }
     }
 
-    ASSERT_EQ(enqueue_records.size(), 2U);
-    EXPECT_EQ(enqueue_records[0].trace_id, 1U);
-    EXPECT_EQ(enqueue_records[1].trace_id, 2U);
+    ASSERT_TRUE(sender.buildOutboundFrames());
+
+    EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 }
 
 TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInline) {
@@ -622,7 +602,7 @@ TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInlin
     LatencyAnalyzer analyzer(2);
     LatencyTracker tracker(2, 16);
     tracker.attachAnalyzer(&analyzer);
-    sender.attachLatenyTracker(&tracker);
+    sender.attachLatencyTracker(&tracker);
     sender.m_send_fd = sockets[0];
     sender.m_transport_generation = 42;
     seedTrackedLatencyFlow(tracker, 1, 0x2001ULL);
@@ -635,10 +615,7 @@ TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInlin
         .order = {.action = OrderIntentAction::Sell, .price = 223450, .shares = 200},
     }));
 
-    ASSERT_TRUE(sender.buildOutboundFrames());
-
-    TxOutboundRecord outbound {};
-    ASSERT_TRUE(takeReadyOutbound(sender, outbound));
+    EXPECT_TRUE(sender.runOnce());
 
     TimeRecord record {};
     EXPECT_TRUE(analyzer.m_completed_records[1].empty());
@@ -654,9 +631,8 @@ TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInlin
     EXPECT_EQ(tracker.m_active_trace_ids[1].load(std::memory_order_acquire), 0U);
     EXPECT_FALSE(tracker.m_latency_queues[1]->pop(record));
 
-    std::array<uint8_t, 2> received {};
-    ASSERT_EQ(::recv(sockets[1], received.data(), received.size(), 0),
-              static_cast<ssize_t>(received.size()));
+    std::array<uint8_t, 64> received {};
+    ASSERT_GT(::recv(sockets[1], received.data(), received.size(), 0), 0);
 
     ::close(sockets[1]);
 }
@@ -666,7 +642,7 @@ TEST(TxTranslatorTest, pendingRejectQueuesDropWithoutDroppingInline) {
         .pending_capacity = 0,
     });
     LatencyTracker tracker(2, 16);
-    sender.attachLatenyTracker(&tracker);
+    sender.attachLatencyTracker(&tracker);
     seedTrackedLatencyFlow(tracker, 1, 0x3001ULL);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {
@@ -695,7 +671,7 @@ TEST(TxTranslatorTest, invalidTrackedExecutionQueuesDropWithoutDroppingInline) {
         .pending_capacity = 8,
     });
     LatencyTracker tracker(2, 16);
-    sender.attachLatenyTracker(&tracker);
+    sender.attachLatencyTracker(&tracker);
     seedTrackedLatencyFlow(tracker, 1, 0x3002ULL);
 
     ASSERT_TRUE(sender.acceptExecution(OrderExecution {

@@ -20,7 +20,7 @@ public:
                                      FpgaSyncSnapshot* snapshot,
                                      FPGAEventDesc* out);
     // Non-owning; attach before polling; tracker must outlive engine; do not swap concurrently.
-    void attachLatenyTracker(LatencyTracker* latency_tracker);
+    void attachLatencyTracker(LatencyTracker* latency_tracker);
     uint64_t readDecodedCount() const noexcept;
     uint64_t readFirstEventCount() const noexcept;
     uint16_t readQueueIdx() const noexcept;

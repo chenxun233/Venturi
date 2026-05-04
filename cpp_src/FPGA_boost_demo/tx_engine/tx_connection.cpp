@@ -1,5 +1,6 @@
 #include "tx_connection.h"
 
+#include "tx_receiver.h"
 #include "tx_sender.h"
 #include "../latency/log_printer.h"
 
@@ -63,10 +64,27 @@ TxConnection::TxConnection(GatewayClientConfig config)
       m_next_connect_attempt_time(std::chrono::steady_clock::now()) {}
 
 TxConnection::~TxConnection() {
-    if (m_sender_connection_info.kind == TxConnectionKind::Connected &&
-        m_sender_connection_info.fd >= 0) {
-        ::close(m_sender_connection_info.fd);
-        m_sender_connection_info.fd = -1;
+    if (m_sender_connection_info.kind == TxConnectionKind::Connected) {
+        const TxConnectionInfo sender_info {
+            .kind = TxConnectionKind::Disconnected,
+            .generation = m_sender_connection_info.generation,
+            .fd = -1,
+        };
+        if (m_sender != nullptr) {
+            m_sender->updateConnectionInfo(sender_info);
+        }
+        m_sender_connection_info = sender_info;
+    }
+    if (m_receiver_connection_info.kind == TxConnectionKind::Connected) {
+        const TxConnectionInfo receiver_info {
+            .kind = TxConnectionKind::Disconnected,
+            .generation = m_receiver_connection_info.generation,
+            .fd = -1,
+        };
+        if (m_receiver != nullptr) {
+            m_receiver->updateConnectionInfo(receiver_info);
+        }
+        m_receiver_connection_info = receiver_info;
     }
     _closeConnection();
 }
@@ -85,6 +103,10 @@ void TxConnection::attachSender(TxSender* sender) {
     if (m_sender != nullptr) {
         m_sender->attachConnection(this);
     }
+}
+
+void TxConnection::attachReceiver(TxReceiver* receiver) {
+    m_receiver = receiver;
 }
 
 bool TxConnection::recvSenderDisconNotice(const TxDisconnectNotice& notice) {
@@ -181,23 +203,66 @@ bool TxConnection::_updateConnectedInfo() {
         return false;
     }
 
-    const int fd = ::dup(m_socket_fd);
-    if (fd < 0) {
-        return false;
+    int sender_fd = -1;
+    if (m_sender != nullptr) {
+        sender_fd = ::dup(m_socket_fd);
+        if (sender_fd < 0) {
+            return false;
+        }
+    }
+    int receiver_fd = -1;
+    if (m_receiver != nullptr) {
+        receiver_fd = ::dup(m_socket_fd);
+        if (receiver_fd < 0) {
+            if (sender_fd >= 0) {
+                ::close(sender_fd);
+            }
+            return false;
+        }
     }
 
     if (m_sender_connection_info.kind == TxConnectionKind::Connected &&
-        m_sender_connection_info.fd >= 0) {
-        ::close(m_sender_connection_info.fd);
+        m_sender != nullptr) {
+        m_sender->updateConnectionInfo(TxConnectionInfo {
+            .kind = TxConnectionKind::Disconnected,
+            .generation = m_sender_connection_info.generation,
+            .fd = -1,
+        });
+    }
+    if (m_receiver_connection_info.kind == TxConnectionKind::Connected &&
+        m_receiver != nullptr) {
+        m_receiver->updateConnectionInfo(TxConnectionInfo {
+            .kind = TxConnectionKind::Disconnected,
+            .generation = m_receiver_connection_info.generation,
+            .fd = -1,
+        });
     }
 
     m_socket_generation += 1U;
-    m_sender_connection_info = TxConnectionInfo {
-        .kind = TxConnectionKind::Connected,
-        .generation = m_socket_generation,
-        .fd = fd,
-    };
-    m_sender->updateConnectionInfo(m_sender_connection_info);
+    if (m_sender != nullptr) {
+        m_sender_connection_info = TxConnectionInfo {
+            .kind = TxConnectionKind::Connected,
+            .generation = m_socket_generation,
+            .fd = sender_fd,
+        };
+    } else {
+        m_sender_connection_info = TxConnectionInfo {};
+    }
+    if (m_receiver != nullptr) {
+        m_receiver_connection_info = TxConnectionInfo {
+            .kind = TxConnectionKind::Connected,
+            .generation = m_socket_generation,
+            .fd = receiver_fd,
+        };
+    } else {
+        m_receiver_connection_info = TxConnectionInfo {};
+    }
+    if (m_sender != nullptr) {
+        m_sender->updateConnectionInfo(m_sender_connection_info);
+    }
+    if (m_receiver != nullptr) {
+        m_receiver->updateConnectionInfo(m_receiver_connection_info);
+    }
     return true;
 }
 
@@ -217,17 +282,22 @@ bool TxConnection::_drainDisconNotices() {
 }
 
 void TxConnection::_updateDisconInfo(uint64_t generation) {
-    if (m_sender_connection_info.kind == TxConnectionKind::Connected &&
-        m_sender_connection_info.fd >= 0) {
-        ::close(m_sender_connection_info.fd);
-    }
-
     m_sender_connection_info = TxConnectionInfo {
         .kind = TxConnectionKind::Disconnected,
         .generation = generation,
         .fd = -1,
     };
-    m_sender->updateConnectionInfo(m_sender_connection_info);
+    m_receiver_connection_info = TxConnectionInfo {
+        .kind = TxConnectionKind::Disconnected,
+        .generation = generation,
+        .fd = -1,
+    };
+    if (m_sender != nullptr) {
+        m_sender->updateConnectionInfo(m_sender_connection_info);
+    }
+    if (m_receiver != nullptr) {
+        m_receiver->updateConnectionInfo(m_receiver_connection_info);
+    }
 }
 
 void TxConnection::_logConnectionEstablished() {

@@ -27,16 +27,8 @@ int64_t readStrategyStartToTxExecutionAccepted(const LatencyLogRecord& record) {
     return record.STRATEGY_START_to_TX_SEND_ACCEPTED;
 }
 
-int64_t readTxExecutionAcceptedToTxEnqueue(const LatencyLogRecord& record) {
-    return record.TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE;
-}
-
-int64_t readTxEnqueueToTxSendEnter(const LatencyLogRecord& record) {
-    return record.TX_SEND_ENQUEUE_to_TX_SEND_ENTER;
-}
-
-int64_t readTxSendEnterToTxSendSyscallEnter(const LatencyLogRecord& record) {
-    return record.TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER;
+int64_t readTxExecutionAcceptedToTxSendSyscallEnter(const LatencyLogRecord& record) {
+    return record.TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER;
 }
 
 int64_t readTxSendSyscallEnterToTxSend(const LatencyLogRecord& record) {
@@ -48,15 +40,14 @@ struct SummaryField {
     SampleReader reader;
 };
 
-constexpr std::array<SummaryField, 8> kSummaryFields = {{
+constexpr std::array<SummaryField, 6> kSummaryFields = {{
     {"FRAME_START_to_DMA_EMIT", &readFrameStartToDmaEmit},
     {"BATCH_DURATION", &readBatchDuration},
     {"BATCH_END_to_STRATEGY_START", &readBatchEndToStrategyStart},
     {"STRATEGY_START_to_TX_SEND_ACCEPTED",
      &readStrategyStartToTxExecutionAccepted},
-    {"TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE", &readTxExecutionAcceptedToTxEnqueue},
-    {"TX_SEND_ENQUEUE_to_TX_SEND_ENTER", &readTxEnqueueToTxSendEnter},
-    {"TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER", &readTxSendEnterToTxSendSyscallEnter},
+    {"TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER",
+     &readTxExecutionAcceptedToTxSendSyscallEnter},
     {"TX_SEND_SYSCALL_ENTER_to_TX_SEND", &readTxSendSyscallEnterToTxSend},
 }};
 

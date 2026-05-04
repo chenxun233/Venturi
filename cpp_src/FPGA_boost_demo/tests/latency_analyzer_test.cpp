@@ -15,9 +15,7 @@ TEST(LatencyAnalyzerTest, warmupDropsLeadingRecordsPerQueue) {
         .BATCH_DURATION = 100,
         .BATCH_END_to_STRATEGY_START = 200,
         .STRATEGY_START_to_TX_SEND_ACCEPTED = 300,
-        .TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE = 400,
-        .TX_SEND_ENQUEUE_to_TX_SEND_ENTER = 500,
-        .TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER = 600,
+        .TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER = 1000,
         .TX_SEND_SYSCALL_ENTER_to_TX_SEND = 700,
     });
     analyzer.pushCompletedRecord(LatencyLogRecord {
@@ -27,9 +25,7 @@ TEST(LatencyAnalyzerTest, warmupDropsLeadingRecordsPerQueue) {
         .BATCH_DURATION = 120,
         .BATCH_END_to_STRATEGY_START = 220,
         .STRATEGY_START_to_TX_SEND_ACCEPTED = 320,
-        .TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE = 420,
-        .TX_SEND_ENQUEUE_to_TX_SEND_ENTER = 520,
-        .TX_SEND_ENTER_to_TX_SEND_SYSCALL_ENTER = 620,
+        .TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER = 1040,
         .TX_SEND_SYSCALL_ENTER_to_TX_SEND = 720,
     });
 
@@ -41,4 +37,7 @@ TEST(LatencyAnalyzerTest, warmupDropsLeadingRecordsPerQueue) {
     EXPECT_NE(output.find("warmup=1"), std::string::npos);
     EXPECT_NE(output.find("analyzed=1"), std::string::npos);
     EXPECT_NE(output.find("FRAME_START_to_DMA_EMIT"), std::string::npos);
+    EXPECT_NE(output.find("TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER"), std::string::npos);
+    EXPECT_EQ(output.find("TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE"), std::string::npos);
+    EXPECT_EQ(output.find("TX_SEND_ENQUEUE_to_TX_SEND_SYSCALL_ENTER"), std::string::npos);
 }

@@ -14,7 +14,7 @@ public:
     explicit Executor(std::size_t buffer_capacity = 1024);
     ~Executor() = default;
     void attachQueueIdx(uint16_t que_idx);
-    void attachLatenyTracker(LatencyTracker* latency_tracker);
+    void attachLatencyTracker(LatencyTracker* latency_tracker);
     bool acceptIntent(const OrderIntent& intent);
     bool popExecution(OrderExecution& execution);
 

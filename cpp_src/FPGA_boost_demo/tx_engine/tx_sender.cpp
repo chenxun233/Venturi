@@ -4,6 +4,7 @@
 #include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
 #include "tx_connection.h"
+#include "tx_receiver.h"
 
 #include <algorithm>
 #include <array>
@@ -135,9 +136,7 @@ void writeFramePayload(TxOutboundRecord& record, char side) {
 
 TxSender::TxSender(std::size_t pending_capacity)
     : TxSender(TxSenderConfig {
-          .intent_capacity = pending_capacity,
-          .pending_capacity = roundUpToPowerOfTwo(pending_capacity),
-          .transport_capacity = pending_capacity,
+          .pending_capacity = roundUpToPowerOfTwo(pending_capacity)
       }) {}
 
 TxSender::TxSender(TxSenderConfig config)
@@ -160,12 +159,16 @@ TxSender::~TxSender() {
 
 
 
-void TxSender::attachLatenyTracker(LatencyTracker* latency_tracker) {
+void TxSender::attachLatencyTracker(LatencyTracker* latency_tracker) {
     p_latency_tracker = latency_tracker;
 }
 
 void TxSender::attachConnection(TxConnection* connection) {
     p_connection = connection;
+}
+
+void TxSender::attachReceiver(TxReceiver* receiver) {
+    p_receiver = receiver;
 }
 
 bool TxSender::acceptExecution(const OrderExecution& execution) noexcept {
@@ -298,21 +301,6 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
         m_send_fd < 0) {
         return false;
     }
-
-    if (should_track_latency) {
-
-        try {
-            p_latency_tracker->pushRecord(TimeRecord {
-                .que_idx = record.que_idx,
-                .event_tag = record.event_tag,
-                .trace_id = record.trace_id,
-                .event_stage = stage::TX_SEND_ENTER,
-                .time_captured = readMonotonicRawNs(),
-            });
-        } catch (...) {
-        }
-    }
-
     std::size_t offset = 0;
     while (offset < static_cast<std::size_t>(record.payload_length)) {
         if (offset == 0 && should_track_latency) {
@@ -353,7 +341,6 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
         return false;
     }
 #endif
-
     if (should_track_latency) {
 
         try {
@@ -370,6 +357,20 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
     }
 
     // In split sender/receiver mode, sender-side progress ends at a successful send.
+    if (p_receiver != nullptr &&
+        record.user_ref_num != 0 &&
+        record.payload_length >= 4 &&
+        record.payload[2] == kSoupUnsequencedDataType) {
+        (void)p_receiver->acceptSentOrder(TxSentOrderRecord {
+            .user_ref_num = record.user_ref_num,
+            .stock_locate = record.stock_locate,
+            .que_idx = record.que_idx,
+            .event_tag = record.event_tag,
+            .trace_id = record.trace_id,
+            .price = record.price,
+            .shares = record.shares,
+        });
+    }
     _erasePendingOrder(record.user_ref_num);
 
     return true;
@@ -469,25 +470,7 @@ bool TxSender::_buildOrderFrame(const OrderExecution& execution, TxOutboundRecor
 
 void TxSender::_queueReadyRecord(const TxOutboundRecord& record) {
     m_ready_outbound.pushBack(record);
-    if (record.trace_id != 0U && p_latency_tracker != nullptr) {
-
-        try {
-            p_latency_tracker->pushRecord(TimeRecord {
-                .que_idx = record.que_idx,
-                .event_tag = record.event_tag,
-                .trace_id = record.trace_id,
-                .event_stage = stage::TX_SEND_ENQUEUE,
-                .time_captured = readMonotonicRawNs(),
-            });
-        } catch (...) {
-        }
-    }
 }
-
-
-
-
-
 
 std::size_t TxSender::_computePendingSlotIndex(uint32_t user_ref_num) const noexcept {
     if (m_pending_orders.slots.empty()) {
@@ -558,38 +541,6 @@ void TxSender::_erasePendingOrder(uint32_t user_ref_num) {
         return;
     }
     _clearPendingSlot(*slot);
-}
-
-void TxSender::_handleAccepted(uint32_t user_ref_num, uint32_t shares, uint32_t price) {
-    PendingSlot* found = _lookupPendingSlot(user_ref_num);
-    if (found == nullptr) {
-        return;
-    }
-    const uint16_t que_idx = found->record.que_idx;
-    const uint16_t stock_locate = found->record.stock_locate;
-    _clearPendingSlot(*found);
-}
-
-void TxSender::_handleExecuted(uint32_t user_ref_num,
-                               uint32_t executed_shares,
-                               uint32_t price,
-                               uint64_t match_number) {
-    PendingSlot* found = _lookupPendingSlot(user_ref_num);
-    if (found == nullptr) {
-        return;
-    }
-    const uint16_t que_idx = found->record.que_idx;
-    _clearPendingSlot(*found);
-
-}
-
-void TxSender::_handleRejected(uint32_t user_ref_num, uint16_t reason) {
-    PendingSlot* found = _lookupPendingSlot(user_ref_num);
-    if (found == nullptr) {
-        return;
-    }
-    const uint16_t que_idx = found->record.que_idx;
-    _clearPendingSlot(*found);
 }
 
 

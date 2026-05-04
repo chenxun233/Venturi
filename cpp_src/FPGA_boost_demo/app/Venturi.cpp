@@ -7,6 +7,7 @@
 #include "../strategy/dummy_strategy.h"
 #include "../tx_engine/executor.h"
 #include "../tx_engine/tx_connection.h"
+#include "../tx_engine/tx_receiver.h"
 #include "../tx_engine/tx_sender.h"
 #include "../../common/log.h"
 
@@ -50,6 +51,7 @@ constexpr int kRxThread0Cpu = 2;
 constexpr int kRxThread1Cpu = 4;
 constexpr int kLatencyThreadCpu = 6;
 constexpr int kMainAndLogPrinterCpu = 8;
+constexpr int kTxReceiverCpu = 10;
 
 std::atomic<bool> g_should_stop {false};
 
@@ -93,9 +95,7 @@ int main() {
         .password = std::string("secret"),
         .requested_session = std::string("SESSION01"),
         .heartbeat_interval = std::chrono::seconds(1),
-        .intent_capacity = kExecutorQueueCapacity,
         .pending_capacity = 1024,
-        .transport_capacity = 1024,
     };
 
     FPGARxDecoder decoder0;
@@ -108,11 +108,12 @@ int main() {
     Executor executor0(kExecutorQueueCapacity);
     Executor executor1(kExecutorQueueCapacity);
 
-    TxConnection tx_connection0(tx_connection_config);
-    TxConnection tx_connection1(tx_connection_config);
-
     TxSender tx_sender0(tx_sender_config);
     TxSender tx_sender1(tx_sender_config);
+    TxReceiver tx_receiver0;
+    TxReceiver tx_receiver1;
+    TxConnection tx_connection0(tx_connection_config);
+    TxConnection tx_connection1(tx_connection_config);
     std::unique_ptr<LatencyTracker> latency_tracker_storage;
     try {
         latency_tracker_storage =
@@ -127,14 +128,14 @@ int main() {
     std::signal(SIGINT, handleStopSignal);
     latency_analyzer.setWarmupRecords(1000);
 
-    rx_engine0.attachLatenyTracker(&latency_tracker);
-    rx_engine1.attachLatenyTracker(&latency_tracker);
-    strategy0.attachLatenyTracker(&latency_tracker);
-    strategy1.attachLatenyTracker(&latency_tracker);
-    executor0.attachLatenyTracker(&latency_tracker);
-    executor1.attachLatenyTracker(&latency_tracker);
-    tx_sender0.attachLatenyTracker(&latency_tracker);
-    tx_sender1.attachLatenyTracker(&latency_tracker);
+    rx_engine0.attachLatencyTracker(&latency_tracker);
+    rx_engine1.attachLatencyTracker(&latency_tracker);
+    strategy0.attachLatencyTracker(&latency_tracker);
+    strategy1.attachLatencyTracker(&latency_tracker);
+    executor0.attachLatencyTracker(&latency_tracker);
+    executor1.attachLatencyTracker(&latency_tracker);
+    tx_sender0.attachLatencyTracker(&latency_tracker);
+    tx_sender1.attachLatencyTracker(&latency_tracker);
     executor0.attachQueueIdx(0);
     executor1.attachQueueIdx(1);
     
@@ -143,12 +144,22 @@ int main() {
     tx_connection1.attachQueueIdx(1);
     tx_connection0.attachLogPrinter(&log_printer);
     tx_connection1.attachLogPrinter(&log_printer);
+    tx_receiver0.attachQueueIdx(0);
+    tx_receiver1.attachQueueIdx(1);
+    tx_receiver0.setWorkerCpu(kTxReceiverCpu);
+    tx_receiver1.setWorkerCpu(kTxReceiverCpu);
     tx_connection0.attachSender(&tx_sender0);
     tx_connection1.attachSender(&tx_sender1);
+    tx_connection0.attachReceiver(&tx_receiver0);
+    tx_connection1.attachReceiver(&tx_receiver1);
+    tx_sender0.attachReceiver(&tx_receiver0);
+    tx_sender1.attachReceiver(&tx_receiver1);
 
 
     log_printer.setWorkerCpu(kMainAndLogPrinterCpu);
     log_printer.start();
+    tx_receiver0.start();
+    tx_receiver1.start();
     std::thread latency_thread([&latency_tracker]() {
         pinCurrentThreadToCpu(kLatencyThreadCpu);
         latency_tracker.run();
@@ -160,7 +171,6 @@ int main() {
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
         OrderExecution execution {};
-        TxConnectionInfo connection_info {};
 
         while (!g_should_stop.load(std::memory_order_acquire)) {
             const std::size_t count =
@@ -172,14 +182,13 @@ int main() {
                         executor0.acceptIntent(intent);
                     }
                 }
-            } 
-            // batch
+            }
+
             while (executor0.popExecution(execution)) {
                 tx_sender0.acceptExecution(execution);
             }
-            
+
             tx_connection0.pollConnect();
-            //batch
             tx_sender0.runOnce();
         }
     });
@@ -189,7 +198,6 @@ int main() {
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
         OrderExecution execution {};
-        TxConnectionInfo connection_info {};
 
         while (!g_should_stop.load(std::memory_order_acquire)) {
             const std::size_t count =
@@ -220,6 +228,8 @@ int main() {
             rx_thread.join();
         }
     }
+    tx_receiver0.stop();
+    tx_receiver1.stop();
     latency_tracker.stop();
     if (latency_thread.joinable()) {
         latency_thread.join();
@@ -236,6 +246,8 @@ int main() {
                 static_cast<unsigned long long>(rx_engine1.readFirstEventCount()));
     latency_tracker.printDebugSummary();
     latency_analyzer.printSummary();
+    tx_receiver0.printSummary();
+    tx_receiver1.printSummary();
 
     return 0;
 }

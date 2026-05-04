@@ -12,7 +12,7 @@ void Executor::attachQueueIdx(uint16_t que_idx) {
     m_has_queue_idx = true;
 }
 
-void Executor::attachLatenyTracker(LatencyTracker* latency_tracker) {
+void Executor::attachLatencyTracker(LatencyTracker* latency_tracker) {
     p_latency_tracker = latency_tracker;
 }
 

@@ -125,7 +125,7 @@ std::size_t FPGARxEngine::pollDecodedBatchSync(std::size_t max_count,
     return pollDecodedBatchImpl(max_count, get_snapshot, false, snapshot, out);
 }
 
-void FPGARxEngine::attachLatenyTracker(LatencyTracker* latency_tracker) {
+void FPGARxEngine::attachLatencyTracker(LatencyTracker* latency_tracker) {
     p_latency_tracker = latency_tracker;
 }
 
