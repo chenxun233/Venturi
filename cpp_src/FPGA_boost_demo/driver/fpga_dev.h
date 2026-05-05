@@ -13,8 +13,6 @@
 
 #define SLOT_SIZE_BYTES 32 // 32 bytes, 256 bits.
 
-class FPGARxDecoder;
-
 class FPGADev : public BasicDev, public BasicRxDev {
 public:
     FPGADev(std::string pci_addr);
@@ -61,10 +59,6 @@ private:
     };
     
 private:
-    friend class FPGARxDecoder;
-    // This should only be called by friend classes (adaptors)
-    // this function works with __readProdPtr() or __readProdPtrAndTick()
-
     const uint8_t*  _pollDataRaw(uint16_t que_idx, uint64_t cons_ptr) const override;
     void            _writeConsPtr(uint16_t que_idx, uint64_t cons_ptr) override;
     void            _readProdPtr(uint16_t que_idx, uint64_t& prod_ptr) const override;

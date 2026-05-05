@@ -1,14 +1,10 @@
 #include "tx_receiver.h"
 
-#include "../common/thread_affinity.h"
-
 #include <sys/socket.h>
-#include <unistd.h>
 
 #include <array>
 #include <cerrno>
 #include <cstdio>
-#include <mutex>
 #include <stdexcept>
 
 namespace {
@@ -27,9 +23,8 @@ uint32_t readBigEndian32(const uint8_t* bytes) {
 
 } // namespace
 
-TxReceiver::TxReceiver(std::size_t pending_capacity, std::size_t sent_record_capacity)
-    : m_sent_records(sent_record_capacity),
-      m_pending_slots(pending_capacity),
+TxReceiver::TxReceiver(std::size_t pending_capacity)
+    : m_pending_slots(pending_capacity),
       m_pending_mask(pending_capacity - 1U) {
     if (pending_capacity == 0 || (pending_capacity & (pending_capacity - 1U)) != 0) {
         throw std::invalid_argument("TxReceiver pending_capacity must be a non-zero power of two");
@@ -37,33 +32,29 @@ TxReceiver::TxReceiver(std::size_t pending_capacity, std::size_t sent_record_cap
 }
 
 TxReceiver::~TxReceiver() {
-    stop();
-    _closeRecvFd();
 }
 
 void TxReceiver::attachQueueIdx(uint16_t queue_idx) {
     m_queue_idx = queue_idx;
 }
 
-void TxReceiver::setWorkerCpu(int cpu_id) {
-    m_worker_cpu = cpu_id;
-}
-
 bool TxReceiver::acceptSentOrder(const TxSentOrderRecord& record) {
-    if (m_sent_records.push(record)) {
-        return true;
+    PendingSlot& slot = m_pending_slots[_computePendingSlotIndex(record.user_ref_num)];
+    if (slot.occupied) {
+        ++m_stats.ref_drops;
+        return false;
     }
-
-    const std::lock_guard<std::mutex> lock(m_state_mutex);
-    ++m_stats.ref_drops;
-    return false;
+    ++m_stats.sent;
+    slot.occupied = true;
+    slot.accepted = false;
+    slot.rejected = false;
+    slot.filled_shares = 0;
+    slot.record = record;
+    return true;
 }
 
 void TxReceiver::updateConnectionInfo(const TxConnectionInfo& info) {
-    const std::lock_guard<std::mutex> lock(m_state_mutex);
     if (info.kind == TxConnectionKind::Connected) {
-        _closeRecvFd();
-        m_recv_fd = info.fd;
         m_generation = info.generation;
         m_frame_buffer.clear();
         ++m_stats.connected;
@@ -73,38 +64,17 @@ void TxReceiver::updateConnectionInfo(const TxConnectionInfo& info) {
     if (info.generation != m_generation) {
         return;
     }
-    _closeRecvFd();
     m_generation = 0;
     m_frame_buffer.clear();
     ++m_stats.disconnected;
 }
 
-bool TxReceiver::pollOnce() {
-    const std::lock_guard<std::mutex> lock(m_state_mutex);
-    const uint64_t sent_before = m_stats.sent;
-    _drainSentOrders();
-    const bool read_frames = _readSocketFrames();
-    return read_frames || m_stats.sent != sent_before;
-}
-
-void TxReceiver::start() {
-    bool expected = false;
-    if (!m_running.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
-        return;
-    }
-
-    m_thread = std::thread(&TxReceiver::_run, this);
-}
-
-void TxReceiver::stop() {
-    m_running.store(false, std::memory_order_release);
-    if (m_thread.joinable()) {
-        m_thread.join();
-    }
+bool TxReceiver::pollOnce(int recv_fd) {
+    const bool read_frames = _readSocketFrames(recv_fd);
+    return read_frames;
 }
 
 TxReceiverStats TxReceiver::readStats() const {
-    const std::lock_guard<std::mutex> lock(m_state_mutex);
     TxReceiverStats stats = m_stats;
     stats.pending = _countPending();
     return stats;
@@ -127,30 +97,29 @@ void TxReceiver::printSummary() const {
     std::fflush(stdout);
 }
 
-void TxReceiver::_drainSentOrders() {
-    TxSentOrderRecord record {};
-    while (m_sent_records.pop(record)) {
-        ++m_stats.sent;
-        _insertPendingOrder(record);
-    }
-}
-
-bool TxReceiver::_readSocketFrames() {
+bool TxReceiver::_readSocketFrames(int recv_fd) {
     bool did_work = false;
-    while (_appendSocketBytes()) {
+    for (;;) {
+        const uint64_t disconnected_before = m_stats.disconnected;
+        if (!_appendSocketBytes(recv_fd)) {
+            if (m_stats.disconnected != disconnected_before) {
+                did_work = true;
+            }
+            break;
+        }
         did_work = true;
     }
 
     return _parseBufferedFrames() || did_work;
 }
 
-bool TxReceiver::_appendSocketBytes() {
-    if (m_recv_fd < 0) {
+bool TxReceiver::_appendSocketBytes(int recv_fd) {
+    if (recv_fd < 0) {
         return false;
     }
 
     std::array<uint8_t, 4096> bytes {};
-    const ssize_t rc = ::recv(m_recv_fd,
+    const ssize_t rc = ::recv(recv_fd,
                               bytes.data(),
                               bytes.size(),
                               MSG_DONTWAIT);
@@ -161,7 +130,7 @@ bool TxReceiver::_appendSocketBytes() {
 
     if (rc == 0) {
         _markDisconnected();
-        return true;
+        return false;
     }
 
     if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
@@ -169,7 +138,7 @@ bool TxReceiver::_appendSocketBytes() {
     }
 
     _markDisconnected();
-    return true;
+    return false;
 }
 
 bool TxReceiver::_parseBufferedFrames() {
@@ -292,20 +261,6 @@ void TxReceiver::_handleRejected(uint32_t user_ref_num) {
     _clearPendingSlot(*slot);
 }
 
-void TxReceiver::_insertPendingOrder(const TxSentOrderRecord& record) {
-    PendingSlot& slot = m_pending_slots[_computePendingSlotIndex(record.user_ref_num)];
-    if (slot.occupied) {
-        ++m_stats.ref_drops;
-        return;
-    }
-
-    slot.occupied = true;
-    slot.accepted = false;
-    slot.rejected = false;
-    slot.filled_shares = 0;
-    slot.record = record;
-}
-
 void TxReceiver::_clearPendingSlot(PendingSlot& slot) {
     slot = PendingSlot {};
 }
@@ -340,28 +295,8 @@ uint64_t TxReceiver::_countPending() const {
     return pending;
 }
 
-void TxReceiver::_closeRecvFd() {
-    if (m_recv_fd >= 0) {
-        ::close(m_recv_fd);
-        m_recv_fd = -1;
-    }
-}
-
 void TxReceiver::_markDisconnected() {
-    _closeRecvFd();
     m_generation = 0;
     m_frame_buffer.clear();
     ++m_stats.disconnected;
-}
-
-void TxReceiver::_run() {
-    if (m_worker_cpu >= 0) {
-        pinCurrentThreadToCpu(m_worker_cpu);
-    }
-
-    while (m_running.load(std::memory_order_acquire)) {
-        if (!pollOnce()) {
-            std::this_thread::yield();
-        }
-    }
 }

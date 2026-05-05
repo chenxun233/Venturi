@@ -12,15 +12,15 @@ class RuntimeDiagnosticsTest(unittest.TestCase):
     def test_filter_thread_lines_keeps_header_and_matching_processes(self):
         text = """    PID     TID PSR COMMAND
       1       1  17 systemd
-    100     101   2 Venturi
+    100     101   2 venturi
     200     201  12 tcpreplay
     300     301  10 dummy_server
 """
 
-        output = runtime_diagnostics.filter_thread_lines(text, ["Venturi", "dummy_server", "tcpreplay"])
+        output = runtime_diagnostics.filter_thread_lines(text, ["venturi", "dummy_server", "tcpreplay"])
 
         self.assertIn("PID", output)
-        self.assertIn("Venturi", output)
+        self.assertIn("venturi", output)
         self.assertIn("tcpreplay", output)
         self.assertIn("dummy_server", output)
         self.assertNotIn("systemd", output)

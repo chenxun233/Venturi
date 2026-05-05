@@ -10,7 +10,7 @@
 #include <vector>
 
 class LatencyTracker;
-class TxConnection;
+class TxConnector;
 class TxReceiver;
 
 struct TxSenderConfig {
@@ -28,19 +28,18 @@ public:
     ~TxSender();
 
     void attachLatencyTracker(LatencyTracker* latency_tracker);
-    void attachConnection(TxConnection* connection);
-    void attachReceiver(TxReceiver* receiver);
-
+    void attachConnection(TxConnector* connection);
     bool acceptExecution(const OrderExecution& execution) noexcept;
 
     bool runOnce();
+    int readSendFd() const noexcept;
 
     void login();
 
 
 
 private:
-    friend class TxConnection;
+    friend class TxConnector;
     void updateConnectionInfo(const TxConnectionInfo& info);
     bool _queueHeartbeat();
     bool _queueOutFrames();
@@ -92,7 +91,7 @@ private:
     bool m_logged_in {false};
     std::chrono::steady_clock::time_point m_last_successful_send {};
     std::size_t m_heartbeat_ready_count {0};
-    TxConnection* p_connection {nullptr};
+    TxConnector* p_connection {nullptr};
     TxReceiver* p_receiver {nullptr};
     LatencyTracker* p_latency_tracker {nullptr};
 };

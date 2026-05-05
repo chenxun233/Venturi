@@ -19,16 +19,16 @@ class TxSender;
 class TxReceiver;
 class LogPrinter;
 
-class TxConnection {
+class TxConnector {
 public:
-    TxConnection();
-    explicit TxConnection(GatewayClientConfig config);
-    ~TxConnection();
+    TxConnector();
+    explicit TxConnector(GatewayClientConfig config);
+    ~TxConnector();
 
-    TxConnection(const TxConnection&) = delete;
-    TxConnection& operator=(const TxConnection&) = delete;
-    TxConnection(TxConnection&&) = delete;
-    TxConnection& operator=(TxConnection&&) = delete;
+    TxConnector(const TxConnector&) = delete;
+    TxConnector& operator=(const TxConnector&) = delete;
+    TxConnector(TxConnector&&) = delete;
+    TxConnector& operator=(TxConnector&&) = delete;
 
     void attachLogPrinter(LogPrinter* log_printer);
     void attachQueueIdx(uint16_t que_idx);

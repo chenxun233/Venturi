@@ -87,7 +87,7 @@ set(FPGA_ENGINE_DIR ${FPGA_ROOT}/rx_engine)
 set(FPGA_LATENCY_DIR ${FPGA_ROOT}/latency)
 set(FPGA_SYNC_DIR ${FPGA_ROOT}/sync)
 set(FPGA_STRATEGY_DIR ${FPGA_ROOT}/strategy)
-set(FPGA_TX_DIR ${FPGA_ROOT}/tx_engine)
+set(FPGA_TX_DIR ${FPGA_ROOT}/tx_client)
 set(FPGA_EXCHANGE_DIR ${FPGA_ROOT}/exchange)
 set(FPGA_APP_DIR ${FPGA_ROOT}/app)
 set(FPGA_TEST_DIR ${FPGA_ROOT}/tests)
@@ -98,7 +98,6 @@ set(FPGA_COMMON_DIR ${FPGA_ROOT}/common)
 set(FPGA_SOURCES
     ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp
-    ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
 )
 
 add_executable(test_fpga_hello_v2
@@ -113,11 +112,10 @@ target_include_directories(test_fpga_hello_v2 PRIVATE
     ${FPGA_ADAPTER_DIR}
 )
 
-add_executable(Venturi
+add_executable(venturi
     ${COMMON_SOURCES}
     ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp
-    ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
     ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
     ${FPGA_COMMON_DIR}/thread_affinity.cpp
     ${FPGA_LATENCY_DIR}/log_printer.cpp
@@ -127,13 +125,14 @@ add_executable(Venturi
     ${FPGA_SYNC_DIR}/FPGA_regression.cpp
     ${FPGA_STRATEGY_DIR}/dummy_strategy.cpp
     ${FPGA_TX_DIR}/executor.cpp
-    ${FPGA_TX_DIR}/tx_connection.cpp
+    ${FPGA_TX_DIR}/tx_client.cpp
+    ${FPGA_TX_DIR}/tx_connector.cpp
     ${FPGA_TX_DIR}/tx_receiver.cpp
     ${FPGA_TX_DIR}/tx_sender.cpp
-    ${FPGA_APP_DIR}/Venturi.cpp
+    ${FPGA_APP_DIR}/venturi.cpp
 )
-# target_compile_definitions(Venturi PRIVATE ISO=1)
-target_include_directories(Venturi PRIVATE
+# target_compile_definitions(venturi PRIVATE ISO=1)
+target_include_directories(venturi PRIVATE
     ${COMMON_INCLUDES}
     ${INTEL_DRIVER_DIR}
     ${FPGA_DRIVER_DIR}
@@ -150,7 +149,7 @@ add_executable(dummy_server
     ${FPGA_EXCHANGE_DIR}/dummy_server.cpp
     ${FPGA_EXCHANGE_DIR}/exchange_protocol.cpp
     ${FPGA_EXCHANGE_DIR}/exchange_transport.cpp
-    ${FPGA_APP_DIR}/dummy_exchange_server_main.cpp
+    ${FPGA_APP_DIR}/dummy_server.cpp
 )
 target_include_directories(dummy_server PRIVATE
     ${FPGA_EXCHANGE_DIR}
@@ -158,25 +157,9 @@ target_include_directories(dummy_server PRIVATE
 )
 
 if(TARGET GTest::gtest_main)
-    add_executable(fpga_rx_decoder_test
-        ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
-        ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
-        ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
-        ${FPGA_TEST_DIR}/fpga_rx_decoder_test.cpp
-    )
-    target_include_directories(fpga_rx_decoder_test PRIVATE
-        ${FPGA_DRIVER_DIR}
-        ${FPGA_ADAPTER_DIR}
-        ${FPGA_TEST_DIR}
-    )
-    target_link_libraries(fpga_rx_decoder_test PRIVATE
-        GTest::gtest_main
-    )
-
     add_executable(fpga_rx_engine_test
         ${FPGA_DRIVER_DIR}/basic_rx_source.cpp
         ${FPGA_DRIVER_DIR}/fake_fpga_dev.cpp
-        ${FPGA_ADAPTER_DIR}/fpga_rx_decoder.cpp
         ${FPGA_ENGINE_DIR}/fpga_rx_engine.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
         ${FPGA_LATENCY_DIR}/log_printer.cpp
@@ -224,7 +207,8 @@ if(TARGET GTest::gtest_main)
     )
 
     add_executable(tx_translator_test
-        ${FPGA_TX_DIR}/tx_connection.cpp
+        ${FPGA_TX_DIR}/tx_client.cpp
+        ${FPGA_TX_DIR}/tx_connector.cpp
         ${FPGA_TX_DIR}/tx_receiver.cpp
         ${FPGA_TX_DIR}/tx_sender.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
@@ -326,7 +310,8 @@ if(TARGET GTest::gtest_main)
     )
 
     add_executable(tx_log_record_test
-        ${FPGA_TX_DIR}/tx_connection.cpp
+        ${FPGA_TX_DIR}/tx_client.cpp
+        ${FPGA_TX_DIR}/tx_connector.cpp
         ${FPGA_TX_DIR}/tx_receiver.cpp
         ${FPGA_TX_DIR}/tx_sender.cpp
         ${FPGA_COMMON_DIR}/thread_affinity.cpp
@@ -445,7 +430,6 @@ if(TARGET GTest::gtest_main)
 
 
     include(GoogleTest)
-    gtest_discover_tests(fpga_rx_decoder_test)
     gtest_discover_tests(fpga_rx_engine_test)
     gtest_discover_tests(regression_test)
     gtest_discover_tests(publisher_test)

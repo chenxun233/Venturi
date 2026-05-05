@@ -132,12 +132,12 @@ sudo ./test_fpga_hello_v2 0000:03:00.0
 
 ### OUCH-over-SoupBinTCP Demo
 
-This demo uses two processes on two directly connected NIC ports. The server listens on the dummy-exchange-side NIC and the integrated client path lives inside `test_fpga_rx_adapter` (`Venturi.cpp`).
+This demo uses two processes on two directly connected NIC ports. The server listens on the dummy-exchange-side NIC and the integrated client path lives inside `venturi` (`venturi.cpp`).
 
 ```bash
 # Build only the demo pieces
 cmake -S cpp_src -B build
-cmake --build build --target dummy_server test_fpga_rx_adapter
+cmake --build build --target dummy_server venturi
 
 # terminal 1: dummy exchange on enp5s0f0
 ./build/dummy_server \
@@ -145,11 +145,11 @@ cmake --build build --target dummy_server test_fpga_rx_adapter
   --port 9000 \
   --fill-delay-ms 20
 
-# terminal 2: Venturi top app on enp1s0f0
-./build/test_fpga_rx_adapter
+# terminal 2: venturi top app on enp1s0f0
+./build/venturi
 ```
 
-The client side is now the existing `Venturi.cpp` path: RX -> strategy -> executor -> `TxEngine`. `TxEngine` binds to `192.168.51.1`, retries when disconnected, and pushes immediate plus async TX logs for connection established/lost, order sent, reject, and fill events.
+The client side is now the existing `venturi.cpp` path: RX -> strategy -> executor -> `TxEngine`. `TxEngine` binds to `192.168.51.1`, retries when disconnected, and pushes immediate plus async TX logs for connection established/lost, order sent, reject, and fill events.
 
 ## Key Features
 

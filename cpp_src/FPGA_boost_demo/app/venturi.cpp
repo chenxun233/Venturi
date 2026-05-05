@@ -5,10 +5,8 @@
 #include "../latency/log_printer.h"
 #include "../rx_engine/fpga_rx_engine.h"
 #include "../strategy/dummy_strategy.h"
-#include "../tx_engine/executor.h"
-#include "../tx_engine/tx_connection.h"
-#include "../tx_engine/tx_receiver.h"
-#include "../tx_engine/tx_sender.h"
+#include "../tx_client/executor.h"
+#include "../tx_client/tx_client.h"
 #include "../../common/log.h"
 
 #include <atomic>
@@ -28,40 +26,61 @@
 
 namespace {
 
-constexpr uint16_t kQueueNum = 2;
-constexpr uint32_t kRxSlotNum = 1024;
-constexpr std::array<std::string_view, kQueueNum> kSymbolNames = {
-    "AAPL",
-    "HSBC",
-};
-constexpr std::array<uint16_t, kQueueNum> kStockLocates = {
-    0x000d,
-    0x0ee8,
+    constexpr uint16_t kQueueNum = 2;
+    constexpr uint32_t kRxSlotNum = 1024;
+    constexpr std::array<std::string_view, kQueueNum> kSymbolNames = {
+        "AAPL",
+        "HSBC",
+    };
+    constexpr std::array<uint16_t, kQueueNum> kStockLocates = {
+        0x000d,
+        0x0ee8,
+    };
+    constexpr std::array<uint32_t, kQueueNum> kPriceBases = {
+        0U,
+        0U,
+    };
 
-};
-constexpr std::array<uint32_t, kQueueNum> kPriceBases = {
-    0U,
-    0U,
-};
+    constexpr std::size_t kLatencyQueueCapacity = 1024;
+    constexpr std::size_t kLatencyLogCapacity = 4096;
+    constexpr std::size_t kExecutorQueueCapacity = 1024;
+    constexpr int kRxThread0Cpu = 2;
+    constexpr int kRxThread1Cpu = 4;
+    constexpr int kLatencyThreadCpu = 6;
+    constexpr int kMainAndLogPrinterCpu = 8;
+    std::atomic<bool> g_should_stop {false};
 
-constexpr std::size_t kLatencyQueueCapacity = 1024;
-constexpr std::size_t kLatencyLogCapacity = 4096;
-constexpr std::size_t kExecutorQueueCapacity = 1024;
-constexpr int kRxThread0Cpu = 2;
-constexpr int kRxThread1Cpu = 4;
-constexpr int kLatencyThreadCpu = 6;
-constexpr int kMainAndLogPrinterCpu = 8;
-constexpr int kTxReceiverCpu = 10;
+    void handleStopSignal(int) {
+        g_should_stop.store(true, std::memory_order_release);
+    }
 
-std::atomic<bool> g_should_stop {false};
-
-void handleStopSignal(int) {
-    g_should_stop.store(true, std::memory_order_release);
-}
+    std::unique_ptr<LatencyTracker> makeLatencyTracker(uint16_t queue_num,
+                                                    std::size_t queue_capacity) {
+        try {
+            return std::make_unique<LatencyTracker>(queue_num, queue_capacity);
+        } catch (const std::exception& ex) {
+            error("Failed to construct latency tracker: %s", ex.what());
+            return nullptr;
+        }
+    }
+    const GatewayClientConfig tx_connection_config {
+        .bind_ip = std::string("192.168.51.1"),
+        .server_ip = std::string("192.168.51.2"),
+        .port = 9000,
+    };
+    const TxSenderConfig tx_sender_config {
+        .username = std::string("client"),
+        .password = std::string("secret"),
+        .requested_session = std::string("SESSION01"),
+        .heartbeat_interval = std::chrono::seconds(1),
+        .pending_capacity = 1024,
+    };
 
 } // namespace
 
 int main() {
+
+    // === init the device ===
     FPGADev device("0000:01:00.0");
     if (!device.initHardware()) {
         error("Failed to initialize FPGA device");
@@ -83,86 +102,48 @@ int main() {
             return 1;
         }
     }
-
-    // device.setSync(kSyncEnabled);
-    const GatewayClientConfig tx_connection_config {
-        .bind_ip = std::string("192.168.51.1"),
-        .server_ip = std::string("192.168.51.2"),
-        .port = 9000,
-    };
-    const TxSenderConfig tx_sender_config {
-        .username = std::string("client"),
-        .password = std::string("secret"),
-        .requested_session = std::string("SESSION01"),
-        .heartbeat_interval = std::chrono::seconds(1),
-        .pending_capacity = 1024,
-    };
-
-    FPGARxDecoder decoder0;
-    FPGARxDecoder decoder1;
-    
-    FPGARxEngine rx_engine0(device, decoder0, 0);
-    FPGARxEngine rx_engine1(device, decoder1, 1);
+    FPGARxEngine rx_engine0(device, 0);
+    FPGARxEngine rx_engine1(device, 1);
     DummyStrategy strategy0;
     DummyStrategy strategy1;
     Executor executor0(kExecutorQueueCapacity);
     Executor executor1(kExecutorQueueCapacity);
 
-    TxSender tx_sender0(tx_sender_config);
-    TxSender tx_sender1(tx_sender_config);
-    TxReceiver tx_receiver0;
-    TxReceiver tx_receiver1;
-    TxConnection tx_connection0(tx_connection_config);
-    TxConnection tx_connection1(tx_connection_config);
-    std::unique_ptr<LatencyTracker> latency_tracker_storage;
-    try {
-        latency_tracker_storage =
-            std::make_unique<LatencyTracker>(kQueueNum, kLatencyQueueCapacity);
-    } catch (const std::exception& ex) {
-        error("Failed to construct latency tracker: %s", ex.what());
+    TxClient tx_client0(tx_connection_config, tx_sender_config);
+    TxClient tx_client1(tx_connection_config, tx_sender_config);
+    std::unique_ptr<LatencyTracker> latency_tracker =
+        makeLatencyTracker(kQueueNum, kLatencyQueueCapacity);
+    if (latency_tracker == nullptr) {
         return 1;
     }
-    LatencyTracker& latency_tracker = *latency_tracker_storage;
     LatencyAnalyzer latency_analyzer(kQueueNum);
     LogPrinter log_printer(kQueueNum, kLatencyLogCapacity);
     std::signal(SIGINT, handleStopSignal);
     latency_analyzer.setWarmupRecords(1000);
 
-    rx_engine0.attachLatencyTracker(&latency_tracker);
-    rx_engine1.attachLatencyTracker(&latency_tracker);
-    strategy0.attachLatencyTracker(&latency_tracker);
-    strategy1.attachLatencyTracker(&latency_tracker);
-    executor0.attachLatencyTracker(&latency_tracker);
-    executor1.attachLatencyTracker(&latency_tracker);
-    tx_sender0.attachLatencyTracker(&latency_tracker);
-    tx_sender1.attachLatencyTracker(&latency_tracker);
+    rx_engine0.attachLatencyTracker(latency_tracker.get());
+    rx_engine1.attachLatencyTracker(latency_tracker.get());
+    strategy0.attachLatencyTracker(latency_tracker.get());
+    strategy1.attachLatencyTracker(latency_tracker.get());
+    executor0.attachLatencyTracker(latency_tracker.get());
+    executor1.attachLatencyTracker(latency_tracker.get());
+    tx_client0.attachLatencyTracker(latency_tracker.get());
+    tx_client1.attachLatencyTracker(latency_tracker.get());
     executor0.attachQueueIdx(0);
     executor1.attachQueueIdx(1);
     
-    latency_tracker.attachAnalyzer(&latency_analyzer);
-    tx_connection0.attachQueueIdx(0);
-    tx_connection1.attachQueueIdx(1);
-    tx_connection0.attachLogPrinter(&log_printer);
-    tx_connection1.attachLogPrinter(&log_printer);
-    tx_receiver0.attachQueueIdx(0);
-    tx_receiver1.attachQueueIdx(1);
-    tx_receiver0.setWorkerCpu(kTxReceiverCpu);
-    tx_receiver1.setWorkerCpu(kTxReceiverCpu);
-    tx_connection0.attachSender(&tx_sender0);
-    tx_connection1.attachSender(&tx_sender1);
-    tx_connection0.attachReceiver(&tx_receiver0);
-    tx_connection1.attachReceiver(&tx_receiver1);
-    tx_sender0.attachReceiver(&tx_receiver0);
-    tx_sender1.attachReceiver(&tx_receiver1);
+    latency_tracker->attachAnalyzer(&latency_analyzer);
+    tx_client0.attachQueueIdx(0);
+    tx_client1.attachQueueIdx(1);
+    tx_client0.attachLogPrinter(&log_printer);
+    tx_client1.attachLogPrinter(&log_printer);
 
 
     log_printer.setWorkerCpu(kMainAndLogPrinterCpu);
     log_printer.start();
-    tx_receiver0.start();
-    tx_receiver1.start();
     std::thread latency_thread([&latency_tracker]() {
         pinCurrentThreadToCpu(kLatencyThreadCpu);
-        latency_tracker.run();
+        latency_tracker->run();
     });
 
     std::vector<std::thread> rx_threads;
@@ -185,11 +166,10 @@ int main() {
             }
 
             while (executor0.popExecution(execution)) {
-                tx_sender0.acceptExecution(execution);
+                tx_client0.acceptExecution(execution);
             }
 
-            tx_connection0.pollConnect();
-            tx_sender0.runOnce();
+            tx_client0.runOnce();
         }
     });
 
@@ -213,11 +193,10 @@ int main() {
             }
 
             while (executor1.popExecution(execution)) {
-                tx_sender1.acceptExecution(execution);
+                tx_client1.acceptExecution(execution);
             }
 
-            tx_connection1.pollConnect();
-            tx_sender1.runOnce();
+            tx_client1.runOnce();
         }
     });
 
@@ -228,9 +207,7 @@ int main() {
             rx_thread.join();
         }
     }
-    tx_receiver0.stop();
-    tx_receiver1.stop();
-    latency_tracker.stop();
+    latency_tracker->stop();
     if (latency_thread.joinable()) {
         latency_thread.join();
     }
@@ -244,10 +221,10 @@ int main() {
                 static_cast<unsigned int>(rx_engine1.readQueueIdx()),
                 static_cast<unsigned long long>(rx_engine1.readDecodedCount()),
                 static_cast<unsigned long long>(rx_engine1.readFirstEventCount()));
-    latency_tracker.printDebugSummary();
+    latency_tracker->printDebugSummary();
     latency_analyzer.printSummary();
-    tx_receiver0.printSummary();
-    tx_receiver1.printSummary();
+    tx_client0.printReceiverSummary();
+    tx_client1.printReceiverSummary();
 
     return 0;
 }

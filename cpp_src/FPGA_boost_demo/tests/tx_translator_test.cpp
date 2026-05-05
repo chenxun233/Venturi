@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <fcntl.h>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <type_traits>
@@ -11,6 +12,8 @@
 
 #include "../common/shared_types.h"
 #define private public
+#include "../tx_engine/tx_client.h"
+#include "../tx_engine/tx_receiver.h"
 #include "../tx_engine/tx_sender.h"
 #include "../latency/latency_analyzer.h"
 #include "../latency/latency_tracker.h"
@@ -199,6 +202,51 @@ TEST(TxTranslatorTest, successfulSendClearsPendingOrderWithoutReceiverFlow) {
         makeExecution(0x000d, OrderIntentAction::Buy, 100100, 11, 0, 2ULL)));
     EXPECT_TRUE(sender.buildOutboundFrames());
     EXPECT_EQ(sender.m_pending_orders.live_count, 1U);
+
+    ::close(sockets[1]);
+}
+
+TEST(TxTranslatorTest, runOncePollsReceiverFeedbackInlineOnSharedNonBlockingSocket) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+    ASSERT_GE(::fcntl(sockets[0], F_SETFL, ::fcntl(sockets[0], F_GETFL, 0) | O_NONBLOCK), 0);
+
+    TxClient client(GatewayClientConfig {},
+                    TxSenderConfig {
+                        .pending_capacity = 8,
+                    },
+                    8);
+    TxSender& sender = client.m_sender;
+    TxReceiver& receiver = client.m_receiver;
+    connectSender(sender, 7, sockets[0]);
+    sender.m_logged_in = true;
+    sender.m_login_pending = false;
+    sender.m_ready_outbound.clear();
+
+    ASSERT_TRUE(sender.acceptExecution(
+        makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10, 0, 1ULL)));
+
+    ASSERT_TRUE(client.runOnce());
+
+    std::array<uint8_t, 19> outbound {};
+    ASSERT_EQ(::recv(sockets[1], outbound.data(), outbound.size(), 0),
+              static_cast<ssize_t>(outbound.size()));
+    EXPECT_EQ(outbound[2], static_cast<uint8_t>('U'));
+
+    const std::vector<uint8_t> accepted_frame {
+        0x00, 0x0e, static_cast<uint8_t>('S'), static_cast<uint8_t>('A'),
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0x00, 0x00, 0x00, 0x01,
+    };
+    ASSERT_EQ(::write(sockets[1], accepted_frame.data(), accepted_frame.size()),
+              static_cast<ssize_t>(accepted_frame.size()));
+
+    ASSERT_TRUE(client.runOnce());
+
+    const TxReceiverStats stats = receiver.readStats();
+    EXPECT_EQ(stats.sent, 1U);
+    EXPECT_EQ(stats.accepted, 1U);
+    EXPECT_EQ(stats.malformed, 0U);
 
     ::close(sockets[1]);
 }

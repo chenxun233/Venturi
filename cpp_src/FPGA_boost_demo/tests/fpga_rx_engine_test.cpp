@@ -1,7 +1,7 @@
 #include "../driver/fake_fpga_dev.h"
-#include "../rx_engine/fpga_rx_engine.h"
 
 #define private public
+#include "../rx_engine/fpga_rx_engine.h"
 #include "../latency/latency_tracker.h"
 #undef private
 
@@ -52,6 +52,29 @@ FakeFPGADev::RawSlot makeRawSlot(uint16_t stock_locate,
 
 } // namespace
 
+TEST(FpgaRxEngineTest, decodeRawRecordMapsKnownBytesIntoExpectedFields) {
+    const FakeFPGADev::RawSlot raw = makeRawSlot(0x000d,
+                                                 0x000102030405ULL,
+                                                 0x00060708090aULL,
+                                                 1234U,
+                                                 5678U,
+                                                 4321U,
+                                                 8765U,
+                                                 1U);
+    FPGAEventDesc event {};
+
+    FPGARxEngine::_decodeRawRecord(raw.data(), event);
+
+    EXPECT_EQ(event.stock_locate, 0x000d);
+    EXPECT_EQ(event.event_tk, 0x000102030405ULL);
+    EXPECT_EQ(event.frame_start_tk, 0x00060708090aULL);
+    EXPECT_EQ(event.bid_shares, 1234U);
+    EXPECT_EQ(event.bid_price, 5678U);
+    EXPECT_EQ(event.ask_shares, 4321U);
+    EXPECT_EQ(event.ask_price, 8765U);
+    EXPECT_EQ(event.is_first_event, 1U);
+}
+
 TEST(FpgaRxEngineTest, pollDecodedBatchSyncDecodesSnapshotWithoutTracing) {
     FakeFPGADev dev(1);
     dev.setSyncSnapshot(0, 2U, 12345U, 67890U, 222U);
@@ -59,8 +82,7 @@ TEST(FpgaRxEngineTest, pollDecodedBatchSyncDecodesSnapshotWithoutTracing) {
         makeRawSlot(0x000d, 1000ULL, 900ULL, 10U, 100U, 20U, 105U, 1U),
     });
 
-    FPGARxDecoder decoder {};
-    FPGARxEngine engine(dev, decoder, 0);
+    FPGARxEngine engine(dev, 0);
     LatencyTracker tracker(1, 8);
     engine.attachLatencyTracker(&tracker);
     FPGAEventDesc out[1] {};
@@ -83,8 +105,7 @@ TEST(FpgaRxEngineTest, firstEventPushesTracingStagesWithOneSharedTraceId) {
     });
     dev.setProdPtr(0, 1U);
 
-    FPGARxDecoder decoder {};
-    FPGARxEngine engine(dev, decoder, 0);
+    FPGARxEngine engine(dev, 0);
     LatencyTracker tracker(1, 8);
     engine.attachLatencyTracker(&tracker);
     FPGAEventDesc out[1] {};
@@ -121,8 +142,7 @@ TEST(FpgaRxEngineTest, nonFirstEventDoesNotAllocateTraceId) {
     });
     dev.setProdPtr(0, 1U);
 
-    FPGARxDecoder decoder {};
-    FPGARxEngine engine(dev, decoder, 0);
+    FPGARxEngine engine(dev, 0);
     LatencyTracker tracker(1, 8);
     engine.attachLatencyTracker(&tracker);
     FPGAEventDesc out[1] {};
@@ -142,8 +162,7 @@ TEST(FpgaRxEngineTest, activeTraceBlocksLaterFirstEventUntilFinalizeClearsIt) {
     });
     dev.setProdPtr(0, 2U);
 
-    FPGARxDecoder decoder {};
-    FPGARxEngine engine(dev, decoder, 0);
+    FPGARxEngine engine(dev, 0);
     LatencyTracker tracker(1, 16);
     engine.attachLatencyTracker(&tracker);
     FPGAEventDesc out[2] {};

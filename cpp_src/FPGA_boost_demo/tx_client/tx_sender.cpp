@@ -3,7 +3,7 @@
 #include "../common/time_utils.h"
 #include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
-#include "tx_connection.h"
+#include "tx_connector.h"
 #include "tx_receiver.h"
 
 #include <algorithm>
@@ -163,12 +163,8 @@ void TxSender::attachLatencyTracker(LatencyTracker* latency_tracker) {
     p_latency_tracker = latency_tracker;
 }
 
-void TxSender::attachConnection(TxConnection* connection) {
+void TxSender::attachConnection(TxConnector* connection) {
     p_connection = connection;
-}
-
-void TxSender::attachReceiver(TxReceiver* receiver) {
-    p_receiver = receiver;
 }
 
 bool TxSender::acceptExecution(const OrderExecution& execution) noexcept {
@@ -241,8 +237,11 @@ bool TxSender::runOnce() {
         m_ready_outbound.eraseFront();
         m_last_successful_send = std::chrono::steady_clock::now();
     }
-
     return true;
+}
+
+int TxSender::readSendFd() const noexcept {
+    return m_send_fd;
 }
 
 bool TxSender::_popReadyOutbound(TxOutboundRecord& record) {
@@ -542,8 +541,4 @@ void TxSender::_erasePendingOrder(uint32_t user_ref_num) {
     }
     _clearPendingSlot(*slot);
 }
-
-
-
-
 

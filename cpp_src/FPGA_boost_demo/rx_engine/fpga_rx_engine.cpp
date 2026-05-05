@@ -3,17 +3,50 @@
 #include "../common/time_utils.h"
 #include "../latency/latency_tracker.h"
 
+#include <cstddef>
 #include <stdexcept>
 
-FPGARxEngine::FPGARxEngine(BasicRxDev& source,
-                           const FPGARxDecoder& decoder,
-                           uint16_t que_idx)
+namespace {
+
+uint16_t readLe16(const uint8_t* bytes, std::size_t offset) {
+    return static_cast<uint16_t>(static_cast<uint16_t>(bytes[offset]) |
+                                 (static_cast<uint16_t>(bytes[offset + 1]) << 8));
+}
+
+uint32_t readLe32(const uint8_t* bytes, std::size_t offset) {
+    return static_cast<uint32_t>(bytes[offset]) |
+           (static_cast<uint32_t>(bytes[offset + 1]) << 8) |
+           (static_cast<uint32_t>(bytes[offset + 2]) << 16) |
+           (static_cast<uint32_t>(bytes[offset + 3]) << 24);
+}
+
+uint64_t readLe48(const uint8_t* bytes, std::size_t offset) {
+    uint64_t value = 0;
+    for (int byte_idx = 0; byte_idx < 6; ++byte_idx) {
+        value |= (static_cast<uint64_t>(bytes[offset + byte_idx]) << (8 * byte_idx));
+    }
+    return value;
+}
+
+} // namespace
+
+FPGARxEngine::FPGARxEngine(BasicRxDev& source, uint16_t que_idx)
     : m_device(source),
-      m_decoder(decoder),
       m_que_idx(que_idx) {
     if (!m_device.isValid()) {
         throw std::runtime_error("Failed to initialize FPGARxEngine with invalid source");
     }
+}
+
+void FPGARxEngine::_decodeRawRecord(const uint8_t* record, FPGAEventDesc& event) {
+    event.is_first_event = record[30];
+    event.ask_price = readLe32(record, 26);
+    event.ask_shares = readLe32(record, 22);
+    event.bid_price = readLe32(record, 18);
+    event.bid_shares = readLe32(record, 14);
+    event.frame_start_tk = readLe48(record, 8);
+    event.event_tk = readLe48(record, 2);
+    event.stock_locate = readLe16(record, 0);
 }
 
 std::size_t FPGARxEngine::pollDecodedBatchImpl(std::size_t max_count,
@@ -48,7 +81,7 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(std::size_t max_count,
             break;
         }
 
-        m_decoder.decodeRawRecord(raw, out[record_count]);
+        _decodeRawRecord(raw, out[record_count]);
         out[record_count].trace_id = 0U;
         m_decoded_count.fetch_add(1ULL, std::memory_order_relaxed);
         if (out[record_count].is_first_event != 0U) {

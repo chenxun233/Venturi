@@ -2,7 +2,8 @@
 
 #include "../common/shared_types.h"
 #define private public
-#include "../tx_engine/tx_connection.h"
+#include "../tx_engine/tx_connector.h"
+#include "../tx_engine/tx_receiver.h"
 #include "../tx_engine/tx_sender.h"
 #undef private
 
@@ -16,9 +17,10 @@
 #include <cerrno>
 #include <type_traits>
 
-static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::attachSender)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::pollConnect)>);
-static_assert(std::is_member_function_pointer_v<decltype(&TxConnection::recvSenderDisconNotice)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxConnector::attachSender)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxConnector::attachReceiver)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxConnector::pollConnect)>);
+static_assert(std::is_member_function_pointer_v<decltype(&TxConnector::recvSenderDisconNotice)>);
 
 
 TEST(TxLogRecordTest, connectionInfoCanCarryConnectedGenerationAndSenderFd) {
@@ -46,7 +48,7 @@ TEST(TxLogRecordTest, disconnectedConnectionInfoDoesNotRequireSenderFd) {
 }
 
 TEST(TxLogRecordTest, successfulConnectPublishesConnectedInfoIntoAttachedSenderQueue) {
-    TxConnection connection {};
+    TxConnector connection {};
     TxSender sender(4);
     connection.attachSender(&sender);
 
@@ -79,7 +81,7 @@ TEST(TxLogRecordTest, matchingDisconnectNoticeClosesCurrentConnection) {
     int sockets[2] {-1, -1};
     ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
 
-    TxConnection connection {};
+    TxConnector connection {};
     connection.m_socket_fd = sockets[0];
     connection.m_socket_generation = 5;
 
@@ -98,7 +100,7 @@ TEST(TxLogRecordTest, txConnectionDestructorClosesSocketFd) {
 
     const int fd = sockets[0];
     {
-        TxConnection connection {};
+        TxConnector connection {};
         connection.m_socket_fd = fd;
     }
 
@@ -115,7 +117,7 @@ TEST(TxLogRecordTest, txConnectionDestructorClosesUnreadPublishedSenderFd) {
 
     int published_fd = -1;
     {
-        TxConnection connection {};
+        TxConnector connection {};
         TxSender sender(4);
         connection.attachSender(&sender);
         connection.m_socket_fd = sockets[0];
@@ -136,7 +138,7 @@ TEST(TxLogRecordTest, txConnectionEnablesTcpNoDelayOnConnectedSocket) {
     const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GE(fd, 0);
 
-    TxConnection connection {};
+    TxConnector connection {};
     connection.m_socket_fd = fd;
 
     ASSERT_TRUE(connection._enableTCP_NODELAY());
@@ -151,7 +153,7 @@ TEST(TxLogRecordTest, txConnectionEnablesTcpNoDelayOnConnectedSocket) {
 }
 
 TEST(TxLogRecordTest, updateConnectedInfoMakesDirectSenderConnectionInfoAvailable) {
-    TxConnection connection {};
+    TxConnector connection {};
     TxSender sender(4);
     connection.attachSender(&sender);
 
@@ -165,6 +167,26 @@ TEST(TxLogRecordTest, updateConnectedInfoMakesDirectSenderConnectionInfoAvailabl
     EXPECT_GE(connection.m_sender_connection_info.fd, 0);
     EXPECT_EQ(sender.m_transport_generation, 1U);
     EXPECT_EQ(sender.m_send_fd, connection.m_sender_connection_info.fd);
+
+    ::close(sockets[1]);
+}
+
+TEST(TxLogRecordTest, updateConnectedInfoDoesNotPublishDedicatedReceiverFd) {
+    TxConnector connection {};
+    TxSender sender(4);
+    TxReceiver receiver(8);
+    connection.attachSender(&sender);
+    connection.attachReceiver(&receiver);
+
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    connection.m_socket_fd = sockets[0];
+    ASSERT_TRUE(connection._updateConnectedInfo());
+    EXPECT_EQ(connection.m_sender_connection_info.kind, TxConnectionKind::Connected);
+    EXPECT_GE(connection.m_sender_connection_info.fd, 0);
+    EXPECT_EQ(connection.m_receiver_connection_info.kind, TxConnectionKind::Connected);
+    EXPECT_LT(connection.m_receiver_connection_info.fd, 0);
 
     ::close(sockets[1]);
 }

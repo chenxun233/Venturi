@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_PROCESS_PATTERNS = ["Venturi", "dummy_server", "tcpreplay"]
+DEFAULT_PROCESS_PATTERNS = ["venturi", "dummy_server", "tcpreplay"]
 
 
 @dataclass(frozen=True)
@@ -62,7 +62,7 @@ def build_sections(interface):
             "Runtime thread placement",
             [
                 Probe(
-                    "Venturi/dummy_server/tcpreplay thread placement",
+                    "venturi/dummy_server/tcpreplay thread placement",
                     ["ps", "-eLo", "pid,tid,psr,comm"],
                     filter_processes=True,
                 ),
