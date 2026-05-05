@@ -1,10 +1,10 @@
 # Common Infrastructure
 
-This directory contains the shared infrastructure used by all device drivers in the Venturi project.
+This directory contains the shared infrastructure used by the host-side runtime in the Venturi project.
 
 ## Overview
 
-The common layer provides hardware-agnostic abstractions and utilities that are reused across different device drivers (Intel NIC, FPGA NIC, etc.). This promotes code reuse and maintains consistency across drivers.
+The common layer provides hardware-agnostic abstractions and utilities reused across the host-side runtime, especially the FPGA demo path.
 
 ## Files
 
@@ -19,19 +19,13 @@ Abstract base class defining the device driver interface.
 - `VfioFd` - VFIO file descriptor collection
 - `DevStatus` - Device statistics structure
 
-`BasicDev` now carries only the VFIO/common device pieces shared by both the FPGA and Intel implementations. Intel-specific interrupt bookkeeping and MAC-address ownership live in `Intel_demo/driver/`.
+`BasicDev` carries the common VFIO and device-management pieces needed by the current host runtime.
 
 **Pure virtual methods** (must be implemented by derived classes):
 ```cpp
 virtual bool initHardware() = 0;
-virtual bool initializeInterrupt(...) = 0;
-virtual bool enableDevQueues() = 0;
-virtual bool enableDevInterrupt() = 0;
-virtual bool wait4Link() = 0;
 virtual bool setRxRingBuffers(...) = 0;
 virtual bool setTxRingBuffers(...) = 0;
-virtual bool setPromisc(bool enable) = 0;
-virtual bool sendOnQueue(...) = 0;
 ```
 
 **Utility methods:**
@@ -39,7 +33,7 @@ virtual bool sendOnQueue(...) = 0;
 - `_print_stats_diff()` - Statistics comparison
 
 #### `device.h`
-Device-specific constants and structures (Intel 82599-specific, may need refactoring for true hardware independence).
+Shared register-access helpers and device metadata structures used by the current host runtime.
 
 ### Memory Management
 
@@ -108,7 +102,7 @@ In particular, `BasicDev` is intended to stop at:
 - generic device counts and statistics
 - common timing helpers
 
-and not own Intel-specific interrupt or MAC state.
+and not own subsystem-specific runtime policy.
 
 ### 2. RAII (Resource Acquisition Is Initialization)
 Resources are acquired in constructors and released in destructors. This ensures proper cleanup even in error paths.
@@ -147,17 +141,12 @@ public:
         return true;
     }
 
-    bool sendOnQueue(uint8_t* data, size_t size, uint16_t qid) override {
-        // Device-specific TX logic
+    bool setRxRingBuffers(uint16_t qcount, uint32_t num_buf, uint32_t buf_size) override {
         return true;
     }
 
-    // ... implement other virtual methods
-
-private:
-    bool _getFD() override {
-        // VFIO setup
-        return _getGroupID() && _getContainerFD() && ...;
+    bool setTxRingBuffers(uint16_t qcount, uint32_t num_buf, uint32_t buf_size) override {
+        return true;
     }
 };
 ```
@@ -173,7 +162,7 @@ The common layer provides patterns for VFIO integration:
 5. **BAR Mapping**: Memory-map device registers
 6. **DMA Setup**: Configure IOMMU for DMA access
 
-See derived classes (`Intel82599Dev`, `FPGADev`) for implementation examples.
+See `FPGADev` for the active implementation example in this repository.
 
 ## Thread Safety
 
@@ -216,20 +205,16 @@ When adding new shared functionality:
 
 ## Related Documentation
 
-- [Intel Driver README](../intel_driver/README.md)
-- [FPGA Driver README](../fpga_driver/README_FPGA_HELLO.md)
+- [C++ Runtime README](../README.md)
 - [Main Project README](../README.md)
 - [VFIO Kernel Documentation](https://www.kernel.org/doc/html/latest/driver-api/vfio.html)
 
 ## Known Issues
 
-- `device.h` contains Intel-specific definitions (should be refactored)
-- Some ring buffer logic assumes Intel descriptor format
 - Memory pool currently only supports fixed-size buffers
 
 ## Future Work
 
-- [ ] Refactor `device.h` to be truly hardware-agnostic
 - [ ] Add generic descriptor ring abstraction
 - [ ] Support variable-size buffers in memory pool
 - [ ] Add memory pool statistics

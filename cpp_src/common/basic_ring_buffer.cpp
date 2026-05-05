@@ -1,7 +1,6 @@
 #include "basic_ring_buffer.h"
 #include "dma_memory_allocator.h"
 #include "log.h"
-#include "ixgbe_type.h"
 #include <cstring>
 // Allocate descriptor DMA memory from the shared allocator used by the active device.
 bool RingBuffer::_allocDescMemory(DMAMemoryAllocator& allocator, uint32_t num_desc, uint32_t size_desc){

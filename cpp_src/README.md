@@ -1,274 +1,191 @@
-# Venturi - High-Performance NIC Drivers
+# Venturi C++ Host Runtime
 
-This directory contains modular, high-performance userspace drivers for network interface cards using VFIO (Virtual Function I/O).
+This directory contains the host-side C++ code for Venturi. It includes shared VFIO and DMA infrastructure and the FPGA demo runtime that receives FPGA DMA records, generates order intents, sends orders to a dummy exchange, and records host-side latency.
 
-## Directory Structure
+## Overview
 
-```
+The main host runtime flow is:
+
+1. The host polls DMA records produced by the FPGA.
+2. Raw records are decoded into `FPGAEventDesc` values.
+3. Strategy logic converts events into order intents.
+4. The executor converts intents into concrete order executions.
+5. The TX client sends orders to `dummy_server`.
+6. Exchange feedback is parsed and matched against pending orders.
+7. Latency components record timing across the pipeline.
+
+The main executables are:
+
+- `venturi`: top-level FPGA demo host process
+- `dummy_server`: standalone exchange simulator for the TX path
+- `test_fpga_hello_v2`: FPGA device validation entry point
+
+## Directory Layout
+
+```text
 cpp_src/
-├── common/              # Shared infrastructure for all drivers
-│   ├── basic_dev.*      # Abstract device base class
-│   ├── basic_ring_buffer.*  # Generic ring buffer implementation
-│   ├── dma_memory_allocator.*  # DMA memory management
-│   ├── memory_pool.*    # Packet buffer pool
-│   ├── log.h            # Logging utilities
-│   └── device.h         # Device abstraction layer
-│
-├── intel_driver/        # Intel 82599 10GbE NIC driver
-│   ├── vfio_dev.*       # Intel-specific VFIO implementation
-│   ├── ixgbe_ring_buffer.*  # Intel descriptor ring buffers
-│   ├── ixgbe_type.h     # Intel 82599 register definitions
-│   ├── factory.*        # Device factory for creating instances
-│   ├── test_app_loopsend.cpp   # Loop send performance test
-│   └── test_app_pcap.cpp       # Packet capture application
-│
-└── fpga_driver/         # FPGA-based NIC driver
-    ├── fpga_dev.*         # FPGA device class
-    ├── test_fpga_hello.cpp      # Standalone test (no dependencies)
-    ├── test_fpga_hello_v2.cpp   # Infrastructure-based test
-    └── README_FPGA_HELLO.md     # FPGA driver documentation
+├── CMakeLists.txt
+├── common/
+├── FPGA_boost_demo/
+│   ├── app/
+│   ├── common/
+│   ├── decoder/
+│   ├── driver/
+│   ├── exchange/
+│   ├── latency/
+│   ├── rx_engine/
+│   ├── strategy/
+│   ├── sync/
+│   ├── tests/
+│   └── tx_client/
+└── third_party/
 ```
 
-## Architecture
+### `common`
 
-### Three-Layer Design
+Shared host infrastructure used by the runtime:
 
-1. **Common Layer** (`common/`)
-   - Provides abstract interfaces (`BasicDev`)
-   - Implements shared functionality (DMA, memory pools, ring buffers)
-   - Hardware-agnostic VFIO utilities
-   - Keeps only the state shared by both FPGA and Intel drivers
-   - Used by all drivers
+- `basic_dev.*`: abstract device base class
+- `basic_ring_buffer.*`: generic ring buffer support
+- `dma_memory_allocator.*`: DMA-capable memory allocation
+- `memory_pool.*`: packet and buffer pool support
+- `device.h`, `log.h`: low-level utilities and logging
 
-2. **Driver Layer** (`intel_driver/`, `fpga_driver/`)
-   - Hardware-specific implementations
-   - Inherits from `BasicDev` abstract class
-   - Implements device-specific register access
-   - Owns vendor-specific state such as interrupt bookkeeping
-   - Provides vendor-specific optimizations
+### `FPGA_boost_demo`
 
-3. **Application Layer** (test applications)
-   - Uses driver APIs to send/receive packets
-   - Performance testing utilities
-   - Example applications for reference
+The FPGA demo runtime is organized by runtime ownership rather than only by folder shape:
 
-### Inheritance Hierarchy
+- `app/`: executable entry points such as `venturi` and `dummy_server`
+- `driver/`: FPGA PCIe device access and RX source plumbing
+- `decoder/`: FPGA record decoding support
+- `rx_engine/`: DMA polling, decode orchestration, and batch emission
+- `strategy/`: event-to-intent logic
+- `tx_client/`: order execution, gateway connection, send, and feedback handling
+- `exchange/`: standalone dummy exchange runtime and protocol transport
+- `latency/`: timestamp capture, aggregation, and logging
+- `common/`: FPGA-demo-specific shared utilities
+- `sync/`: regression and synchronization helpers
+- `tests/`: unit and component tests for the FPGA demo runtime
 
-```
-BasicDev (common/basic_dev.h)
-    │
-    ├── Intel82599Dev (intel_driver/vfio_dev.h)
-    │       └── Full-featured 10GbE NIC driver
-    │           - TX/RX ring buffers
-    │           - MSI-X interrupts
-    │           - DMA engine
-    │           - Flow control
-    │
-    └── FPGADev (fpga_driver/fpga_dev.h)
-            └── Simple PCIe register interface
-                - Basic register read/write
-                - MSI interrupts
-                - Foundation for FPGA NIC
-```
+## Runtime Structure
+
+### `venturi`
+
+`venturi` is the top-level host process for the FPGA demo. Its main orchestration lives in `FPGA_boost_demo/app/venturi.cpp` and wires together:
+
+- `FPGARxEngine` for DMA polling and decode
+- `DummyStrategy` for event evaluation
+- `Executor` for intent-to-execution conversion
+- `TxClient` for outbound order transport and feedback processing
+- `LatencyTracker`, `LatencyAnalyzer`, and `LogPrinter` for host-side timing
+
+The current runtime creates two RX/strategy/execution/TX lanes, pins worker threads to fixed CPUs, and connects the TX side to the dummy exchange at:
+
+- client bind IP: `192.168.51.1`
+- server IP: `192.168.51.2`
+- port: `9000`
+
+### `dummy_server`
+
+`dummy_server` is a standalone exchange simulator. It accepts client connections, validates login and session state, generates exchange responses, and can delay fills to make latency behavior visible.
+
+The executable entry point is `FPGA_boost_demo/app/dummy_server.cpp`. The runtime implementation lives under `FPGA_boost_demo/exchange/`.
 
 ## Building
 
-### Quick Build
+### Configure
 
 ```bash
 cd /home/chenxun/Documents/Project/Venturi
-./scripts/build_tests.sh
+cmake -S cpp_src -B cpp_src/build
 ```
 
-### Manual Build
+### Build Everything
 
 ```bash
-cd cpp_src
-mkdir -p build
-cd build
-cmake ..
-make -j$(nproc)
+cmake --build cpp_src/build -j"$(nproc)"
 ```
 
-### Build Targets
-
-| Target | Description | Driver |
-|--------|-------------|--------|
-| `test_app_loopsend` | High-speed packet generator | Intel 82599 |
-| `test_app_pcap` | Packet capture to pcap file | Intel 82599 |
-| `test_fpga_hello` | Standalone FPGA test | FPGA (standalone) |
-| `test_fpga_hello_v2` | Infrastructure-based FPGA test | FPGA (common infra) |
-| `dummy_server` | SoupBinTCP/OUCH demo exchange server | Host TCP demo |
-
-## Usage Examples
-
-### Intel 82599 NIC
+### Build Selected Targets
 
 ```bash
-# Bind device to vfio-pci
-sudo modprobe vfio-pci
-echo "8086 10fb" | sudo tee /sys/bus/pci/drivers/vfio-pci/new_id
-
-# Run loop send test
-sudo ./test_app_loopsend 0000:01:00.0
-
-# Capture packets
-sudo ./test_app_pcap 0000:01:00.0 1000 output.pcap
+cmake --build cpp_src/build --target venturi dummy_server
+cmake --build cpp_src/build --target test_fpga_hello_v2
 ```
 
-### FPGA Device
+## Running
+
+### FPGA Validation
+
+`test_fpga_hello_v2` expects a PCI address and a test number:
 
 ```bash
-# Bind device to vfio-pci
-sudo modprobe vfio-pci
-echo "10ee 8038" | sudo tee /sys/bus/pci/drivers/vfio-pci/new_id
-
-# Run standalone test
-sudo ./test_fpga_hello 0000:03:00.0
-
-# Run infrastructure-based test
-sudo ./test_fpga_hello_v2 0000:03:00.0
+sudo ./cpp_src/build/test_fpga_hello_v2 0000:05:00.0 1
 ```
 
-### OUCH-over-SoupBinTCP Demo
+### Dummy Exchange Demo
 
-This demo uses two processes on two directly connected NIC ports. The server listens on the dummy-exchange-side NIC and the integrated client path lives inside `venturi` (`venturi.cpp`).
+Build and run the host runtime together with the dummy exchange:
 
 ```bash
-# Build only the demo pieces
-cmake -S cpp_src -B build
-cmake --build build --target dummy_server venturi
+cmake --build cpp_src/build --target dummy_server venturi
+```
 
-# terminal 1: dummy exchange on enp5s0f0
-./build/dummy_server \
+Terminal 1:
+
+```bash
+./cpp_src/build/dummy_server \
   --listen-ip 192.168.51.2 \
   --port 9000 \
   --fill-delay-ms 20
-
-# terminal 2: venturi top app on enp1s0f0
-./build/venturi
 ```
 
-The client side is now the existing `venturi.cpp` path: RX -> strategy -> executor -> `TxEngine`. `TxEngine` binds to `192.168.51.1`, retries when disconnected, and pushes immediate plus async TX logs for connection established/lost, order sent, reject, and fill events.
-
-## Key Features
-
-### Common Infrastructure
-
-- **VFIO-based**: Secure userspace device access without kernel modules
-- **Zero-copy**: DMA directly to/from userspace buffers
-- **IOMMU protection**: Hardware-enforced memory isolation
-- **Huge pages**: Reduced TLB misses for high throughput
-- **NUMA-aware**: Memory allocation respects NUMA topology
-
-### Intel 82599 Driver
-
-- **Line rate**: 10 Gbps full duplex
-- **Multi-queue**: RSS (Receive Side Scaling) support
-- **Interrupts**: MSI-X with dynamic moderation
-- **Offloads**: Checksum, TSO (planned)
-- **Flow control**: IEEE 802.3x PAUSE frames
-
-### FPGA Driver
-
-- **Modular design**: Easy to extend for full NIC features
-- **Register interface**: Direct BAR access with memory barriers
-- **Interrupt support**: MSI interrupt generation
-- **Extensible**: Foundation for adding DMA, queues, Ethernet MAC
-
-## Dependencies
-
-- **Linux kernel**: 4.0+ (for VFIO support)
-- **CMake**: 3.16+
-- **Compiler**: GCC/Clang with C++20 support
-- **IOMMU**: Hardware IOMMU required (VT-d on Intel, AMD-Vi on AMD)
-
-## Development
-
-### Adding a New Driver
-
-1. Create new directory: `cpp_src/<vendor>_driver/`
-2. Inherit from `BasicDev` in `common/basic_dev.h`
-3. Implement required virtual methods:
-   - `initHardware()`
-   - `enableDevQueues()`
-   - `sendOnQueue()` / receive methods
-   - VFIO setup (`_getFD()`, BAR0 mapping via `_getBARAddr()`, etc.)
-4. Add build target to CMakeLists.txt
-5. Write test applications
-
-### Code Style
-
-- Follow existing conventions in `common/` and `intel_driver/`
-- Use RAII for resource management
-- Prefer composition over inheritance where appropriate
-- Document hardware register access with datash references
-- Add inline comments for non-obvious hardware quirks
-
-## Performance
-
-### Intel 82599 Benchmarks
-
-- **TX throughput**: ~14.88 Mpps (line rate for 64-byte packets)
-- **RX throughput**: ~14.88 Mpps (line rate)
-- **StageLatency**: <1 µs (measured with hardware timestamping)
-
-### Optimization Techniques
-
-- Batch processing (64 packets per batch)
-- Prefetching descriptor rings
-- Huge pages for DMA buffers
-- CPU affinity for interrupt handling
-- Lock-free ring buffer design
-
-## Troubleshooting
-
-### "Failed to open /dev/vfio/vfio"
+Terminal 2:
 
 ```bash
-sudo modprobe vfio-pci
+sudo ./cpp_src/build/venturi
 ```
 
-### "IOMMU group not found"
+## Testing
 
-Enable IOMMU in BIOS and add to kernel command line:
-```
-intel_iommu=on iommu=pt
-```
+Run the CTest-discovered suite from the build directory:
 
-### "Group not viable"
-
-All devices in IOMMU group must be bound to vfio-pci:
 ```bash
-# Find group members
-ls /sys/bus/pci/devices/0000:03:00.0/iommu_group/devices/
-
-# Bind all to vfio-pci
-for dev in /sys/bus/pci/devices/0000:03:00.0/iommu_group/devices/*; do
-    echo vfio-pci | sudo tee $dev/driver_override
-    echo $(basename $dev) | sudo tee /sys/bus/pci/drivers/vfio-pci/bind
-done
+cd /home/chenxun/Documents/Project/Venturi/cpp_src/build
+ctest --output-on-failure
 ```
 
-## References
+## Host Environment Notes
 
-- [VFIO Documentation](https://www.kernel.org/doc/html/latest/driver-api/vfio.html)
-- [Intel 82599 Datasheet](https://www.intel.com/content/www/us/en/embedded/products/networking/82599-10-gbe-controller-datasheet.html)
-- [Xilinx UltraScale+ PCIe](https://www.xilinx.com/support/documentation/ip_documentation/pcie3_ultrascale/v4_4/pg156-ultrascale-pcie-gen3.pdf)
-- [DPDK Documentation](https://doc.dpdk.org/) (for reference, though we don't use DPDK)
+The host-side code assumes a Linux environment with:
+
+- CMake 3.16 or newer
+- a C++20-capable compiler
+- VFIO and IOMMU support enabled
+- permission to access PCI devices from userspace
+
+Helpful setup scripts under the repository `scripts/` directory include:
+
+- `scripts/setup-vfio.sh`
+- `scripts/setup-hugepages.sh`
+- `scripts/reset_pcie.sh`
+- `scripts/port_isolation.sh`
+- `scripts/dummy_server_netns.sh`
+
+## Related Documentation
+
+- `../README.md`: repository-level project overview
+- `common/README.md`: shared host infrastructure details
+- `../hierarchy.md`: FPGA demo source tree and class relationships
+
+## Status
+
+This directory is actively evolving. In particular:
+
+- the FPGA demo runtime is present and buildable
+- the `venturi` TX path is integrated with `TxClient` and `dummy_server`
+- some FPGA validation paths are still placeholders in `test_fpga_hello_v2`
 
 ## License
 
-This project follows the Venturi project license.
-
-## Contributing
-
-Contributions welcome! Please:
-1. Follow the existing code style
-2. Add tests for new features
-3. Update documentation
-4. Test on real hardware before submitting
-
-## Contact
-
-For questions or issues, please open a GitHub issue.
+This code follows the Venturi project license.

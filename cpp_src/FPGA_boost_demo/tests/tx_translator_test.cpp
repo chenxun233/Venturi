@@ -12,9 +12,9 @@
 
 #include "../common/shared_types.h"
 #define private public
-#include "../tx_engine/tx_client.h"
-#include "../tx_engine/tx_receiver.h"
-#include "../tx_engine/tx_sender.h"
+#include "../tx_client/tx_client.h"
+#include "../tx_client/tx_receiver.h"
+#include "../tx_client/tx_sender.h"
 #include "../latency/latency_analyzer.h"
 #include "../latency/latency_tracker.h"
 #undef private

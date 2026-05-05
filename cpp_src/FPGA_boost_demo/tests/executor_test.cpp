@@ -2,7 +2,7 @@
 #include "../latency/latency_tracker.h"
 #undef private
 
-#include "../tx_engine/executor.h"
+#include "../tx_client/executor.h"
 
 #include <gtest/gtest.h>
 

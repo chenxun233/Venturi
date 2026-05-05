@@ -44,40 +44,6 @@ set(COMMON_SOURCES
 set(COMMON_INCLUDES ${COMMON_DIR})
 
 ###############################################################################
-# Intel 82599 NIC Driver
-###############################################################################
-set(INTEL_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Intel_demo)
-set(INTEL_DRIVER_DIR ${INTEL_ROOT}/driver)
-set(INTEL_APP_DIR ${INTEL_ROOT}/app)
-
-set(INTEL_SOURCES
-    ${INTEL_DRIVER_DIR}/vfio_dev.cpp
-    ${INTEL_DRIVER_DIR}/ixgbe_ring_buffer.cpp
-    ${INTEL_DRIVER_DIR}/factory.cpp
-)
-
-# Intel test applications
-add_executable(test_app_loopsend
-    ${COMMON_SOURCES}
-    ${INTEL_SOURCES}
-    ${INTEL_APP_DIR}/test_app_loopsend.cpp
-)
-target_include_directories(test_app_loopsend PRIVATE
-    ${COMMON_INCLUDES}
-    ${INTEL_DRIVER_DIR}
-)
-
-add_executable(test_app_pcap
-    ${COMMON_SOURCES}
-    ${INTEL_SOURCES}
-    ${INTEL_APP_DIR}/test_app_pcap.cpp
-)
-target_include_directories(test_app_pcap PRIVATE
-    ${COMMON_INCLUDES}
-    ${INTEL_DRIVER_DIR}
-)
-
-###############################################################################
 # FPGA Driver and Applications
 ###############################################################################
 set(FPGA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/FPGA_boost_demo)
@@ -107,7 +73,6 @@ add_executable(test_fpga_hello_v2
 )
 target_include_directories(test_fpga_hello_v2 PRIVATE
     ${COMMON_INCLUDES}
-    ${INTEL_DRIVER_DIR}  # Need Intel headers for ixgbe_type.h (used by common/basic_ring_buffer.cpp)
     ${FPGA_DRIVER_DIR}
     ${FPGA_ADAPTER_DIR}
 )
@@ -134,7 +99,6 @@ add_executable(venturi
 # target_compile_definitions(venturi PRIVATE ISO=1)
 target_include_directories(venturi PRIVATE
     ${COMMON_INCLUDES}
-    ${INTEL_DRIVER_DIR}
     ${FPGA_DRIVER_DIR}
     ${FPGA_ADAPTER_DIR}
     ${FPGA_ENGINE_DIR}
@@ -453,13 +417,11 @@ endif()
 message(STATUS "")
 message(STATUS "=== Venturi Build Configuration ===")
 message(STATUS "Common directory:      ${COMMON_DIR}")
-message(STATUS "Intel demo directory:   ${INTEL_ROOT}")
 message(STATUS "FPGA demo directory:    ${FPGA_ROOT}")
 message(STATUS "GoogleTest directory:   ${GOOGLETEST_ROOT}")
 message(STATUS "")
 message(STATUS "Build targets:")
-message(STATUS "  - test_app_loopsend    (Intel 82599 loop send test)")
-message(STATUS "  - test_app_pcap        (Intel 82599 packet capture)")
 message(STATUS "  - test_fpga_hello_v2   (FPGA infrastructure test)")
-message(STATUS "  - test_fpga_rx_adapter (FPGA RX decoder event pollBatch demo)")
+message(STATUS "  - venturi              (FPGA host runtime)")
+message(STATUS "  - dummy_server         (dummy exchange simulator)")
 message(STATUS "")

@@ -2,9 +2,9 @@
 
 #include "../common/shared_types.h"
 #define private public
-#include "../tx_engine/tx_connector.h"
-#include "../tx_engine/tx_receiver.h"
-#include "../tx_engine/tx_sender.h"
+#include "../tx_client/tx_connector.h"
+#include "../tx_client/tx_receiver.h"
+#include "../tx_client/tx_sender.h"
 #undef private
 
 #include <fcntl.h>
