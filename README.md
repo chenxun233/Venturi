@@ -55,9 +55,43 @@ Terminal 3: feed market data into the FPGA path, for example with `tcpreplay`:
 sudo tcpreplay -i <replay-interface> market_data/ONE_MSG_ONE_FRAME.pcap
 ```
 
+For short smoke tests, `market_data/ONE_MSG_ONE_FRAME.pcap` is enough, but it only contains four packets total:
+
+- HSBC `A`
+- HSBC `E`
+- AAPL `A`
+- AAPL `E`
+
+For longer replay runs, prefer:
+
+```bash
+sudo tcpreplay -i <replay-interface> market_data/ONE_MSG_ONE_FRAME_EXTENDED_64K.pcap
+```
+
+That file contains `64000` packets total, built from the same four-packet pattern with slightly varied `A`-message prices for the two symbols.
+
+For other types, you can refer to `market_data/HSBC_AAPL.pcap`
+
+## Replay Expectations
+
+For `market_data/ONE_MSG_ONE_FRAME.pcap`, each replay loop contains:
+
+- `4` Ethernet/UDP packets total
+- `2` packets for HSBC
+- `2` packets for AAPL
+- `1` queue-worthy `A` and `1` queue-worthy `E` packet per symbol
+
+For `market_data/ONE_MSG_ONE_FRAME_EXTENDED_64K.pcap`, the total is:
+
+- `64000` packets total
+- `32000` packets for HSBC
+- `32000` packets for AAPL
+
+If both queues are configured correctly, the per-queue receive totals should be balanced for this dataset.
+
 ## Print
 
-When tcpreplay finished, you can press `ctrl+c` in `venturi` terminal, below will be printed:
+When `tcpreplay` finished, you can press `ctrl+c` in `venturi` terminal, below will be printed:
 
 ```bash
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:30 initHardware(): Initializing FPGA RX hardware...
@@ -95,6 +129,67 @@ TX_SEND_SYSCALL_ENTER_to_TX_SEND                 1105         1283         1394 
 TxReceiver queue=0 sent=8000 accepted=8000 filled=8000 rejected=0 pending=0 malformed=0 ref_drops=0 connected=1 disconnected=0
 TxReceiver queue=1 sent=8000 accepted=8000 filled=8000 rejected=0 pending=0 malformed=0 ref_drops=0 connected=1 disconnected=0
 ```
+
+Do not stop `venturi` immediately when `tcpreplay` exits. Wait briefly so in-flight host-side tracing and TX completion work can drain before pressing `ctrl+c`.
+
+## How To Read The Print
+
+The most important counters have different meanings:
+
+- `queue=<id> total_received=<n> traced=<n>`
+  - `total_received` is the count of received first-event records seen by the RX engine for that queue
+  - `traced` is the count of latency traces that completed all required host-side stages
+  - `traced` is not a raw packet counter, so `traced < total_received` does not automatically mean FPGA packet loss
+- `Latency Summary`
+  - summarizes only completed traces
+  - `traced records` should line up with `traced`
+- `TxReceiver ... sent/accepted/filled`
+  - these are TX-path order lifecycle counters
+  - they are useful for checking whether the host-side order path stayed consistent
+- `TxReceiver ... connected/disconnected`
+  - these are connection event counters for the dummy exchange path
+  - they are not packet counters and should not be used to infer FPGA RX loss
+
+## Validation Checklist
+
+After a replay run, the usual correctness checks are:
+
+- per-queue `total_received` matches the expected dataset split
+- per-queue `sent == accepted == filled`
+- `rejected == 0`
+- `pending == 0`
+- `malformed == 0`
+- `ref_drops == 0`
+- `disconnected == 0` for a normal steady run against `dummy_server`
+
+If `traced < total_received` but the receive and TX counters still match expectations, that indicates a tracing shortfall rather than a receive-path loss.
+
+## Bitstream
+
+Before running the host runtime, program the FPGA with the intended bitstream/image for the current experiment.
+
+Host software results are only meaningful when:
+
+- the programmed RTL matches the code assumptions for queue layout and record format
+- the BAR/MMIO register map matches the host binary
+- the pcap replay content matches the configured symbol stock-locate values
+
+If you change RTL, rebuild and reprogram the FPGA before drawing conclusions from host prints.
+
+## Isolation Notes
+
+Some host preparation is required for correctness, and some is primarily for cleaner latency measurements:
+
+- Usually required:
+  - PCIe reset if the device is in a bad state
+  - hugepage setup
+  - VFIO setup
+- Strongly recommended for stable latency numbers:
+  - port isolation
+  - separate network namespaces for `venturi` and `dummy_server`
+  - CPU pinning and boot-time CPU isolation (`isolcpus`, `nohz_full`, `rcu_nocbs`, `irqaffinity`)
+
+Correctness debugging should be done on the simplest stable setup you can control. Latency benchmarking should use the more isolated setup.
 
 The only missing latency is the PCIe transmission latency. Because we do not have a hardware synced clock source.
 
