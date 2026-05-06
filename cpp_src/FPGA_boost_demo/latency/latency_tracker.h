@@ -27,6 +27,7 @@ public:
                      uint32_t trace_id) noexcept;
     void run() noexcept;
     void stop() noexcept;
+    uint64_t readCompletedTraceCount(uint16_t que_idx) const noexcept;
     void printDebugSummary() const noexcept;
 
 private:
@@ -50,11 +51,6 @@ private:
     uint16_t m_next_command_queue_idx {0};
     // for debug
     std::vector<std::atomic<uint32_t>> m_active_trace_ids;
-    std::vector<std::atomic<uint64_t>> m_started_trace_counts;
-    std::vector<std::atomic<uint64_t>> m_finalize_request_counts;
     std::vector<std::atomic<uint64_t>> m_completed_trace_counts;
-    std::vector<std::atomic<uint64_t>> m_drop_request_counts;
-    std::vector<std::atomic<uint64_t>> m_missing_trace_record_counts;
-    std::vector<std::atomic<uint64_t>> m_stage_mismatch_drop_counts;
 
 };

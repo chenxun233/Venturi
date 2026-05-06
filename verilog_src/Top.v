@@ -366,6 +366,8 @@ wire [SYMBOL_NUM*64-1:0]               rx_dma_que_drop_count   ;
 wire [SYMBOL_NUM*64-1:0]               rx_dma_que_status       ;
 wire [SYMBOL_NUM*16-1:0]                symbol_stock_locate_cfg ;
 wire [SYMBOL_NUM*32-1:0]                symbol_price_base_cfg   ;
+wire [SYMBOL_NUM*16-1:0]                symbol_stock_locate_cfg_rx;
+wire [SYMBOL_NUM*32-1:0]                symbol_price_base_cfg_rx;
 wire                                    pcs_frame_started       ;
 wire                                    mac_frame_started       ;
 wire [63:0]                             rx_dbg_pcs_frame_count_gray ;
@@ -485,8 +487,8 @@ order_book_builder #(
     .i_shares           (shares                ),
     .i_price            (price                 ),
     .i_frame_ts         (msg_timestamp         ),
-    .i_symbol_stock_locate_cfg (symbol_stock_locate_cfg),
-    .i_symbol_price_base_cfg   (symbol_price_base_cfg),
+    .i_symbol_stock_locate_cfg (symbol_stock_locate_cfg_rx),
+    .i_symbol_price_base_cfg   (symbol_price_base_cfg_rx),
     .o_event_valid      (builder_event_valid   ),
     .o_event_payload    (builder_event_payload )
 );
@@ -533,6 +535,22 @@ gray_to_binary #(
 ) dma_timestamp_decode_inst (
     .i_gray   (w_dma_ts_gray_dma),
     .o_binary (w_dma_ts_bin     )
+);
+
+bit_synchronizer #(
+    .BIT_WIDTH (SYMBOL_NUM*16)
+) symbol_stock_locate_cfg_sync_inst (
+    .i_clk  (w_xgmii_rx_clk),
+    .i_in   (symbol_stock_locate_cfg),
+    .o_out  (symbol_stock_locate_cfg_rx)
+);
+
+bit_synchronizer #(
+    .BIT_WIDTH (SYMBOL_NUM*32)
+) symbol_price_base_cfg_sync_inst (
+    .i_clk  (w_xgmii_rx_clk),
+    .i_in   (symbol_price_base_cfg),
+    .o_out  (symbol_price_base_cfg_rx)
 );
 
 generate

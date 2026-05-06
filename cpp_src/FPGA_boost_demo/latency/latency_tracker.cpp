@@ -30,12 +30,7 @@ LatencyTracker::LatencyTracker(uint16_t producer_num,
     : m_queue_num(producer_num),
       m_next_trace_ids(producer_num, 1U),
       m_active_trace_ids(producer_num),
-      m_started_trace_counts(producer_num),
-      m_finalize_request_counts(producer_num),
-      m_completed_trace_counts(producer_num),
-      m_drop_request_counts(producer_num),
-      m_missing_trace_record_counts(producer_num),
-      m_stage_mismatch_drop_counts(producer_num) {
+      m_completed_trace_counts(producer_num) {
     m_host_tick_scale = calibrateHostTickScale();
     if (m_host_tick_scale.use_clock_fallback || m_host_tick_scale.tsc_hz == 0U) {
         throw std::runtime_error("Failed to calibrate host tick scale");
@@ -49,12 +44,7 @@ LatencyTracker::LatencyTracker(uint16_t producer_num,
         m_command_queues.push_back(
             std::make_unique<SpscRingBuffer<TraceCommand>>(command_capacity));
         m_active_trace_ids[producer_idx].store(0U, std::memory_order_relaxed);
-        m_started_trace_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
-        m_finalize_request_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
         m_completed_trace_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
-        m_drop_request_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
-        m_missing_trace_record_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
-        m_stage_mismatch_drop_counts[producer_idx].store(0ULL, std::memory_order_relaxed);
     }
 }
 
@@ -78,7 +68,6 @@ uint32_t LatencyTracker::tryAllocateTraceId(uint16_t que_idx, bool is_first_even
     }
 
     m_next_trace_ids[que_idx] = next_trace_id;
-    m_started_trace_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
     return trace_id;
 }
 
@@ -98,7 +87,6 @@ bool LatencyTracker::requestFinalize(uint16_t que_idx, uint32_t trace_id) noexce
     if (que_idx >= m_command_queues.size() || trace_id == 0U) {
         return false;
     }
-    m_finalize_request_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
     TraceCommand command {
         .que_idx = que_idx,
         .trace_id = trace_id,
@@ -119,7 +107,6 @@ bool LatencyTracker::requestDrop(uint16_t que_idx,
         trace_id == 0U) {
         return false;
     }
-    m_drop_request_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
     TraceCommand command {
         .que_idx = que_idx,
         .trace_id = trace_id,
@@ -144,25 +131,29 @@ void LatencyTracker::stop() noexcept {
     m_should_stop.store(true, std::memory_order_release);
 }
 
+uint64_t LatencyTracker::readCompletedTraceCount(uint16_t que_idx) const noexcept {
+    if (que_idx >= m_completed_trace_counts.size()) {
+        return 0ULL;
+    }
+    return m_completed_trace_counts[que_idx].load(std::memory_order_relaxed);
+}
+
 void LatencyTracker::printDebugSummary() const noexcept {
     std::printf("Latency Tracker Debug Summary\n");
     for (uint16_t que_idx = 0; que_idx < m_queue_num; ++que_idx) {
-        std::printf("queue=%u traced_started=%llu traced_finalize_requested=%llu traced_completed=%llu traced_drop_requested=%llu traced_missing_records=%llu traced_stage_mismatch_drops=%llu active_trace_id=%u\n",
+        const uint64_t latency_record_drops =
+            m_latency_queues[que_idx]->readDropCount();
+        const uint64_t command_drops =
+            m_command_queues[que_idx]->readDropCount();
+        const uint32_t active_trace_id =
+            m_active_trace_ids[que_idx].load(std::memory_order_relaxed);
+        std::printf("queue=%u traced_packets=%llu latency_record_drops=%llu command_drops=%llu active_trace=%u\n",
                     static_cast<unsigned int>(que_idx),
                     static_cast<unsigned long long>(
-                        m_started_trace_counts[que_idx].load(std::memory_order_relaxed)),
-                    static_cast<unsigned long long>(
-                        m_finalize_request_counts[que_idx].load(std::memory_order_relaxed)),
-                    static_cast<unsigned long long>(
                         m_completed_trace_counts[que_idx].load(std::memory_order_relaxed)),
-                    static_cast<unsigned long long>(
-                        m_drop_request_counts[que_idx].load(std::memory_order_relaxed)),
-                    static_cast<unsigned long long>(
-                        m_missing_trace_record_counts[que_idx].load(std::memory_order_relaxed)),
-                    static_cast<unsigned long long>(
-                        m_stage_mismatch_drop_counts[que_idx].load(std::memory_order_relaxed)),
-                    static_cast<unsigned int>(
-                        m_active_trace_ids[que_idx].load(std::memory_order_relaxed)));
+                    static_cast<unsigned long long>(latency_record_drops),
+                    static_cast<unsigned long long>(command_drops),
+                    static_cast<unsigned int>(active_trace_id));
     }
     std::fflush(stdout);
 }
@@ -188,7 +179,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
     }
 
     if (!found_matching_trace) {
-        m_missing_trace_record_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
         _clearActiveTraceID(que_idx, trace_id);
         return;
     }
@@ -203,7 +193,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
 
     for (std::size_t stage_idx = 0; stage_idx < kRequiredStages.size(); ++stage_idx) {
         if (record.trace_id != trace_id || record.event_stage != kRequiredStages[stage_idx]) {
-            m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
             _cleanLatencyQueue(que_idx);
             _clearActiveTraceID(que_idx, trace_id);
             return;
@@ -221,7 +210,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                 const int64_t delta_ns =
                     _FPGATick2ns(record.time_captured, frame_start_tick);
                 if (delta_ns < 0) {
-                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
                     _cleanLatencyQueue(que_idx);
                     _clearActiveTraceID(que_idx, trace_id);
                     return;
@@ -238,7 +226,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                 const int64_t delta_ns =
                     _hostTick2ns(record.time_captured, batch_start_tick);
                 if (delta_ns < 0) {
-                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
                     _cleanLatencyQueue(que_idx);
                     _clearActiveTraceID(que_idx, trace_id);
                     return;
@@ -251,7 +238,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                 const int64_t delta_ns =
                     _hostTick2ns(record.time_captured, batch_end_tick);
                 if (delta_ns < 0) {
-                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
                     _cleanLatencyQueue(que_idx);
                     _clearActiveTraceID(que_idx, trace_id);
                     return;
@@ -264,7 +250,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                 const int64_t delta_ns =
                     _hostTick2ns(record.time_captured, strategy_start_tick);
                 if (delta_ns < 0) {
-                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
                     _cleanLatencyQueue(que_idx);
                     _clearActiveTraceID(que_idx, trace_id);
                     return;
@@ -277,7 +262,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                 const int64_t delta_ns =
                     _hostTick2ns(record.time_captured, tx_execution_accepted_tick);
                 if (delta_ns < 0) {
-                    m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
                     _cleanLatencyQueue(que_idx);
                     _clearActiveTraceID(que_idx, trace_id);
                     return;
@@ -297,7 +281,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
                 break;
             }
             default:
-                m_stage_mismatch_drop_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
                 _cleanLatencyQueue(que_idx);
                 _clearActiveTraceID(que_idx, trace_id);
                 return;
@@ -308,7 +291,6 @@ void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcep
         }
 
         if (!queue.pop(record)) {
-            m_missing_trace_record_counts[que_idx].fetch_add(1ULL, std::memory_order_relaxed);
             _clearActiveTraceID(que_idx, trace_id);
             return;
         }

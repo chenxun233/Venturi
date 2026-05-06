@@ -29,6 +29,7 @@ public:
 
     void attachLatencyTracker(LatencyTracker* latency_tracker);
     void attachConnection(TxConnector* connection);
+    void attachReceiver(TxReceiver* receiver);
     bool acceptExecution(const OrderExecution& execution) noexcept;
 
     bool runOnce();

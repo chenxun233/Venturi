@@ -167,6 +167,10 @@ void TxSender::attachConnection(TxConnector* connection) {
     p_connection = connection;
 }
 
+void TxSender::attachReceiver(TxReceiver* receiver) {
+    p_receiver = receiver;
+}
+
 bool TxSender::acceptExecution(const OrderExecution& execution) noexcept {
     const bool pushed = m_execution_buffer.pushBack(execution);
     if (pushed && execution.trace_id != 0U && p_latency_tracker != nullptr) {
@@ -541,4 +545,3 @@ void TxSender::_erasePendingOrder(uint32_t user_ref_num) {
     }
     _clearPendingSlot(*slot);
 }
-

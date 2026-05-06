@@ -1,5 +1,5 @@
 #pragma once
-#include "../driver/basic_rx_source.h"
+#include "../fpga_dev/fpga_dev.h"
 #include "../common/shared_types.h"
 #include <atomic>
 #include <cstddef>
@@ -10,14 +10,10 @@ class LatencyTracker;
 class FPGARxEngine {
 
 public:
-    FPGARxEngine(BasicRxDev& source, uint16_t que_idx);
+    FPGARxEngine(FPGADev& source, uint16_t que_idx);
 
     std::size_t pollDecodedBatch(std::size_t max_count,
                                  FPGAEventDesc* out);
-    std::size_t pollDecodedBatchSync(std::size_t max_count,
-                                     bool get_snapshot,
-                                     FpgaSyncSnapshot* snapshot,
-                                     FPGAEventDesc* out);
     // Non-owning; attach before polling; tracker must outlive engine; do not swap concurrently.
     void attachLatencyTracker(LatencyTracker* latency_tracker);
     uint64_t readDecodedCount() const noexcept;
@@ -27,13 +23,11 @@ public:
 
 private:
     static void _decodeRawRecord(const uint8_t* record, FPGAEventDesc& event);
-    std::size_t pollDecodedBatchImpl(std::size_t max_count,
-                                     bool get_snapshot,
+    std::size_t _pollDecodedBatchImpl(std::size_t max_count,
                                      bool emit_batch_start,
-                                     FpgaSyncSnapshot* snapshot,
                                      FPGAEventDesc* out);
 
-    BasicRxDev& m_device;
+    FPGADev& m_device;
     uint16_t m_que_idx {0};
     uint64_t m_cons_ptr {0};
     std::atomic<uint64_t> m_decoded_count {0};

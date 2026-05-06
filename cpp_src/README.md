@@ -45,11 +45,10 @@ cpp_src/
 
 Shared host infrastructure used by the runtime:
 
-- `basic_dev.*`: abstract device base class
+- `device.h`, `log.h`: low-level utilities and logging
 - `basic_ring_buffer.*`: generic ring buffer support
 - `dma_memory_allocator.*`: DMA-capable memory allocation
 - `memory_pool.*`: packet and buffer pool support
-- `device.h`, `log.h`: low-level utilities and logging
 
 ### `FPGA_boost_demo`
 

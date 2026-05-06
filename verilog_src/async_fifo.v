@@ -50,9 +50,18 @@ wire [PTR_W-1:0] rd_bin_next  = rd_ptr_bin + {{(PTR_W-1){1'b0}}, rd_do};
 wire [PTR_W-1:0] rd_gray_next = (rd_bin_next >> 1) ^ rd_bin_next;
 
 
-wire [PTR_W-1:0] wr_full_cmp  = {~rd_ptr_gray_sync2[PTR_W-1:PTR_W-2], rd_ptr_gray_sync2[PTR_W-3:0]};//Gray-code representation of the “full-condition pointer” 
+wire [PTR_W-1:0] wr_full_cmp;
 wire             wr_full_next = (wr_gray_next == wr_full_cmp);
 wire             rd_empty_next = (rd_gray_next == wr_ptr_gray_sync2);
+
+generate
+    if (PTR_W > 2) begin : g_wr_full_cmp_wide
+        assign wr_full_cmp =
+            {~rd_ptr_gray_sync2[PTR_W-1:PTR_W-2], rd_ptr_gray_sync2[PTR_W-3:0]};
+    end else begin : g_wr_full_cmp_narrow
+        assign wr_full_cmp = ~rd_ptr_gray_sync2;
+    end
+endgenerate
 
 always @(posedge i_wr_clk or posedge i_wr_rst) begin
     if (i_wr_rst) begin

@@ -30,7 +30,7 @@ uint64_t readLe48(const uint8_t* bytes, std::size_t offset) {
 
 } // namespace
 
-FPGARxEngine::FPGARxEngine(BasicRxDev& source, uint16_t que_idx)
+FPGARxEngine::FPGARxEngine(FPGADev& source, uint16_t que_idx)
     : m_device(source),
       m_que_idx(que_idx) {
     if (!m_device.isValid()) {
@@ -49,34 +49,15 @@ void FPGARxEngine::_decodeRawRecord(const uint8_t* record, FPGAEventDesc& event)
     event.stock_locate = readLe16(record, 0);
 }
 
-std::size_t FPGARxEngine::pollDecodedBatchImpl(std::size_t max_count,
-                                               bool get_snapshot,
+std::size_t FPGARxEngine::_pollDecodedBatchImpl(std::size_t max_count,
                                                bool emit_batch_start,
-                                               FpgaSyncSnapshot* snapshot,
                                                FPGAEventDesc* out) {
     uint64_t prod_ptr = 0;
-    if (get_snapshot) {
-        uint64_t fpga_tick = 0;
-        uint64_t host_time_ns = 0;
-        uint64_t interval_ns = 0;
-        m_device._readProdPtrSnapshot(m_que_idx,
-                                      prod_ptr,
-                                      fpga_tick,
-                                      host_time_ns,
-                                      interval_ns,
-                                      true);
-        if (snapshot != nullptr) {
-            snapshot->fpga_tick = fpga_tick;
-            snapshot->host_time_ns = host_time_ns;
-            snapshot->interval_ns = interval_ns;
-        }
-    } else {
-        m_device._readProdPtr(m_que_idx, prod_ptr);
-    }
+    m_device.readProdPtr(m_que_idx, prod_ptr);
     std::size_t record_count = 0;
     uint64_t cons_ptr = m_cons_ptr;
     while (record_count < max_count && cons_ptr < prod_ptr) {
-        const uint8_t* raw = m_device._pollDataRaw(m_que_idx, cons_ptr);
+        const uint8_t* raw = m_device.pollDataRaw(m_que_idx, cons_ptr);
         if (raw == nullptr) {
             break;
         }
@@ -124,13 +105,13 @@ std::size_t FPGARxEngine::pollDecodedBatchImpl(std::size_t max_count,
     }
 
     m_cons_ptr = cons_ptr;
-    m_device._writeConsPtr(m_que_idx, cons_ptr);
+    m_device.writeConsPtr(m_que_idx, cons_ptr);
 
     return record_count;
 }
 
 std::size_t FPGARxEngine::pollDecodedBatch(std::size_t max_count, FPGAEventDesc* out) {
-    const std::size_t count = pollDecodedBatchImpl(max_count, false, true, nullptr, out);
+    const std::size_t count = _pollDecodedBatchImpl(max_count, true, out);
     if (p_latency_tracker == nullptr || count == 0U) {
         return count;
     }
@@ -150,14 +131,6 @@ std::size_t FPGARxEngine::pollDecodedBatch(std::size_t max_count, FPGAEventDesc*
 
     return count;
 }
-
-std::size_t FPGARxEngine::pollDecodedBatchSync(std::size_t max_count,
-                                               bool get_snapshot,
-                                               FpgaSyncSnapshot* snapshot,
-                                               FPGAEventDesc* out) {
-    return pollDecodedBatchImpl(max_count, get_snapshot, false, snapshot, out);
-}
-
 void FPGARxEngine::attachLatencyTracker(LatencyTracker* latency_tracker) {
     p_latency_tracker = latency_tracker;
 }

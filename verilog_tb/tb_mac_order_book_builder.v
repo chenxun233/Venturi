@@ -62,6 +62,7 @@ module tb_mac_order_book_builder;
     wire [SYMBOL_NUM-1:0]   event_cdc_rd_empty;
     wire [SYMBOL_NUM-1:0]   event_cdc_rd_valid;
     wire [SYMBOL_NUM*PAYLOAD_W-1:0] event_cdc_rd_data;
+    wire [SYMBOL_NUM*64-1:0] event_cdc_wr_drop_count;
     wire [47:0]             w_dma_ts_gray_dma;
     wire [47:0]             w_dma_ts_bin;
     reg  [SYMBOL_NUM*64-1:0] rx_dma_que_iova_addr;
@@ -72,6 +73,8 @@ module tb_mac_order_book_builder;
     wire [SYMBOL_NUM*64-1:0] rx_dma_que_prod_ptr;
     wire [SYMBOL_NUM*64-1:0] rx_dma_que_drop_count;
     wire [SYMBOL_NUM*64-1:0] rx_dma_que_status;
+    wire [SYMBOL_NUM*64-1:0] rx_dma_event_pop_count;
+    wire [SYMBOL_NUM*64-1:0] rx_dma_event_send_count;
     wire                     dma_rq_valid;
     wire [3:0]               dma_rq_type;
     wire                     dma_rq_payload_last;
@@ -225,6 +228,7 @@ module tb_mac_order_book_builder;
                 .i_wr_en     (builder_event_valid[cdc_idx]),
                 .i_wr_data   (builder_event_payload[cdc_idx*PAYLOAD_W +: PAYLOAD_W]),
                 .o_wr_full   (event_cdc_wr_full[cdc_idx]),
+                .o_wr_drop_count(event_cdc_wr_drop_count[cdc_idx*64 +: 64]),
                 .i_rd_clk    (i_clk_250),
                 .i_rd_rst    (i_rst),
                 .i_rd_en     (event_cdc_rd_en[cdc_idx]),
@@ -254,6 +258,8 @@ module tb_mac_order_book_builder;
         .o_que_prod_ptr     (rx_dma_que_prod_ptr),
         .o_que_drop_count   (rx_dma_que_drop_count),
         .o_que_status       (rx_dma_que_status),
+        .o_event_pop_count  (rx_dma_event_pop_count),
+        .o_event_send_count (rx_dma_event_send_count),
         .i_rq_ready         (1'b1),
         .o_rq_valid         (dma_rq_valid),
         .o_rq_type          (dma_rq_type),

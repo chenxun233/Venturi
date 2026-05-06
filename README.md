@@ -1,6 +1,10 @@
 # Venturi
 
-Venturi is an FPGA-plus-host trading systems project. It receives Nasdaq ITCH 5.0 market data on the FPGA, builds top-of-book state in hardware, exports event records to host memory through PCIe DMA, and runs a host-side demo trading pipeline that can send orders to a simulated exchange.
+Venturi is an FPGA-plus-host framework for building and measuring a low-latency market-data-to-order pipeline. Its main purpose is latency tracking rather than trading itself.
+
+The system receives Nasdaq ITCH 5.0 market data on the FPGA, builds top-of-book state in hardware, exports event records to host memory through PCIe DMA, and runs a host-side demo pipeline that can send orders to a simulated exchange. Latency is tracked across the software and hardware stages of this flow, except for PCIe transmission latency.
+
+When `venturi` is stopped with `Ctrl+C`, it prints summary statistics for each tracked stage, including `min`, `p50`, `p99`, and `max`.
 
 This repository contains:
 

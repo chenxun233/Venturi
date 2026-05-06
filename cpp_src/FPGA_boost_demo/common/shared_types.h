@@ -8,23 +8,6 @@
 
 #define MAX_POLL_RECORDS 32
 
-typedef struct  {
-    uint64_t fpga_tick      {0};
-    uint64_t host_time_ns   {0};
-    uint64_t interval_ns    {0};
-}FpgaSyncSnapshot;
-
-
-typedef struct{
-    std::atomic<bool> request {false};
-} CapSignal;
-
-typedef struct  {
-    bool has_para {false};
-    uint64_t a_q32 {1ULL << 32};
-    int64_t b_ns {0};
-}   RegressionPara;
-
 struct FPGAEventDesc {
     uint8_t  is_first_event {0};
     uint32_t ask_price      {0};
@@ -101,11 +84,6 @@ struct TraceCommand {
     uint16_t que_idx {0};
     uint32_t trace_id {0};
     TraceCommandOp op {TraceCommandOp::Finalize};
-};
-
-struct RegressionStatusLogRecord {
-    bool has_para {false};
-    double a_ns_per_tick {0.0};
 };
 
 enum class OrderIntentAction : uint8_t {
@@ -202,8 +180,6 @@ struct TxDisconnectNotice {
     uint64_t generation {0};
     uint16_t reason {0};
 };
-
-
 
 
 

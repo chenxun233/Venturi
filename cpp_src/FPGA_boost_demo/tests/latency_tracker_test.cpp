@@ -7,6 +7,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <string>
 #include <limits>
 #include <thread>
 #include <type_traits>
@@ -343,4 +344,20 @@ TEST(LatencyTrackerTest, runConsumesQueuedDropAndClearsActiveTrace) {
     EXPECT_EQ(readActiveTraceId(tracker.m_active_trace_ids[0]), 0U);
     TimeRecord leftover {};
     EXPECT_FALSE(tracker.m_latency_queues[0]->pop(leftover));
+}
+
+TEST(LatencyTrackerTest, printDebugSummaryShowsQueueAndFinalTracedPacketsOnly) {
+    LatencyTracker tracker(1, 16, 8);
+    tracker.m_completed_trace_counts[0].store(7961ULL, std::memory_order_relaxed);
+
+    testing::internal::CaptureStdout();
+    tracker.printDebugSummary();
+    const std::string output = testing::internal::GetCapturedStdout();
+
+    EXPECT_NE(output.find("Latency Tracker Debug Summary"), std::string::npos);
+    EXPECT_NE(output.find("queue=0 traced_packets=7961"), std::string::npos);
+    EXPECT_EQ(output.find("traced_started="), std::string::npos);
+    EXPECT_EQ(output.find("traced_finalize_requested="), std::string::npos);
+    EXPECT_EQ(output.find("traced_drop_requested="), std::string::npos);
+    EXPECT_EQ(output.find("active_trace_id="), std::string::npos);
 }

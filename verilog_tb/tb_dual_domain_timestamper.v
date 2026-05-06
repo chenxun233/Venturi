@@ -30,6 +30,8 @@ module tb_dual_domain_timestamper;
     wire [63:0]          que_prod_ptr;
     wire [63:0]          que_drop_count;
     wire [63:0]          que_status;
+    wire [63:0]          event_pop_count;
+    wire [63:0]          event_send_count;
     wire                 rq_valid;
     wire [3:0]           rq_type;
     wire                 rq_payload_last;
@@ -90,6 +92,8 @@ module tb_dual_domain_timestamper;
         .o_que_prod_ptr      (que_prod_ptr),
         .o_que_drop_count    (que_drop_count),
         .o_que_status        (que_status),
+        .o_event_pop_count   (event_pop_count),
+        .o_event_send_count  (event_send_count),
         .i_rq_ready          (rq_ready),
         .o_rq_valid          (rq_valid),
         .o_rq_type           (rq_type),
@@ -211,6 +215,16 @@ module tb_dual_domain_timestamper;
             wait (que_prod_ptr == expected_prod_ptr);
             if (que_drop_count != 64'd0) begin
                 $fatal(1, "Queue drop count should remain zero, got %0d", que_drop_count);
+            end
+            if (event_pop_count != expected_prod_ptr) begin
+                $fatal(1, "event_pop_count mismatch expected %0d actual %0d",
+                       expected_prod_ptr,
+                       event_pop_count);
+            end
+            if (event_send_count != expected_prod_ptr) begin
+                $fatal(1, "event_send_count mismatch expected %0d actual %0d",
+                       expected_prod_ptr,
+                       event_send_count);
             end
             if (que_status[0] != 1'b1) begin
                 $fatal(1, "Queue enabled bit should stay asserted");

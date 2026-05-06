@@ -62,6 +62,12 @@ reg [47:0]  preset_dst_mac_addr         ;
 reg [31:0]  preset_dst_ip_addr          ;
 reg [15:0]  preset_dst_port             ;
 reg         promiscuous                 ;
+wire [47:0] ctl_dst_mac_sync;
+wire [31:0] ctl_dst_ip_sync;
+wire [15:0] ctl_dst_port_sync;
+wire        ctl_promiscuous_sync;
+wire        sync_fire_sync;
+wire [BAR0_SIZE-1:0] ctl_reg_sync;
 // parsing helper registers
 reg [3:0]   head_counter                ;
 reg [511:0] prev_buff                   ;// saves previous and current i_axi_rx_data for message parsing, especially for variable-length fields that may cross the boundary of two i_axi_rx_data.
@@ -85,27 +91,75 @@ reg [15:0]  msg_len_bytes; // the length of the message in bytes, which is deter
 
 
 
+bit_synchronizer #(
+    .BIT_WIDTH (48)
+) ctl_dst_mac_sync_inst (
+    .i_clk  (i_clk_156),
+    .i_in   (i_ctl_dst_mac),
+    .o_out  (ctl_dst_mac_sync)
+);
+
+bit_synchronizer #(
+    .BIT_WIDTH (32)
+) ctl_dst_ip_sync_inst (
+    .i_clk  (i_clk_156),
+    .i_in   (i_ctl_dst_ip),
+    .o_out  (ctl_dst_ip_sync)
+);
+
+bit_synchronizer #(
+    .BIT_WIDTH (16)
+) ctl_dst_port_sync_inst (
+    .i_clk  (i_clk_156),
+    .i_in   (i_ctl_dst_port),
+    .o_out  (ctl_dst_port_sync)
+);
+
+bit_synchronizer #(
+    .BIT_WIDTH (1)
+) ctl_promiscuous_sync_inst (
+    .i_clk  (i_clk_156),
+    .i_in   (i_promiscuous),
+    .o_out  (ctl_promiscuous_sync)
+);
+
+bit_synchronizer #(
+    .BIT_WIDTH (1)
+) sync_fire_sync_inst (
+    .i_clk  (i_clk_156),
+    .i_in   (i_sync_fire),
+    .o_out  (sync_fire_sync)
+);
+
+bit_synchronizer #(
+    .BIT_WIDTH (BAR0_SIZE)
+) ctl_reg_sync_inst (
+    .i_clk  (i_clk_156),
+    .i_in   (i_ctl_reg),
+    .o_out  (ctl_reg_sync)
+);
+
 
 // === settings synchronization ===
-always@(posedge i_clk_156 or posedge i_rst or posedge i_sync_fire) begin
-    if(i_rst) begin
+always @(posedge i_clk_156 or posedge i_rst) begin
+    if (i_rst) begin
         preset_dst_mac_addr    <= DEFAULT_MAC_ADDR;
         preset_dst_ip_addr     <= DEFAULT_IP_ADDR;
         preset_dst_port        <= DEFAULT_PORT;
         promiscuous            <= 1'b1;
-    end else if(i_sync_fire) begin
-        case (i_ctl_reg)
+    end else if (sync_fire_sync) begin
+        case (ctl_reg_sync)
             16'h04: begin
-                preset_dst_mac_addr    <= i_ctl_dst_mac;
+                preset_dst_mac_addr    <= ctl_dst_mac_sync;
             end
             16'h08: begin
-                preset_dst_ip_addr     <= i_ctl_dst_ip;
+                preset_dst_ip_addr     <= ctl_dst_ip_sync;
             end
             16'h0C: begin
-                preset_dst_port        <= i_ctl_dst_port;
+                preset_dst_port        <= ctl_dst_port_sync;
             end
             16'h10: begin
-                promiscuous            <= i_promiscuous;
+                promiscuous            <= ctl_promiscuous_sync;
             end
             default: begin
                 // do nothing for other addresses

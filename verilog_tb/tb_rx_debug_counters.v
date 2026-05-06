@@ -14,6 +14,12 @@ module tb_rx_debug_counters;
     localparam [BAR0_SIZE-1:0] REG_RX_DBG_MSG_COUNT        = 16'h108;
     localparam [BAR0_SIZE-1:0] REG_RX_DBG_EVENT_COUNT_Q0   = 16'h110;
     localparam [BAR0_SIZE-1:0] REG_RX_DBG_EVENT_COUNT_Q1   = 16'h118;
+    localparam [BAR0_SIZE-1:0] REG_RX_DBG_DMA_POP_COUNT_Q0  = 16'h120;
+    localparam [BAR0_SIZE-1:0] REG_RX_DBG_DMA_POP_COUNT_Q1  = 16'h128;
+    localparam [BAR0_SIZE-1:0] REG_RX_DBG_DMA_SEND_COUNT_Q0 = 16'h130;
+    localparam [BAR0_SIZE-1:0] REG_RX_DBG_DMA_SEND_COUNT_Q1 = 16'h138;
+    localparam [BAR0_SIZE-1:0] REG_RX_DBG_FIFO_DROP_COUNT_Q0 = 16'h140;
+    localparam [BAR0_SIZE-1:0] REG_RX_DBG_FIFO_DROP_COUNT_Q1 = 16'h148;
 
     reg                      clk_156;
     reg                      clk_250;
@@ -130,6 +136,9 @@ module tb_rx_debug_counters;
         .i_rx_dbg_frame_count  (frame_count),
         .i_rx_dbg_msg_count    (msg_count),
         .i_rx_dbg_event_count  (event_count),
+        .i_rx_dbg_dma_pop_count ({64'd23, 64'd17}),
+        .i_rx_dbg_dma_send_count({64'd19, 64'd13}),
+        .i_rx_dbg_fifo_drop_count({64'd3, 64'd2}),
         .i_dma_timestamp       (48'd0)
     );
 
@@ -278,6 +287,12 @@ module tb_rx_debug_counters;
         read_reg(REG_RX_DBG_MSG_COUNT, 64'd5);
         read_reg(REG_RX_DBG_EVENT_COUNT_Q0, 64'd2);
         read_reg(REG_RX_DBG_EVENT_COUNT_Q1, 64'd3);
+        read_reg(REG_RX_DBG_DMA_POP_COUNT_Q0, 64'd17);
+        read_reg(REG_RX_DBG_DMA_POP_COUNT_Q1, 64'd23);
+        read_reg(REG_RX_DBG_DMA_SEND_COUNT_Q0, 64'd13);
+        read_reg(REG_RX_DBG_DMA_SEND_COUNT_Q1, 64'd19);
+        read_reg(REG_RX_DBG_FIFO_DROP_COUNT_Q0, 64'd2);
+        read_reg(REG_RX_DBG_FIFO_DROP_COUNT_Q1, 64'd3);
 
         $display("PASS: rx debug counters and BAR readout validated");
         $finish;

@@ -51,6 +51,7 @@ module tb_order_book_parser_builder;
     wire [SYMBOL_NUM-1:0]       builder_event_valid;
     wire [SYMBOL_NUM*PAYLOAD_W-1:0] builder_event_payload;
     wire [SYMBOL_NUM-1:0]       event_cdc_wr_full;
+    wire [SYMBOL_NUM*64-1:0]    event_cdc_wr_drop_count;
     wire [SYMBOL_NUM-1:0]       event_cdc_rd_empty;
     wire [SYMBOL_NUM-1:0]       event_cdc_rd_valid;
     wire [SYMBOL_NUM*PAYLOAD_W-1:0] event_cdc_rd_data;
@@ -160,6 +161,7 @@ module tb_order_book_parser_builder;
                 .i_wr_en    (builder_event_valid[cdc_idx]),
                 .i_wr_data  (builder_event_payload[cdc_idx*PAYLOAD_W +: PAYLOAD_W]),
                 .o_wr_full  (event_cdc_wr_full[cdc_idx]),
+                .o_wr_drop_count(event_cdc_wr_drop_count[cdc_idx*64 +: 64]),
                 .i_rd_clk   (i_clk_250),
                 .i_rd_rst   (i_rst),
                 .i_rd_en    (1'b1),

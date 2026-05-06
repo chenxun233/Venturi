@@ -11,6 +11,7 @@ TxClient::TxClient(GatewayClientConfig connection_config,
     m_connector.attachSender(&m_sender);
     m_connector.attachReceiver(&m_receiver);
     m_sender.attachConnection(&m_connector);
+    m_sender.attachReceiver(&m_receiver);
 }
 
 void TxClient::attachQueueIdx(uint16_t queue_idx) {

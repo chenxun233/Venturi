@@ -5,11 +5,10 @@
  * FPGA RX BAR0 contract:
  *   0x00: REG_RESET
  *   0x04: REG_ID
- *   0x0C: REG_SYNC_ENABLE
  *   0x40+: per-queue RX configuration and counters
  *
  * Usage: sudo ./test_fpga_hello_v2 <pci_address> <test_num>
- *   1: BAR0 register and REG_SYNC_ENABLE test
+ *   1: BAR0 register test
  *   2: interrupt placeholder
  *   3: legacy DMA smoke-test placeholder
  */
@@ -71,7 +70,7 @@ int main(int argc, char* argv[]) {
         case 3:
             break;
         default:
-            printf("Unknown test: %d (valid: 1=register+sync, 2=interrupt placeholder, 3=DMA placeholder)\n",
+            printf("Unknown test: %d (valid: 1=register, 2=interrupt placeholder, 3=DMA placeholder)\n",
                    test_num_int);
             break;
     }

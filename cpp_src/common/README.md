@@ -10,30 +10,8 @@ The common layer provides hardware-agnostic abstractions and utilities reused ac
 
 ### Core Abstractions
 
-#### `basic_dev.h` / `basic_dev.cpp`
-Abstract base class defining the device driver interface.
-
-**Key classes:**
-- `BasicDev` - Abstract device interface
-- `basic_para_type` - Device parameters (PCI address, BAR addresses, etc.)
-- `VfioFd` - VFIO file descriptor collection
-- `DevStatus` - Device statistics structure
-
-`BasicDev` carries the common VFIO and device-management pieces needed by the current host runtime.
-
-**Pure virtual methods** (must be implemented by derived classes):
-```cpp
-virtual bool initHardware() = 0;
-virtual bool setRxRingBuffers(...) = 0;
-virtual bool setTxRingBuffers(...) = 0;
-```
-
-**Utility methods:**
-- `_monotonic_time()` - High-resolution timestamp
-- `_print_stats_diff()` - Statistics comparison
-
 #### `device.h`
-Shared register-access helpers and device metadata structures used by the current host runtime.
+Shared register-access helpers and small device-side utility structures used by the host runtime.
 
 ### Memory Management
 
@@ -97,7 +75,7 @@ Logging macros for consistent debug output.
 ### 1. Hardware Abstraction
 The common layer provides interfaces that are independent of specific hardware. Device-specific details are pushed to driver implementations.
 
-In particular, `BasicDev` is intended to stop at:
+In particular, the shared `common/` layer is intended to stop at:
 - VFIO/PCI discovery and BAR mapping
 - generic device counts and statistics
 - common timing helpers
@@ -122,33 +100,8 @@ Strong typing via classes and structs. Minimal use of void* and raw pointers.
 ## Usage Example
 
 ```cpp
-#include "basic_dev.h"
 #include "memory_pool.h"
 #include "dma_memory_allocator.h"
-
-// Derive from BasicDev
-class MyDevice : public BasicDev {
-public:
-    MyDevice(std::string pci_addr) : BasicDev(pci_addr) {
-        // Initialize VFIO
-        _getFD();
-        _getBARAddr();
-    }
-
-    // Implement required methods
-    bool initHardware() override {
-        // Device-specific initialization
-        return true;
-    }
-
-    bool setRxRingBuffers(uint16_t qcount, uint32_t num_buf, uint32_t buf_size) override {
-        return true;
-    }
-
-    bool setTxRingBuffers(uint16_t qcount, uint32_t num_buf, uint32_t buf_size) override {
-        return true;
-    }
-};
 ```
 
 ## VFIO Integration
@@ -162,11 +115,10 @@ The common layer provides patterns for VFIO integration:
 5. **BAR Mapping**: Memory-map device registers
 6. **DMA Setup**: Configure IOMMU for DMA access
 
-See `FPGADev` for the active implementation example in this repository.
+See `FPGADev` for the active VFIO-backed implementation example in this repository.
 
 ## Thread Safety
 
-- `BasicDev` is **not thread-safe** by default
 - Ring buffers are **single-producer/single-consumer**
 - Memory pools are **thread-safe** with internal synchronization
 - Applications should use separate queues per thread

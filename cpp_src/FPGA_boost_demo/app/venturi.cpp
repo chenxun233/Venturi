@@ -1,9 +1,9 @@
-#include "../driver/fpga_dev.h"
+#include "../fpga_dev/fpga_dev.h"
 #include "../common/thread_affinity.h"
 #include "../latency/latency_analyzer.h"
 #include "../latency/latency_tracker.h"
 #include "../latency/log_printer.h"
-#include "../rx_engine/fpga_rx_engine.h"
+#include "../fpga_rx_engine/fpga_rx_engine.h"
 #include "../strategy/dummy_strategy.h"
 #include "../tx_client/executor.h"
 #include "../tx_client/tx_client.h"
@@ -26,55 +26,63 @@
 
 namespace {
 
-    constexpr uint16_t kQueueNum = 2;
-    constexpr uint32_t kRxSlotNum = 1024;
-    constexpr std::array<std::string_view, kQueueNum> kSymbolNames = {
-        "AAPL",
-        "HSBC",
-    };
-    constexpr std::array<uint16_t, kQueueNum> kStockLocates = {
-        0x000d,
-        0x0ee8,
-    };
-    constexpr std::array<uint32_t, kQueueNum> kPriceBases = {
-        0U,
-        0U,
-    };
 
-    constexpr std::size_t kLatencyQueueCapacity = 1024;
-    constexpr std::size_t kLatencyLogCapacity = 4096;
-    constexpr std::size_t kExecutorQueueCapacity = 1024;
-    constexpr int kRxThread0Cpu = 2;
-    constexpr int kRxThread1Cpu = 4;
-    constexpr int kLatencyThreadCpu = 6;
-    constexpr int kMainAndLogPrinterCpu = 8;
-    std::atomic<bool> g_should_stop {false};
 
-    void handleStopSignal(int) {
-        g_should_stop.store(true, std::memory_order_release);
+struct RuntimeQueueConfig {
+    std::string_view symbol_name;
+    uint16_t stock_locate;
+    uint32_t price_base;
+};
+
+struct RuntimeConfig {
+    static constexpr uint16_t queue_num = 2;
+    static constexpr uint32_t rx_slot_num = 1024;
+    static constexpr std::size_t latency_queue_capacity = 1024;
+    static constexpr std::size_t latency_log_capacity = 4096;
+    static constexpr std::size_t executor_queue_capacity = 1024;
+
+    static constexpr std::array<RuntimeQueueConfig, queue_num> queues {{
+        {.symbol_name = "AAPL", .stock_locate = 0x000d, .price_base = 0U},
+        {.symbol_name = "HSBC", .stock_locate = 0x0ee8, .price_base = 0U},
+    }};
+};
+
+struct CpuConfig {
+    static constexpr int rx_thread0 = 2;
+    static constexpr int rx_thread1 = 4;
+    static constexpr int latency_thread = 6;
+    static constexpr int main_and_log_printer = 8;
+};
+
+const GatewayClientConfig kTxConnectionConfig {
+    .bind_ip = std::string("192.168.51.1"),
+    .server_ip = std::string("192.168.51.2"),
+    .port = 9000,
+};
+
+const TxSenderConfig kTxSenderConfig {
+    .username = std::string("client"),
+    .password = std::string("secret"),
+    .requested_session = std::string("SESSION01"),
+    .heartbeat_interval = std::chrono::seconds(1),
+    .pending_capacity = 1024,
+};
+
+std::atomic<bool> g_should_stop {false};
+
+void handleStopSignal(int) {
+    g_should_stop.store(true, std::memory_order_release);
+}
+
+std::unique_ptr<LatencyTracker> makeLatencyTracker(uint16_t queue_num,
+                                                   std::size_t queue_capacity) {
+    try {
+        return std::make_unique<LatencyTracker>(queue_num, queue_capacity);
+    } catch (const std::exception& ex) {
+        error("Failed to construct latency tracker: %s", ex.what());
+        return nullptr;
     }
-
-    std::unique_ptr<LatencyTracker> makeLatencyTracker(uint16_t queue_num,
-                                                    std::size_t queue_capacity) {
-        try {
-            return std::make_unique<LatencyTracker>(queue_num, queue_capacity);
-        } catch (const std::exception& ex) {
-            error("Failed to construct latency tracker: %s", ex.what());
-            return nullptr;
-        }
-    }
-    const GatewayClientConfig tx_connection_config {
-        .bind_ip = std::string("192.168.51.1"),
-        .server_ip = std::string("192.168.51.2"),
-        .port = 9000,
-    };
-    const TxSenderConfig tx_sender_config {
-        .username = std::string("client"),
-        .password = std::string("secret"),
-        .requested_session = std::string("SESSION01"),
-        .heartbeat_interval = std::chrono::seconds(1),
-        .pending_capacity = 1024,
-    };
+}
 
 } // namespace
 
@@ -87,17 +95,17 @@ int main() {
         return 1;
     }
 
-    if (!device.setRxRingBuffers(kQueueNum, kRxSlotNum, SLOT_SIZE_BYTES)) {
+    if (!device.setRxRingBuffers(RuntimeConfig::rx_slot_num,SLOT_SIZE_BYTES)) {
         error("Failed to configure FPGA RX ring buffers");
         return 1;
     }
 
-    for (uint16_t que_idx = 0; que_idx < kQueueNum; ++que_idx) {
-        if (!device.setSymbolLocate(que_idx, kStockLocates[que_idx])) {
+    for (uint16_t que_idx = 0; que_idx < RuntimeConfig::queue_num; ++que_idx) {
+        if (!device.setSymbolLocate(que_idx, RuntimeConfig::queues[que_idx].stock_locate)) {
             error("Failed to configure stock_locate for queue %u", que_idx);
             return 1;
         }
-        if (!device.setPriceBase(que_idx, kPriceBases[que_idx])) {
+        if (!device.setPriceBase(que_idx, RuntimeConfig::queues[que_idx].price_base)) {
             error("Failed to configure price_base for queue %u", que_idx);
             return 1;
         }
@@ -106,18 +114,18 @@ int main() {
     FPGARxEngine rx_engine1(device, 1);
     DummyStrategy strategy0;
     DummyStrategy strategy1;
-    Executor executor0(kExecutorQueueCapacity);
-    Executor executor1(kExecutorQueueCapacity);
+    Executor executor0(RuntimeConfig::executor_queue_capacity);
+    Executor executor1(RuntimeConfig::executor_queue_capacity);
 
-    TxClient tx_client0(tx_connection_config, tx_sender_config);
-    TxClient tx_client1(tx_connection_config, tx_sender_config);
+    TxClient tx_client0(kTxConnectionConfig, kTxSenderConfig);
+    TxClient tx_client1(kTxConnectionConfig, kTxSenderConfig);
     std::unique_ptr<LatencyTracker> latency_tracker =
-        makeLatencyTracker(kQueueNum, kLatencyQueueCapacity);
+        makeLatencyTracker(RuntimeConfig::queue_num, RuntimeConfig::latency_queue_capacity);
     if (latency_tracker == nullptr) {
         return 1;
     }
-    LatencyAnalyzer latency_analyzer(kQueueNum);
-    LogPrinter log_printer(kQueueNum, kLatencyLogCapacity);
+    LatencyAnalyzer latency_analyzer(RuntimeConfig::queue_num);
+    LogPrinter log_printer(RuntimeConfig::queue_num, RuntimeConfig::latency_log_capacity);
     std::signal(SIGINT, handleStopSignal);
     latency_analyzer.setWarmupRecords(1000);
 
@@ -139,16 +147,16 @@ int main() {
     tx_client1.attachLogPrinter(&log_printer);
 
 
-    log_printer.setWorkerCpu(kMainAndLogPrinterCpu);
+    log_printer.setWorkerCpu(CpuConfig::main_and_log_printer);
     log_printer.start();
     std::thread latency_thread([&latency_tracker]() {
-        pinCurrentThreadToCpu(kLatencyThreadCpu);
+        pinCurrentThreadToCpu(CpuConfig::latency_thread);
         latency_tracker->run();
     });
 
     std::vector<std::thread> rx_threads;
     rx_threads.emplace_back([&]() {
-        pinCurrentThreadToCpu(kRxThread0Cpu);
+        pinCurrentThreadToCpu(CpuConfig::rx_thread0);
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
         OrderExecution execution {};
@@ -174,7 +182,7 @@ int main() {
     });
 
     rx_threads.emplace_back([&]() {
-        pinCurrentThreadToCpu(kRxThread1Cpu);
+        pinCurrentThreadToCpu(CpuConfig::rx_thread1);
         FPGAEventDesc events[MAX_POLL_RECORDS] {};
         OrderIntent intent {};
         OrderExecution execution {};
@@ -200,7 +208,7 @@ int main() {
         }
     });
 
-    pinCurrentThreadToCpu(kMainAndLogPrinterCpu);
+    pinCurrentThreadToCpu(CpuConfig::main_and_log_printer);
 
     for (std::thread& rx_thread : rx_threads) {
         if (rx_thread.joinable()) {
@@ -212,16 +220,16 @@ int main() {
         latency_thread.join();
     }
     log_printer.stop();
-    std::printf("RX Engine Debug Summary\n");
-    std::printf("queue=%u decoded=%llu first_event=%llu\n",
+    std::printf("queue=%u total_received=%llu traced=%llu\n",
                 static_cast<unsigned int>(rx_engine0.readQueueIdx()),
-                static_cast<unsigned long long>(rx_engine0.readDecodedCount()),
-                static_cast<unsigned long long>(rx_engine0.readFirstEventCount()));
-    std::printf("queue=%u decoded=%llu first_event=%llu\n",
+                static_cast<unsigned long long>(rx_engine0.readFirstEventCount()),
+                static_cast<unsigned long long>(
+                    latency_tracker->readCompletedTraceCount(rx_engine0.readQueueIdx())));
+    std::printf("queue=%u total_received=%llu traced=%llu\n",
                 static_cast<unsigned int>(rx_engine1.readQueueIdx()),
-                static_cast<unsigned long long>(rx_engine1.readDecodedCount()),
-                static_cast<unsigned long long>(rx_engine1.readFirstEventCount()));
-    latency_tracker->printDebugSummary();
+                static_cast<unsigned long long>(rx_engine1.readFirstEventCount()),
+                static_cast<unsigned long long>(
+                    latency_tracker->readCompletedTraceCount(rx_engine1.readQueueIdx())));
     latency_analyzer.printSummary();
     tx_client0.printReceiverSummary();
     tx_client1.printReceiverSummary();

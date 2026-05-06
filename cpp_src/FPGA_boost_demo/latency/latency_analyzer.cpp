@@ -86,15 +86,15 @@ void LatencyAnalyzer::printSummary() const {
 
 void LatencyAnalyzer::_printQueueSummary(uint16_t que_idx) const {
     const std::vector<LatencyLogRecord>& records = m_completed_records[que_idx];
-    const std::size_t completed_count = records.size();
+    const std::size_t traced_count = records.size();
     const std::size_t warmup_count =
-        std::min<std::size_t>(completed_count, static_cast<std::size_t>(m_warmup_records));
-    const std::size_t analyzed_count = completed_count - warmup_count;
+        std::min<std::size_t>(traced_count, static_cast<std::size_t>(m_warmup_records));
+    const std::size_t analyzed_count = traced_count - warmup_count;
 
     std::printf("Latency Summary queue=%u\n", static_cast<unsigned int>(que_idx));
-    std::printf("record_count=%zu completed_records=%zu warmup=%zu analyzed=%zu\n\n",
+    std::printf("record_count=%zu traced records=%zu warmup=%zu analyzed=%zu\n\n",
                 record_count,
-                completed_count,
+                traced_count,
                 warmup_count,
                 analyzed_count);
 
@@ -115,7 +115,7 @@ void LatencyAnalyzer::_printQueueSummary(uint16_t que_idx) const {
     for (const SummaryField& field : kSummaryFields) {
         std::vector<int64_t> samples;
         samples.reserve(analyzed_count);
-        for (std::size_t idx = warmup_count; idx < completed_count; ++idx) {
+        for (std::size_t idx = warmup_count; idx < traced_count; ++idx) {
             samples.push_back(field.reader(records[idx]));
         }
 

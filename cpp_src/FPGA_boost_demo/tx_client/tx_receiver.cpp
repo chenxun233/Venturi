@@ -70,6 +70,9 @@ void TxReceiver::updateConnectionInfo(const TxConnectionInfo& info) {
 }
 
 bool TxReceiver::pollOnce(int recv_fd) {
+    if (m_generation == 0) {
+        return false;
+    }
     const bool read_frames = _readSocketFrames(recv_fd);
     return read_frames;
 }
@@ -296,6 +299,9 @@ uint64_t TxReceiver::_countPending() const {
 }
 
 void TxReceiver::_markDisconnected() {
+    if (m_generation == 0) {
+        return;
+    }
     m_generation = 0;
     m_frame_buffer.clear();
     ++m_stats.disconnected;
