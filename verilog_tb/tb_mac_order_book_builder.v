@@ -84,13 +84,6 @@ module tb_mac_order_book_builder;
     wire [2:0]               dma_rq_tc;
     wire [255:0]             dma_rq_payload;
 
-    reg  [47:0]             i_ctl_dst_mac;
-    reg  [31:0]             i_ctl_dst_ip;
-    reg  [15:0]             i_ctl_dst_port;
-    reg                     i_promiscuous;
-    reg                     i_sync_fire;
-    reg  [BAR0_SIZE-1:0]    i_ctl_reg;
-
     reg [7:0] frame_bytes [0:FRAME_BYTES-1];
 
     reg [1:0]  pending_symbol;
@@ -172,13 +165,7 @@ module tb_mac_order_book_builder;
         .o_buy_sell           (parser_buy_sell),
         .o_shares             (parser_shares),
         .o_price              (parser_price),
-        .o_frame_ts           (parser_frame_ts),
-        .i_ctl_dst_mac        (i_ctl_dst_mac),
-        .i_ctl_dst_ip         (i_ctl_dst_ip),
-        .i_ctl_dst_port       (i_ctl_dst_port),
-        .i_promiscuous        (i_promiscuous),
-        .i_sync_fire          (i_sync_fire),
-        .i_ctl_reg            (i_ctl_reg)
+        .o_frame_ts           (parser_frame_ts)
     );
 
     order_book_builder #(
@@ -724,12 +711,6 @@ module tb_mac_order_book_builder;
         i_xgmii_rxd          = IDLE_WORD;
         i_xgmii_rxc          = 8'hFF;
         i_rx_status          = 1'b1;
-        i_ctl_dst_mac        = 48'd0;
-        i_ctl_dst_ip         = 32'd0;
-        i_ctl_dst_port       = 16'd0;
-        i_promiscuous        = 1'b1;
-        i_sync_fire          = 1'b0;
-        i_ctl_reg            = {BAR0_SIZE{1'b0}};
         pending_symbol       = SYMBOL_NONE;
         last_mac_frame_started = 1'b0;
         last_mac_frame_ts    = 48'd0;

@@ -23,14 +23,14 @@ output  reg [63:0]                  o_new_order_ref_num     , // used for type U
 output  reg [7:0]                   o_buy_sell              , // 1 for buy, 2 for sell, 0 for others
 output  reg [31:0]                  o_shares                ,
 output  reg [31:0]                  o_price                 ,
-output  reg [47:0]                  o_timestamp             , // timestamp from the packet.
+output  reg [47:0]                  o_timestamp              // timestamp from the packet.
 // settings
-input   wire [47:0]                 i_ctl_dst_mac           , // filter: only parse packets with this destination port
-input   wire [31:0]                 i_ctl_dst_ip            , // active high
-input   wire [15:0]                 i_ctl_dst_port          , // filter: only parse packets with this destination port
-input   wire                        i_promiscuous           , //  Promiscuous mode
-input   wire                        i_sync_fire             ,// active high
-input   wire [BAR0_SIZE-1:0]        i_ctl_reg               // control register address for synchronization
+// input   wire [47:0]                 i_ctl_dst_mac           , // filter: only parse packets with this destination port
+// input   wire [31:0]                 i_ctl_dst_ip            , // active high
+// input   wire [15:0]                 i_ctl_dst_port          , // filter: only parse packets with this destination port
+// input   wire                        i_promiscuous           , //  Promiscuous mode
+// input   wire                        i_sync_fire             ,// active high
+// input   wire [BAR0_SIZE-1:0]        i_ctl_reg               // control register address for synchronization
 );
 
 assign o_axi_rx_ready      = 1'b1;
@@ -101,10 +101,10 @@ localparam TYPE_F                   = 8'h46;
 
 
 // control registers
-reg [47:0]  preset_dst_mac_addr         ;
-reg [31:0]  preset_dst_ip_addr          ;
-reg [15:0]  preset_dst_port             ;
-reg         promiscuous                 ;
+// reg [47:0]  preset_dst_mac_addr         ;
+// reg [31:0]  preset_dst_ip_addr          ;
+// reg [15:0]  preset_dst_port             ;
+// reg         promiscuous                 ;
 // parsing helper registers
 reg [3:0]   head_counter                ;
 reg [511:0] buff                        ;// saves previous and current i_axi_rx_data for message parsing, especially for variable-length fields that may cross the boundary of two i_axi_rx_data.
@@ -128,32 +128,32 @@ reg         peeked                      ;
 
 
 // === settings synchronization ===
-always@(posedge i_clk_156 or posedge i_rst or posedge i_sync_fire) begin
-    if(i_rst) begin
-        preset_dst_mac_addr    <= DEFAULT_MAC_ADDR;
-        preset_dst_ip_addr     <= DEFAULT_IP_ADDR;
-        preset_dst_port        <= DEFAULT_PORT;
-        promiscuous            <= 1'b1;
-    end else if(i_sync_fire) begin
-        case (i_ctl_reg)
-            16'h04: begin
-                preset_dst_mac_addr    <= i_ctl_dst_mac;
-            end
-            16'h08: begin
-                preset_dst_ip_addr     <= i_ctl_dst_ip;
-            end
-            16'h0C: begin
-                preset_dst_port        <= i_ctl_dst_port;
-            end
-            16'h10: begin
-                promiscuous            <= i_promiscuous;
-            end
-            default: begin
-                // do nothing for other addresses
-            end
-        endcase
-    end
-end
+// always@(posedge i_clk_156 or posedge i_rst or posedge i_sync_fire) begin
+//     if(i_rst) begin
+//         preset_dst_mac_addr    <= DEFAULT_MAC_ADDR;
+//         preset_dst_ip_addr     <= DEFAULT_IP_ADDR;
+//         preset_dst_port        <= DEFAULT_PORT;
+//         promiscuous            <= 1'b1;
+//     end else if(i_sync_fire) begin
+//         case (i_ctl_reg)
+//             16'h04: begin
+//                 preset_dst_mac_addr    <= i_ctl_dst_mac;
+//             end
+//             16'h08: begin
+//                 preset_dst_ip_addr     <= i_ctl_dst_ip;
+//             end
+//             16'h0C: begin
+//                 preset_dst_port        <= i_ctl_dst_port;
+//             end
+//             16'h10: begin
+//                 promiscuous            <= i_promiscuous;
+//             end
+//             default: begin
+//                 // do nothing for other addresses
+//             end
+//         endcase
+//     end
+// end
 //  ==== packet parsing logic ====
 // BEAT:
 // 0: DST_MAC [47:0] + SRC_MAC [47:32]

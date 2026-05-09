@@ -326,12 +326,12 @@ wire [47:0]  w_dma_ts_gray_dma;
 wire [47:0]  w_dma_ts_bin     ;
 
 // Control-plane outputs for parser settings
-wire [47:0]             o_ctl_mac_addr;
-wire [31:0]             o_ctl_ip_addr;
-wire [15:0]             o_ctl_port;
-wire                    o_ctl_promiscuous;
-wire [BAR0_SIZE-1:0]    o_ctl_reg;
-wire                    o_sync_fire;
+// wire [47:0]             o_ctl_mac_addr      = 48'h0100_5E00_0001;
+// wire [31:0]             o_ctl_ip_addr       = 32'hE901_0203;
+// wire [15:0]             o_ctl_port          = 16'h04D2;
+// wire                    o_ctl_promiscuous   = 1'b1;
+// wire [BAR0_SIZE-1:0]    o_ctl_reg           = {BAR0_SIZE{1'b0}};
+// wire                    o_sync_fire         = 1'b0;
 
 // Order book parser outputs
 wire                    axi_rx_ready;
@@ -380,12 +380,6 @@ wire [63:0]                             rx_dbg_msg_count        ;
 wire [SYMBOL_NUM*64-1:0]                rx_dbg_event_count      ;
 
 assign w_axi_rx_ready = axi_rx_ready;
-assign o_ctl_mac_addr      = 48'h0100_5E00_0001;
-assign o_ctl_ip_addr       = 32'hE901_0203;
-assign o_ctl_port          = 16'h04D2;
-assign o_ctl_promiscuous   = 1'b1;
-assign o_ctl_reg           = {BAR0_SIZE{1'b0}};
-assign o_sync_fire         = 1'b0;
 assign dma_rq_ready        = rq_ready;
 assign rq_valid            = dma_rq_valid;
 assign rq_type             = dma_rq_type;
@@ -447,30 +441,24 @@ timestamper #(
 );
 
 order_book_parser order_book_parser_inst (
-    .i_clk_156              (w_xgmii_rx_clk   ),
-    .i_rst                  (rx_logic_reset_156),
-    .i_axi_rx_data          (w_axi_rx_data    ),
-    .i_axi_rx_valid         (w_axi_rx_valid   ),
-    .i_axi_rx_keep          (w_axi_rx_keep    ),
-    .i_axi_rx_last          (w_axi_rx_last    ),
-    .i_frame_ts             (w_frame_ts       ),
-    .o_axi_rx_ready         (axi_rx_ready     ),
-    .o_msg_valid            (msg_valid        ),
-    .o_seq_num              (seq_num          ),
-    .o_frame_ts             (msg_timestamp    ),
-    .o_msg_type             (msg_type),
-    .o_stock_locate         (stock_locate),
-    .o_order_ref_num        (order_ref_num),
-    .o_new_order_ref_num    (new_order_ref_num),
-    .o_buy_sell             (buy_sell), 
-    .o_shares               (shares),
-    .o_price                (price),
-    .i_ctl_dst_mac          (o_ctl_mac_addr),
-    .i_ctl_dst_ip           (o_ctl_ip_addr),
-    .i_ctl_dst_port         (o_ctl_port),
-    .i_promiscuous          (o_ctl_promiscuous),
-    .i_sync_fire            (o_sync_fire),
-    .i_ctl_reg              (o_ctl_reg)
+    .i_clk_156              (w_xgmii_rx_clk     ),
+    .i_rst                  (rx_logic_reset_156 ),
+    .i_axi_rx_data          (w_axi_rx_data      ),
+    .i_axi_rx_valid         (w_axi_rx_valid     ),
+    .i_axi_rx_keep          (w_axi_rx_keep      ),
+    .i_axi_rx_last          (w_axi_rx_last      ),
+    .i_frame_ts             (w_frame_ts         ),
+    .o_axi_rx_ready         (axi_rx_ready       ),
+    .o_msg_valid            (msg_valid          ),
+    .o_seq_num              (seq_num            ),
+    .o_frame_ts             (msg_timestamp      ),
+    .o_msg_type             (msg_type           ),
+    .o_stock_locate         (stock_locate       ),
+    .o_order_ref_num        (order_ref_num      ),
+    .o_new_order_ref_num    (new_order_ref_num  ),
+    .o_buy_sell             (buy_sell           ), 
+    .o_shares               (shares             ),
+    .o_price                (price              )
 );
 
 order_book_builder #(

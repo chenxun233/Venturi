@@ -105,13 +105,13 @@ assign o_frame_started = (cur_state == IDLE || cur_state == TERM) && (|sof_locat
     end
 
     //== data mux ==
-    reg [63:0] data_before_rev;
+    reg [63:0] data_before_reverse;
     always @* 
     case (sof_reg)
-        2'd0:  data_before_rev = 64'd0;
-        2'b01: data_before_rev = i_xgmii_rxd_1;
-        2'b10: data_before_rev = {i_xgmii_rxd[31:0],data_saver};
-        default:data_before_rev = 64'd0;
+        2'd0:  data_before_reverse = 64'd0;
+        2'b01: data_before_reverse = i_xgmii_rxd_1;
+        2'b10: data_before_reverse = {i_xgmii_rxd[31:0],data_saver};
+        default:data_before_reverse = 64'd0;
     endcase
     // == valid mux ==
     always @* 
@@ -199,7 +199,7 @@ assign o_frame_started = (cur_state == IDLE || cur_state == TERM) && (|sof_locat
     // Byte reverse: first byte of frame at [63:56] (big-endian)
     generate
         for (idx = 0; idx < 8; idx = idx + 1) begin : reverse_data
-            assign o_axi_rx_data[idx*8 +: 8] = data_before_rev[56 - idx*8 +: 8];
+            assign o_axi_rx_data[idx*8 +: 8] = data_before_reverse[56 - idx*8 +: 8];
         end
     endgenerate
 endmodule

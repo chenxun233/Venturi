@@ -12,10 +12,10 @@ public:
     DMABuffer(const DMABuffer&) = delete;
     DMABuffer& operator=(const DMABuffer&) = delete;
 
-    void* virt() const { return m_virt; }
-    uint64_t iova() const { return m_iova; }
-    size_t size() const { return m_size; }
-    bool valid() const { return m_virt != nullptr && m_iova != 0 && m_size != 0; }
+    void*       virt()      const { return m_virt; }
+    uint64_t    iova()      const { return m_iova; }
+    size_t      size()      const { return m_size; }
+    bool        valid()     const { return m_virt != nullptr && m_iova != 0 && m_size != 0; }
     explicit operator bool() const { return valid(); }
 
 private:

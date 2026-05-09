@@ -16,22 +16,22 @@ module symbol_book #(
     output  wire [PAYLOAD_W-1:0]                    o_payload
 );
       
-localparam                      QTY_MSG_BIT                 = 2+32+1+32+1+48; // {bid_ask, price, is_add, d_shares, op_done, timestamp}
-wire [31:0]                     o_ask_best_price       ;
-wire [31:0]                     o_ask_best_shares      ;
-wire [31:0]                     o_bid_best_price       ;
-wire [31:0]                     o_bid_best_shares      ;
-reg [31:0]                      prev_ask_best_price    ;
-reg [31:0]                      prev_ask_best_shares   ;
-reg [31:0]                      prev_bid_best_price    ;
-reg [31:0]                      prev_bid_best_shares   ;
-wire                            ff_push;
-wire                            ask_changed;
-wire                            bid_changed;
-wire [47:0]                     frame_ts;
-wire [47:0]                     ask_frame_ts;
-wire [47:0]                     bit_frame_ts;
-reg  [47:0]                     latch_in_frame_ts;
+localparam       QTY_MSG_BIT                 = 2+32+1+32+1+48; // {bid_ask, price, is_add, d_shares, op_done, timestamp}
+wire [31:0]      o_ask_best_price       ;
+wire [31:0]      o_ask_best_shares      ;
+wire [31:0]      o_bid_best_price       ;
+wire [31:0]      o_bid_best_shares      ;
+reg [31:0]       prev_ask_best_price    ;
+reg [31:0]       prev_ask_best_shares   ;
+reg [31:0]       prev_bid_best_price    ;
+reg [31:0]       prev_bid_best_shares   ;
+wire             ff_push                ;
+wire             ask_changed            ;
+wire             bid_changed            ;
+wire [47:0]      frame_ts               ;
+wire [47:0]      ask_frame_ts           ;
+wire [47:0]      bit_frame_ts           ;
+reg  [47:0]      latch_in_frame_ts      ;
 
 
 

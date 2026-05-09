@@ -33,13 +33,6 @@ module tb_order_book_parser;
     wire [31:0]                 o_price;
     wire [47:0]                 o_timestamp;
 
-    reg  [47:0]                 i_ctl_dst_mac;
-    reg  [31:0]                 i_ctl_dst_ip;
-    reg  [15:0]                 i_ctl_dst_port;
-    reg                         i_promiscuous;
-    reg                         i_sync_fire;
-    reg  [BAR0_SIZE-1:0]        i_ctl_reg;
-
     reg [7:0] frame_bytes [0:FRAME_BYTES-1];
     integer r;
 
@@ -66,13 +59,7 @@ module tb_order_book_parser;
         .o_buy_sell         (o_buy_sell),
         .o_shares           (o_shares),
         .o_price            (o_price),
-        .o_timestamp        (o_timestamp),
-        .i_ctl_dst_mac      (i_ctl_dst_mac),
-        .i_ctl_dst_ip       (i_ctl_dst_ip),
-        .i_ctl_dst_port     (i_ctl_dst_port),
-        .i_promiscuous      (i_promiscuous),
-        .i_sync_fire        (i_sync_fire),
-        .i_ctl_reg          (i_ctl_reg)
+        .o_timestamp        (o_timestamp)
     );
 
     always #(CLK_PERIOD/2) i_clk_156 = ~i_clk_156;
@@ -193,13 +180,6 @@ module tb_order_book_parser;
         i_axi_rx_keep       = 8'hFF;
         i_axi_rx_last       = 1'b0;
         i_axi_rx_ingress_tick = 64'h1;
-
-        i_ctl_dst_mac       = 48'h0;
-        i_ctl_dst_ip        = 32'h0;
-        i_ctl_dst_port      = 16'h0;
-        i_promiscuous       = 1'b1;
-        i_sync_fire         = 1'b0;
-        i_ctl_reg           = {BAR0_SIZE{1'b0}};
 
         load_snapshot_bytes();
 
