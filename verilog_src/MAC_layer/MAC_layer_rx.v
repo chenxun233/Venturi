@@ -94,7 +94,7 @@ assign o_frame_started = (cur_state == IDLE || cur_state == TERM) && (|sof_locat
                     end else begin
                         cur_state       <=  IDLE;
                     end
-                        valid_d1         <=  1'b0;
+                    valid_d1         <=  1'b0;
                 end
                 default: begin
                     cur_state <= IDLE;
