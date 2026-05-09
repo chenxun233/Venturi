@@ -96,7 +96,7 @@ When `tcpreplay` finished, you can press `ctrl+c` in `venturi` terminal, below w
 ```bash
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:30 initHardware(): Initializing FPGA RX hardware...
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:195 _getGroupID(): IOMMU Group ID: 14
-[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:351 _getBARAddr(): BAR0 mapped at 0x789603bcd000 (size: 0x4000)
+[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:351 _getBARAddr(): BAR0 mapped at 0x7a8356ff4000 (size: 0x4000)
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:136 _readSymbolNum(): Device reports 2 symbols
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:90 setRxRingBuffers(): Configured RX queue 0: IOVA=0x0000000000200000 slots_num=1024 slot_bytes=32
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:90 setRxRingBuffers(): Configured RX queue 1: IOVA=0x0000000000400000 slots_num=1024 slot_bytes=32
@@ -108,23 +108,23 @@ Latency Summary queue=0
 record_count=15921 traced records=7961 warmup=1000 analyzed=6961
 
 stage                                          min_ns       p50_ns       p90_ns       p99_ns       max_ns
-FRAME_START_to_DMA_EMIT                           160          185          185          185          204
-BATCH_DURATION                                     59           93          118          130          161
-BATCH_END_to_STRATEGY_START                        52           66           92          101          146
-STRATEGY_START_to_TX_SEND_ACCEPTED                 21           29           53          102          269
-TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER           29           35           64          128          549
-TX_SEND_SYSCALL_ENTER_to_TX_SEND                 1092         1304         1421         1539         1940
+FRAME_START_to_DMA_EMIT                           166          166          166          166          166
+BATCH_DURATION                                     61          101          127          138          299
+BATCH_END_to_STRATEGY_START                        61           66           93          101          147
+STRATEGY_START_to_TX_SEND_ACCEPTED                 24           35           59          115          275
+TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER           28           35           64          134          315
+TX_SEND_SYSCALL_ENTER_to_TX_SEND                 1100         1302         1420         1538         1821
 
 Latency Summary queue=1
 record_count=15921 traced records=7960 warmup=1000 analyzed=6960
 
 stage                                          min_ns       p50_ns       p90_ns       p99_ns       max_ns
-FRAME_START_to_DMA_EMIT                           160          185          185          185          204
-BATCH_DURATION                                     68           94          118          132          169
-BATCH_END_to_STRATEGY_START                        54           91          117          130          222
-STRATEGY_START_to_TX_SEND_ACCEPTED                 21           33           57          113          271
-TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER           30           35           62          133          285
-TX_SEND_SYSCALL_ENTER_to_TX_SEND                 1105         1283         1394         1532         1951
+FRAME_START_to_DMA_EMIT                           166          166          166          166          166
+BATCH_DURATION                                     84           96          122          132          186
+BATCH_END_to_STRATEGY_START                        60           91          117          129          214
+STRATEGY_START_to_TX_SEND_ACCEPTED                 21           34           60          117          272
+TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER           30           35           63          138          305
+TX_SEND_SYSCALL_ENTER_to_TX_SEND                 1101         1305         1423         1553         1922
 
 TxReceiver queue=0 sent=8000 accepted=8000 filled=8000 rejected=0 pending=0 malformed=0 ref_drops=0 connected=1 disconnected=0
 TxReceiver queue=1 sent=8000 accepted=8000 filled=8000 rejected=0 pending=0 malformed=0 ref_drops=0 connected=1 disconnected=0
