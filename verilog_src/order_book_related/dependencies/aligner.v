@@ -34,15 +34,15 @@ always @(posedge i_clk_156 or posedge i_rst) begin
         o_op_done_aligned   <= 1'b0;
         frame_ts_aligned   <= {48{1'b0}};
     end else begin
-        op_done_d1          <= i_t_op_done;
-        op_done_d2          <= op_done_d1;
-        o_op_done_aligned   <= op_done_d2;
-        frame_ts_d1        <= i_frame_ts;
-        frame_ts_d2        <= frame_ts_d1;
-        frame_ts_aligned  <= frame_ts_d2;
-        best_price_d1      <= i_best_price;
-        o_best_price_aligned <= best_price_d1;
-        o_best_shares      <= i_best_shares;
+        op_done_d1              <= i_t_op_done;
+        op_done_d2              <= op_done_d1;
+        o_op_done_aligned       <= op_done_d2;
+        frame_ts_d1             <= i_frame_ts;
+        frame_ts_d2             <= frame_ts_d1;
+        frame_ts_aligned        <= frame_ts_d2;
+        best_price_d1           <= i_best_price;
+        o_best_price_aligned    <= best_price_d1;
+        o_best_shares           <= i_best_shares;
     end
 end
 

@@ -10,7 +10,7 @@ module event_fifo_arbiter #(
     input  wire [SYMBOL_NUM*PAYLOAD_W-1:0] i_src_payload,
     output wire [SYMBOL_NUM-1:0]         o_src_pop,
     output wire                          o_not_empty,
-    output wire                          o_valid,
+    output wire                          o_has_winner,
     output wire [PAYLOAD_W-1:0]          o_payload
 );
 
@@ -70,7 +70,7 @@ generate
     end
 endgenerate
 
-assign o_valid   = i_src_valid[grant_idx_q];
+assign o_has_winner   = i_src_valid[grant_idx_q];
 assign o_payload = i_src_payload[grant_idx_q*PAYLOAD_W +: PAYLOAD_W];
 
 always @(posedge i_clk_156 or posedge i_rst) begin

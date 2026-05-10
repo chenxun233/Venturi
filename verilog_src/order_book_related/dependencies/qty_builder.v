@@ -15,7 +15,7 @@ module qty_builder #(
     output  reg  [47:0]                   o_frame_ts,
     output  wire [QTY_PRICE_LVL_BIT-1:0]  o_bram_addr,
     output  wire [1:0]                    o_bram_op,
-    output  wire [31:0]      o_bram_i_data
+    output  wire [31:0]                   o_bram_i_data
 );
 // o_price_idx indicating the price idx whose share changed between empty and non-empty.
 // o_price_change is a pulse indicating any price idx change, used to trigger ask_tree update.
@@ -46,7 +46,7 @@ wire [31:0]                 qty_price           = ff_o_qty_msg[QTY_MSG_BIT-3:QTY
 wire                        qty_is_add          = ff_o_qty_msg[QTY_MSG_BIT-35];
 wire [31:0]                 qty_d_shares        = ff_o_qty_msg[QTY_MSG_BIT-36:QTY_MSG_BIT-67];
 wire                        op_done             = ff_o_qty_msg[QTY_MSG_BIT-68];
-wire [47:0]                 qty_frame_ts       = ff_o_qty_msg[QTY_MSG_BIT-69:0];
+wire [47:0]                 qty_frame_ts        = ff_o_qty_msg[QTY_MSG_BIT-69:0];
 
 reg [QTY_PRICE_LVL_BIT-1:0] latch_qty_prc_idx;
 reg                         latch_qty_is_add;
@@ -107,11 +107,11 @@ always @(posedge i_clk_156 or posedge i_rst) begin
             IDLE: begin
                 if (ff_o_valid) begin
                     qty_upd_op        <= READ;
-                    qty_upd_state <= FIRST_CYCLE;
+                    qty_upd_state     <= FIRST_CYCLE;
                 end else begin
                     qty_upd_op        <= IDLE;
-                    qty_upd_state       <= IDLE;
-                    qty_i_shares        <= {32{1'b0}};
+                    qty_upd_state     <= IDLE;
+                    qty_i_shares      <= {32{1'b0}};
                 end
             end
             FIRST_CYCLE: begin

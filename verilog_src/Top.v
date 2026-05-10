@@ -304,6 +304,35 @@ rx_dma_config #(
     .i_dma_timestamp        (w_dma_ts_bin)
 );
 
+rx_dma_stage #(
+    .SYMBOL_NUM         (SYMBOL_NUM),
+    .PAYLOAD_W          (EVENT_PAYLOAD_W)
+) rx_dma_stage_inst (
+    .i_clk              (user_clk_250),
+    .i_rst              (rx_logic_reset_250),
+    .i_dma_timestamp    (w_dma_ts_bin),
+    .i_event_empty      (event_cdc_rd_empty),
+    .i_event_valid      (event_cdc_rd_valid),
+    .i_event_payload    (event_cdc_rd_data),
+    .o_event_pop        (event_cdc_rd_en),
+    .i_que_iova_addr    (rx_dma_que_iova_addr),
+    .i_que_slot_num     (rx_dma_que_slot_num),
+    .i_que_enable       (rx_dma_que_enable),
+    .i_que_cons_ptr     (rx_dma_que_cons_ptr),
+    .o_que_prod_ptr     (rx_dma_que_prod_ptr),
+    .o_que_drop_count   (rx_dma_que_drop_count),
+    .o_que_status       (rx_dma_que_status),
+    .i_rq_ready         (dma_rq_ready),
+    .i_reg_reset        (rx_dma_reg_reset),
+    .o_rq_valid         (dma_rq_valid),
+    .o_rq_type          (dma_rq_type),
+    .o_rq_payload_last  (dma_rq_payload_last),
+    .o_rq_addr          (dma_rq_addr),
+    .o_rq_payload_dw_count(dma_rq_payload_dw_count),
+    .o_rq_tag           (dma_rq_tag),
+    .o_rq_tc            (dma_rq_tc),
+    .o_rq_payload       (dma_rq_payload)
+);
 
 wire    w_xgmii_clk;
 wire    w_sys_rst;
@@ -563,35 +592,7 @@ generate
     end
 endgenerate
 
-rx_dma_stage #(
-    .SYMBOL_NUM         (SYMBOL_NUM),
-    .PAYLOAD_W          (EVENT_PAYLOAD_W)
-) rx_dma_stage_inst (
-    .i_clk              (user_clk_250),
-    .i_rst              (rx_logic_reset_250),
-    .i_dma_timestamp    (w_dma_ts_bin),
-    .i_event_empty      (event_cdc_rd_empty),
-    .i_event_valid      (event_cdc_rd_valid),
-    .i_event_payload    (event_cdc_rd_data),
-    .o_event_pop        (event_cdc_rd_en),
-    .i_que_iova_addr    (rx_dma_que_iova_addr),
-    .i_que_slot_num     (rx_dma_que_slot_num),
-    .i_que_enable       (rx_dma_que_enable),
-    .i_que_cons_ptr     (rx_dma_que_cons_ptr),
-    .o_que_prod_ptr     (rx_dma_que_prod_ptr),
-    .o_que_drop_count   (rx_dma_que_drop_count),
-    .o_que_status       (rx_dma_que_status),
-    .i_rq_ready         (dma_rq_ready),
-    .i_reg_reset        (rx_dma_reg_reset),
-    .o_rq_valid         (dma_rq_valid),
-    .o_rq_type          (dma_rq_type),
-    .o_rq_payload_last  (dma_rq_payload_last),
-    .o_rq_addr          (dma_rq_addr),
-    .o_rq_payload_dw_count(dma_rq_payload_dw_count),
-    .o_rq_tag           (dma_rq_tag),
-    .o_rq_tc            (dma_rq_tc),
-    .o_rq_payload       (dma_rq_payload)
-);
+
 
 
 

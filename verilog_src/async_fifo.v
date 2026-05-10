@@ -80,13 +80,13 @@ assign o_rd_empty = (wr_ptr_gray_rd_side == rd_ptr_gray_next_stable);
 
 always @(posedge i_wr_clk or posedge i_wr_rst) begin
     if (i_wr_rst) begin
-        wr_ptr_bin              <= {PTR_W{1'b0}};
+        wr_ptr_bin                  <= {PTR_W{1'b0}};
         wr_ptr_gray_next_stable    <=0;   
     end else begin
         if (wr_do) begin
             mem[wr_ptr_bin[ADDR_W-1:0]] <= i_wr_data;
         end
-        wr_ptr_bin              <= wr_ptr_bin_next;
+        wr_ptr_bin                  <= wr_ptr_bin_next;
         wr_ptr_gray_next_stable    <= wr_ptr_gray_next;
     end
 end
@@ -139,7 +139,6 @@ module ff_sync #(
 
 (* ASYNC_REG = "TRUE" *) reg [PTR_W-1:0] sync_reg_1;
 (* ASYNC_REG = "TRUE" *) reg [PTR_W-1:0] sync_reg_2;
-
 always @(posedge i_clk or posedge i_rst) begin
     if (i_rst) begin
         sync_reg_1 <= {PTR_W{1'b0}};

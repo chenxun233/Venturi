@@ -11,16 +11,16 @@ module book_builder #(
 );
 
 
-reg [1:0]                               qty_bid_ask;
+reg [1:0]                               qty_bid_or_ask;
 reg  [31:0]                             qty_price;
 reg                                     qty_is_add;
 reg  [31:0]                             qty_d_shares;
 reg                                     op_done; // indicating the completion, used for type U which has two steps of updating the book and qty.
 
 
-assign o_qty_msg = {qty_bid_ask, qty_price, qty_is_add, qty_d_shares,op_done, frame_ts};
+assign o_qty_msg = {qty_bid_or_ask, qty_price, qty_is_add, qty_d_shares,op_done, frame_ts};
 
-localparam ORDER_BOOK_WIDTH            = 67; // {valid, side, shares, price}
+localparam ORDER_BOOK_DATA_WIDTH       = 67; // {valid, side, shares, price}
 localparam TYPE_A                      = 8'h41;
 localparam TYPE_X                      = 8'h58;
 localparam TYPE_D                      = 8'h44;
@@ -71,23 +71,23 @@ fifo #(
 
 reg [1:0]                   book_upd_state;
 reg [1:0]                   book_op;
-reg [BOOK_LEVEL_BIT-1:0]   book_addr;
-reg [ORDER_BOOK_WIDTH-1:0]  book_i_data;
-wire [ORDER_BOOK_WIDTH-1:0] book_o_data;
+reg [BOOK_LEVEL_BIT-1:0]    book_addr;
+reg [ORDER_BOOK_DATA_WIDTH-1:0]  book_i_data;
+wire [ORDER_BOOK_DATA_WIDTH-1:0] book_o_data;
 
-wire                        book_i_valid      = book_i_data[ORDER_BOOK_WIDTH-1];
-wire [1:0]                  book_i_side       = book_i_data[ORDER_BOOK_WIDTH-2:ORDER_BOOK_WIDTH-3];
+wire                        book_i_valid      = book_i_data[ORDER_BOOK_DATA_WIDTH-1];
+wire [1:0]                  book_i_side       = book_i_data[ORDER_BOOK_DATA_WIDTH-2:ORDER_BOOK_DATA_WIDTH-3];
 wire [31:0]                 book_i_shares     = book_i_data[63:32];
 wire [31:0]                 book_i_price      = book_i_data[31:0];
 
-wire                        book_o_valid      = book_o_data[ORDER_BOOK_WIDTH-1];
-wire [1:0]                  book_o_side       = book_o_data[ORDER_BOOK_WIDTH-2:ORDER_BOOK_WIDTH-3];
+wire                        book_o_valid      = book_o_data[ORDER_BOOK_DATA_WIDTH-1];
+wire [1:0]                  book_o_side       = book_o_data[ORDER_BOOK_DATA_WIDTH-2:ORDER_BOOK_DATA_WIDTH-3];
 wire [31:0]                 book_o_shares     = book_o_data[63:32];
 wire [31:0]                 book_o_price      = book_o_data[31:0];
 
 bram #(
-    .ADDR_WIDTH      (BOOK_LEVEL_BIT    ),
-    .DATA_WIDTH      (ORDER_BOOK_WIDTH   )
+    .ADDR_WIDTH      (BOOK_LEVEL_BIT          ),
+    .DATA_WIDTH      (ORDER_BOOK_DATA_WIDTH   )
 ) order_book_inst (
     .i_clk           (i_clk_156         ),
     .i_rst           (i_rst             ),
@@ -100,11 +100,11 @@ bram #(
 
 always @(posedge i_clk_156 or posedge i_rst) begin
     if (i_rst || !order_book_init_done) begin
-        book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+        book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
         book_upd_state   <= IDLE;
         book_op          <= IDLE;
         book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
-        qty_bid_ask      <= IDLE;
+        qty_bid_or_ask   <= IDLE;
         qty_price        <= 32'd0;
         qty_is_add       <= 1'b0;
         qty_d_shares     <= 32'd0;
@@ -118,7 +118,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                         book_i_data     <= {1'b1, msg_side, msg_shares, msg_price};
                         book_addr       <= cal_order_book_addr(msg_order_ref_num);
                         book_upd_state  <= IDLE;
-                        qty_bid_ask     <= msg_side;
+                        qty_bid_or_ask     <= msg_side;
                         qty_price       <= msg_price;
                         qty_is_add      <= 1'b1;
                         qty_d_shares    <= msg_shares;
@@ -128,15 +128,15 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                         book_op          <= READ;
                         book_addr        <= cal_order_book_addr(msg_order_ref_num);
                         book_upd_state   <= FIRST_CYCLE;
-                        qty_bid_ask      <= IDLE;
+                        qty_bid_or_ask      <= IDLE;
                         op_done         <= 1'b0;
                     end
                     default: begin
                         book_op          <= IDLE;
-                        book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                        book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                         book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                         book_upd_state   <= IDLE;
-                        qty_bid_ask      <= IDLE;
+                        qty_bid_or_ask      <= IDLE;
                         op_done         <= 1'b0;   
                     end
                 endcase
@@ -145,17 +145,17 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                 op_done                 <= 1'b0;  
                 case (msg_type)
                     TYPE_E,TYPE_C,TYPE_X,TYPE_D,TYPE_U: begin
-                        book_op          <= READ;
-                        book_addr        <= cal_order_book_addr(msg_order_ref_num);
+                        // book_op          <= READ;
+                        // book_addr        <= cal_order_book_addr(msg_order_ref_num);
                         book_upd_state   <= SECOND_CYCLE;
-                        qty_bid_ask      <= IDLE;
+                        qty_bid_or_ask      <= IDLE;
                     end
                     default: begin
                         book_op          <= IDLE;
-                        book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                        book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                         book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                         book_upd_state   <= IDLE;
-                        qty_bid_ask      <= IDLE;
+                        qty_bid_or_ask      <= IDLE;
                     end
                 endcase
             end
@@ -164,18 +164,18 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                     TYPE_D: begin
                         if (book_o_valid) begin
                             book_op          <= WRITE;
-                            book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                            book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                             book_addr        <= cal_order_book_addr(msg_order_ref_num);
-                            qty_bid_ask      <= book_o_side;
+                            qty_bid_or_ask      <= book_o_side;
                             qty_price        <= book_o_price;
                             qty_is_add       <= 1'b0;
                             qty_d_shares     <= book_o_shares;
                             op_done         <= 1'b1;  
                         end else begin
                             book_op          <= IDLE;
-                            book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                            book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                             book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
-                            qty_bid_ask      <= IDLE;
+                            qty_bid_or_ask      <= IDLE;
                             op_done         <= 1'b0;  
                         end
                         book_upd_state <= IDLE;
@@ -183,9 +183,9 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                     TYPE_U:begin
                         if (book_o_valid) begin // remove the old order
                             book_op          <= WRITE;
-                            book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                            book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                             book_addr        <= cal_order_book_addr(msg_order_ref_num);
-                            qty_bid_ask      <= book_o_side;
+                            qty_bid_or_ask      <= book_o_side;
                             qty_price        <= book_o_price;
                             qty_is_add       <= 1'b0;
                             qty_d_shares     <= book_o_shares;
@@ -193,7 +193,7 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                             op_done         <= 1'b0;  
                         end else begin
                             book_op          <= IDLE;
-                            book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                            book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                             book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
                             book_upd_state  <= IDLE;
                             op_done         <= 1'b0;  
@@ -204,25 +204,25 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                             book_op          <= WRITE;
                             book_addr        <= cal_order_book_addr(msg_order_ref_num);
                             book_i_data      <= {(book_o_shares - msg_shares==0) ? 1'b0 : 1'b1, book_o_side, (book_o_shares - msg_shares), book_o_price};
-                            qty_bid_ask     <= book_o_side;
+                            qty_bid_or_ask     <= book_o_side;
                             qty_price       <= book_o_price;
                             qty_is_add      <= 1'b0;
                             qty_d_shares    <= msg_shares;
                             op_done         <= 1'b1;  
                         end else begin
                             book_op          <= IDLE;
-                            book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                            book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                             book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
-                            qty_bid_ask      <= IDLE;
+                            qty_bid_or_ask      <= IDLE;
                             op_done         <= 1'b0;  
                         end
                         book_upd_state <= IDLE;
                     end
                     default: begin
                         book_op          <= IDLE;
-                        book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                        book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                         book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
-                        qty_bid_ask      <= IDLE;
+                        qty_bid_or_ask      <= IDLE;
                         book_upd_state  <= IDLE;
                         op_done         <= 1'b0;  
                     end
@@ -233,16 +233,16 @@ always @(posedge i_clk_156 or posedge i_rst) begin
                     book_op          <= WRITE;
                     book_i_data      <= {1'b1, book_o_side, msg_shares, msg_price}; // old side, new shares and new price
                     book_addr        <= cal_order_book_addr(msg_new_order_ref);
-                    qty_bid_ask      <= book_o_side; // the old order side.
+                    qty_bid_or_ask      <= book_o_side; // the old order side.
                     qty_price        <= msg_price;  // new price
                     qty_is_add       <= 1'b1;
                     qty_d_shares     <= msg_shares; // new shares
                     op_done         <= 1'b1;  
                 end else begin
                     book_op          <= IDLE;
-                    book_i_data      <= {ORDER_BOOK_WIDTH{1'b0}};
+                    book_i_data      <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                     book_addr        <= {BOOK_LEVEL_BIT{1'b0}};
-                    qty_bid_ask      <= IDLE;
+                    qty_bid_or_ask      <= IDLE;
                     op_done          <= 1'b0;
 
                 end
@@ -251,17 +251,17 @@ always @(posedge i_clk_156 or posedge i_rst) begin
             default: begin
                 book_upd_state <= IDLE;
                 book_op        <= IDLE;
-                book_i_data    <= {ORDER_BOOK_WIDTH{1'b0}};
+                book_i_data    <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
                 book_addr      <= {BOOK_LEVEL_BIT{1'b0}};
-                qty_bid_ask   <= IDLE;
+                qty_bid_or_ask   <= IDLE;
                 op_done         <= 1'b0;  
             end
         endcase
     end else begin
         book_op        <= IDLE;
-        book_i_data    <= {ORDER_BOOK_WIDTH{1'b0}};
+        book_i_data    <= {ORDER_BOOK_DATA_WIDTH{1'b0}};
         book_addr      <= {BOOK_LEVEL_BIT{1'b0}};
-        qty_bid_ask   <= IDLE;
+        qty_bid_or_ask   <= IDLE;
         op_done         <= 1'b0;  
     end
 end

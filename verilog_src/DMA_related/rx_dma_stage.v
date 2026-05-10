@@ -135,7 +135,7 @@ arbiter #(
     .i_rst     (i_rst),
     .i_req     (que_request_vec),
     .i_accept  (selected_accept),
-    .o_valid   (selected_valid),
+    .o_has_winner   (selected_valid),
     .o_que_idx (selected_que_idx)
 );
 assign selected_drop = selected_valid ?

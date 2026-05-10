@@ -1,6 +1,6 @@
 module tree_builder #(
     parameter QTY_PRICE_LVL_BIT = 10,   // LEVELS = QTY_PRICE_LVL_BIT, leaves = 2^LEVELS
-    parameter BID_OR_ASK = 2'b01             // 01 for bid tree, 10 for ask tree
+    parameter BID_OR_ASK = 2'b01        // 01 for bid tree, 10 for ask tree
 )(
     input  wire                         i_clk,
     input  wire                         i_rst,        // active high
@@ -25,7 +25,7 @@ module tree_builder #(
     localparam LOWER_MAX_COUNT  = (MID_COUNT  > 1) ? (MID_COUNT >> 1) : 1;
 
 
-    reg                          btm_valid [0:LAST_COUNT-1];
+    reg                          btm_valid  [0:LAST_COUNT-1];
     reg [QTY_PRICE_LVL_BIT-1:0]  mid_idx    [0:MID_COUNT-1];
     reg                          mid_valid  [0:MID_COUNT-1];
 

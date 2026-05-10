@@ -13,16 +13,16 @@ input   wire                        i_axi_rx_last           ,
 input   wire [47:0]                 i_frame_ts              ,
 output  wire                        o_axi_rx_ready          ,
 // order book interface
-output  reg                         o_msg_valid             , // 1 when all the parts are parsed.
-output  reg [63:0]                  o_seq_num               , // sequence number
-output  reg [7:0]                   o_msg_type              , //A, D, X, U, E, F
-output  reg [15:0]                  o_stock_locate          , // the stock ID
-output  reg [63:0]                  o_order_ref_num         , // (old, for type u)order reference number
-output  reg [63:0]                  o_new_order_ref_num     , // used for type U
-output  reg [7:0]                   o_buy_sell              , // 
-output  reg [31:0]                  o_shares                ,
-output  reg [31:0]                  o_price                 ,
-output  reg [47:0]                  o_frame_ts               // frame time stamp from the logic, not the UDP payload.
+output  reg          o_msg_valid             , // 1 when all the parts are parsed.
+output  reg [63:0]   o_seq_num               , // sequence number
+output  reg [7:0]    o_msg_type              , //A, D, X, U, E, F
+output  reg [15:0]   o_stock_locate          , // the stock ID
+output  reg [63:0]   o_order_ref_num         , // (old, for type u)order reference number
+output  reg [63:0]   o_new_order_ref_num     , // used for type U
+output  reg [7:0]    o_buy_sell              , // 
+output  reg [31:0]   o_shares                ,
+output  reg [31:0]   o_price                 ,
+output  reg [47:0]   o_frame_ts               // frame time stamp from the logic, not the UDP payload.
 
 );
 

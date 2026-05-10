@@ -37,6 +37,7 @@ wire                         t_op_done;
 wire [47:0]                 qty_frame_ts;
 wire [47:0]                 tree_frame_ts;
 wire                        qty_mem_init_done;
+
 qty_builder #(
     .QTY_MSG_BIT       (QTY_MSG_BIT),
     .QTY_PRICE_LVL_BIT (QTY_PRICE_LVL_BIT),
