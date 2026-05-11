@@ -168,14 +168,14 @@ uint32_t FPGADev::_getRegAddr(uint16_t que_idx, uint32_t reg_offset) const {
 }
 
 bool FPGADev::_getFD() {
-    return _getGroupID() &&
-           _getContainerFD() &&
-           _getGroupFD() &&
+    return _getIOMMUGroupID() &&
+           _getVFIOContainerFD() &&
+           _getVFIOGroupFD() &&
            _addGroup2Container() &&
            _getDeviceFD();
 }
 
-bool FPGADev::_getGroupID() {
+bool FPGADev::_getIOMMUGroupID() {
     std::filesystem::path device_dir =
         std::filesystem::path("/sys/bus/pci/devices") / m_basic_para.pci_addr.c_str();
     struct stat st;
@@ -196,7 +196,7 @@ bool FPGADev::_getGroupID() {
     return true;
 }
 
-bool FPGADev::_getContainerFD() {
+bool FPGADev::_getVFIOContainerFD() {
     int cfd = m_fds.container_fd;
     if (cfd == -1) {
         cfd = ::open("/dev/vfio/vfio", O_RDWR);
@@ -209,7 +209,7 @@ bool FPGADev::_getContainerFD() {
     return true;
 }
 
-bool FPGADev::_getGroupFD() {
+bool FPGADev::_getVFIOGroupFD() {
     if (m_fds.group_id == -1) {
         warn("Group ID is invalid");
         return false;

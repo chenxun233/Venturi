@@ -98,18 +98,18 @@ DMABuffer DMAMemoryAllocator::allocate(size_t size) {
         return {};
     }
 
-    size = alignUpU64(size, m_page_size);
-    const uint64_t iova = alignUpU64(m_next_iova, m_page_size);
+    size = _alignUpU64(size, m_page_size);
+    const uint64_t iova = _alignUpU64(m_next_iova, m_page_size);
     if (iova > kIOVAEnd || iova + size - 1 > kIOVAEnd) {
         warn("IOMMU aperture exhausted: need 0x%llx bytes", static_cast<unsigned long long>(size));
         return {};
     }
 
-    void* virt_addr = allocDMAVirtualAddr(size);
+    void* virt_addr = _allocDMAVirtualAddr(size);
     if (virt_addr == nullptr) {
         return {};
     }
-    if (!bindIOVAWithVirtAddr(virt_addr, iova, size, m_container_fd)) {
+    if (!_bindIOVAWithVirtAddr(virt_addr, iova, size, m_container_fd)) {
         if (munmap(virt_addr, size) == -1) {
             warn("Failed to release DMA mapping after VFIO map failure: %s", strerror(errno));
         }
@@ -120,7 +120,7 @@ DMABuffer DMAMemoryAllocator::allocate(size_t size) {
     return DMABuffer(m_container_fd, virt_addr, iova, size);
 }
 
-void* DMAMemoryAllocator::allocDMAVirtualAddr(size_t size) {
+void* DMAMemoryAllocator::_allocDMAVirtualAddr(size_t size) {
     // using mmap() because it can assign huge page within which the physical memory is continuous.
     void* virtual_address = mmap(NULL,
                                  size,
@@ -136,7 +136,7 @@ void* DMAMemoryAllocator::allocDMAVirtualAddr(size_t size) {
 }
 
 // this function makes the physical address in DRAM shared both by virtual address space and IOVA. one is for CPU access, the other is for device DMA access.
-bool DMAMemoryAllocator::bindIOVAWithVirtAddr(void* virt_addr, uint64_t iova, size_t size, int container_fd) {
+bool DMAMemoryAllocator::_bindIOVAWithVirtAddr(void* virt_addr, uint64_t iova, size_t size, int container_fd) {
     struct vfio_iommu_type1_dma_map dma_map = {};
     dma_map.vaddr = reinterpret_cast<uint64_t>(virt_addr);
     dma_map.iova = iova;
@@ -150,7 +150,7 @@ bool DMAMemoryAllocator::bindIOVAWithVirtAddr(void* virt_addr, uint64_t iova, si
     return true;
 }
 
-uint64_t DMAMemoryAllocator::alignUpU64(uint64_t value, uint64_t alignment) {
+uint64_t DMAMemoryAllocator::_alignUpU64(uint64_t value, uint64_t alignment) {
     if (!alignment) {
         return value;
     }

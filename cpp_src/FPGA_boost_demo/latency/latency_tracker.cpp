@@ -138,25 +138,7 @@ uint64_t LatencyTracker::readCompletedTraceCount(uint16_t que_idx) const noexcep
     return m_completed_trace_counts[que_idx].load(std::memory_order_relaxed);
 }
 
-void LatencyTracker::printDebugSummary() const noexcept {
-    std::printf("Latency Tracker Debug Summary\n");
-    for (uint16_t que_idx = 0; que_idx < m_queue_num; ++que_idx) {
-        const uint64_t latency_record_drops =
-            m_latency_queues[que_idx]->readDropCount();
-        const uint64_t command_drops =
-            m_command_queues[que_idx]->readDropCount();
-        const uint32_t active_trace_id =
-            m_active_trace_ids[que_idx].load(std::memory_order_relaxed);
-        std::printf("queue=%u traced_packets=%llu latency_record_drops=%llu command_drops=%llu active_trace=%u\n",
-                    static_cast<unsigned int>(que_idx),
-                    static_cast<unsigned long long>(
-                        m_completed_trace_counts[que_idx].load(std::memory_order_relaxed)),
-                    static_cast<unsigned long long>(latency_record_drops),
-                    static_cast<unsigned long long>(command_drops),
-                    static_cast<unsigned int>(active_trace_id));
-    }
-    std::fflush(stdout);
-}
+
 
 void LatencyTracker::_finalizeTrace(uint16_t que_idx, uint32_t trace_id) noexcept {
     if (que_idx >= m_latency_queues.size() ||

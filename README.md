@@ -12,6 +12,25 @@ This repository contains:
 - C++ host runtime for polling FPGA events, running demo strategy logic, sending orders, and measuring latency
 - a `dummy_server` process for exercising the TX path
 
+## Structure
+![schematic](figures/schematic.png) 
+
+The schematic above shows the end-to-end purpose of Venturi: receive market data on the FPGA, build book state in hardware, export compact events to the host through PCIe DMA, and drive a host-side demo order path while measuring latency across the pipeline. The setup diagram below shows how the FPGA board, host runtime, replay source, and simulated exchange fit together during development and testing.
+
+![setup](figures/setup.png)
+
+### FPGA side
+
+On the FPGA side, Venturi focuses on the hot path from packet ingress to DMA emission. Market data enters through the Ethernet MAC path, is parsed into order-book updates, and is reduced into event records that are useful to the host. Along the way, the design also captures timestamps and debug counters so the hardware stages can be inspected and correlated with host-side measurements.
+
+![FPGA hierarchy](figures/FPGAoverview.png)
+
+### host side
+
+On the host side, Venturi polls the DMA rings, decodes FPGA-generated events, and feeds them into a small demo strategy and TX pipeline. The host runtime is also responsible for collecting latency records, printing run summaries, and talking to the `dummy_server` that stands in for an exchange during local experiments. Together, the host and FPGA sides form a complete measurement-oriented loop rather than just an isolated parser or transport demo.
+
+![host side](figures/CPPhierarchy.png)
+
 ## Run
 
 Build the host runtime:
@@ -19,7 +38,7 @@ Build the host runtime:
 ```bash
 cd Venturi
 cmake -S cpp_src -B cpp_src/build
-cmake --build cpp_src/build -j"$(nproc)"
+cmake --build cpp_src/build
 ```
 
 Before running, the usual host preparation is:
@@ -95,7 +114,7 @@ When `tcpreplay` finished, you can press `ctrl+c` in `venturi` terminal, below w
 
 ```bash
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:30 initHardware(): Initializing FPGA RX hardware...
-[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:195 _getGroupID(): IOMMU Group ID: 14
+[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:195 _getIOMMUGroupID(): IOMMU Group ID: 14
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:351 _getBARAddr(): BAR0 mapped at 0x7a8356ff4000 (size: 0x4000)
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:136 _readSymbolNum(): Device reports 2 symbols
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:90 setRxRingBuffers(): Configured RX queue 0: IOVA=0x0000000000200000 slots_num=1024 slot_bytes=32
@@ -193,8 +212,3 @@ Correctness debugging should be done on the simplest stable setup you can contro
 
 The only missing latency is the PCIe transmission latency. Because we do not have a hardware synced clock source.
 
-## Documentation
-
-Detailed architecture, module documentation, and implementation notes are published at:
-
-https://chenxun233.github.io/Venturi/

@@ -351,7 +351,7 @@ TEST(LatencyTrackerTest, printDebugSummaryShowsQueueAndFinalTracedPacketsOnly) {
     tracker.m_completed_trace_counts[0].store(7961ULL, std::memory_order_relaxed);
 
     testing::internal::CaptureStdout();
-    tracker.printDebugSummary();
+
     const std::string output = testing::internal::GetCapturedStdout();
 
     EXPECT_NE(output.find("Latency Tracker Debug Summary"), std::string::npos);

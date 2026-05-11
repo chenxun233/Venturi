@@ -28,7 +28,6 @@ public:
     void run() noexcept;
     void stop() noexcept;
     uint64_t readCompletedTraceCount(uint16_t que_idx) const noexcept;
-    void printDebugSummary() const noexcept;
 
 private:
     static int64_t _FPGATick2ns(uint64_t later_tick, uint64_t earlier_tick) noexcept;

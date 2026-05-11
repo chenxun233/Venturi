@@ -42,9 +42,9 @@ public:
     DMABuffer allocate(size_t size);
 
 private:
-    static uint64_t alignUpU64(uint64_t value, uint64_t alignment);
-    static void* allocDMAVirtualAddr(size_t size);
-    static bool bindIOVAWithVirtAddr(void* virt_addr, uint64_t iova, size_t size, int container_fd);
+    static uint64_t _alignUpU64(uint64_t value, uint64_t alignment);
+    static void* _allocDMAVirtualAddr(size_t size);
+    static bool _bindIOVAWithVirtAddr(void* virt_addr, uint64_t iova, size_t size, int container_fd);
 
     int m_container_fd {-1};
     uint64_t m_page_size {2ULL * 1024ULL * 1024ULL};

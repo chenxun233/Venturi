@@ -74,9 +74,9 @@ private:
     
 private:
     bool        _getFD();
-    bool        _getGroupID();
-    bool        _getContainerFD();
-    bool        _getGroupFD();
+    bool        _getIOMMUGroupID();
+    bool        _getVFIOContainerFD();
+    bool        _getVFIOGroupFD();
     bool        _addGroup2Container();
     bool        _getDeviceFD();
     bool        _getBARAddr();
