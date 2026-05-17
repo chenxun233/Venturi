@@ -151,6 +151,8 @@ TxReceiver queue=1 sent=8000 accepted=8000 filled=8000 rejected=0 pending=0 malf
 
 Do not stop `venturi` immediately when `tcpreplay` exits. Wait briefly so in-flight host-side tracing and TX completion work can drain before pressing `ctrl+c`.
 
+Need to mention I only trace the first event in a frame. so the latency in FPGA is fixed with provided packets. If there are multiple packets, for example 8, the latency is from 160~ to 400+ ns.
+
 ## How To Read The Print
 
 The most important counters have different meanings:
