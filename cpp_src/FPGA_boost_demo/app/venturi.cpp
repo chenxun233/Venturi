@@ -220,16 +220,12 @@ int main() {
         latency_thread.join();
     }
     log_printer.stop();
-    std::printf("queue=%u total_received=%llu traced=%llu\n",
-                static_cast<unsigned int>(rx_engine0.readQueueIdx()),
-                static_cast<unsigned long long>(rx_engine0.readFirstEventCount()),
-                static_cast<unsigned long long>(
-                    latency_tracker->readCompletedTraceCount(rx_engine0.readQueueIdx())));
-    std::printf("queue=%u total_received=%llu traced=%llu\n",
-                static_cast<unsigned int>(rx_engine1.readQueueIdx()),
-                static_cast<unsigned long long>(rx_engine1.readFirstEventCount()),
-                static_cast<unsigned long long>(
-                    latency_tracker->readCompletedTraceCount(rx_engine1.readQueueIdx())));
+    const uint16_t queue0 = rx_engine0.readQueueIdx();
+    const uint16_t queue1 = rx_engine1.readQueueIdx();
+    const uint64_t total_received0 = rx_engine0.readFirstEventCount();
+    const uint64_t total_received1 = rx_engine1.readFirstEventCount();
+    latency_analyzer.setTotalReceived(queue0, total_received0);
+    latency_analyzer.setTotalReceived(queue1, total_received1);
     latency_analyzer.printSummary();
     tx_client0.printReceiverSummary();
     tx_client1.printReceiverSummary();

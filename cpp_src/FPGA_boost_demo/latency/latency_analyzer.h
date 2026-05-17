@@ -11,6 +11,7 @@ public:
     explicit LatencyAnalyzer(uint16_t queue_num);
 
     void pushCompletedRecord(const LatencyLogRecord& record);
+    void setTotalReceived(uint16_t que_idx, uint64_t total_received) noexcept;
     void setWarmupRecords(uint64_t warmup_records) noexcept;
     void printSummary() const;
 
@@ -28,5 +29,5 @@ private:
     uint16_t m_queue_num {0};
     uint64_t m_warmup_records {0};
     std::vector<std::vector<LatencyLogRecord>> m_completed_records;
-    std::size_t record_count {0};
+    std::vector<uint64_t> m_total_received;
 };

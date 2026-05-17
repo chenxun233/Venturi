@@ -123,29 +123,27 @@ When `tcpreplay` finished, you can press `ctrl+c` in `venturi` terminal, below w
 [INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:90 setRxRingBuffers(): Configured RX queue 1: IOVA=0x0000000000400000 slots_num=1024 slot_bytes=32
 TxEvent queue=1 event=ConnectionEstablished
 TxEvent queue=0 event=ConnectionEstablished
-^Cqueue=0 total_received=16000 traced=7961
-queue=1 total_received=16000 traced=7960
-Latency Summary queue=0
-record_count=15921 traced records=7961 warmup=1000 analyzed=6961
+^CLatency Summary queue=0
+total_received=18000 traced=8961 warmup=1000 analyzed=7961
 
 stage                                          min_ns       p50_ns       p90_ns       p99_ns       max_ns
 FRAME_START_to_DMA_EMIT                           166          166          166          166          166
-BATCH_DURATION                                     61          101          127          138          299
-BATCH_END_to_STRATEGY_START                        61           66           93          101          147
-STRATEGY_START_to_TX_SEND_ACCEPTED                 24           35           59          115          275
-TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER           28           35           64          134          315
-TX_SEND_SYSCALL_ENTER_to_TX_SEND                 1100         1302         1420         1538         1821
+BATCH_DURATION                                     55           87          111          121          165
+BATCH_END_to_STRATEGY_START                        61           66           93          102          143
+STRATEGY_START_to_TX_SEND_ACCEPTED                 22           32           55          113          309
+TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER           30           34           67          133          316
+TX_SEND_SYSCALL_ENTER_to_TX_SEND                  507         1315         1430         1571         2181
 
 Latency Summary queue=1
-record_count=15921 traced records=7960 warmup=1000 analyzed=6960
+total_received=18000 traced=8960 warmup=1000 analyzed=7960
 
 stage                                          min_ns       p50_ns       p90_ns       p99_ns       max_ns
 FRAME_START_to_DMA_EMIT                           166          166          166          166          166
-BATCH_DURATION                                     84           96          122          132          186
-BATCH_END_to_STRATEGY_START                        60           91          117          129          214
-STRATEGY_START_to_TX_SEND_ACCEPTED                 21           34           60          117          272
-TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER           30           35           63          138          305
-TX_SEND_SYSCALL_ENTER_to_TX_SEND                 1101         1305         1423         1553         1922
+BATCH_DURATION                                     83           94          121          140          179
+BATCH_END_to_STRATEGY_START                        77           91          117          132          187
+STRATEGY_START_to_TX_SEND_ACCEPTED                 21           25           50          105          262
+TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER           30           35           63          131          288
+TX_SEND_SYSCALL_ENTER_to_TX_SEND                  379         1293         1413         1536         2705
 
 TxReceiver queue=0 sent=8000 accepted=8000 filled=8000 rejected=0 pending=0 malformed=0 ref_drops=0 connected=1 disconnected=0
 TxReceiver queue=1 sent=8000 accepted=8000 filled=8000 rejected=0 pending=0 malformed=0 ref_drops=0 connected=1 disconnected=0

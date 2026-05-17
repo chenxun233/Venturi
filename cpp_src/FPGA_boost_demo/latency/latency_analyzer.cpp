@@ -55,13 +55,14 @@ constexpr std::array<SummaryField, 6> kSummaryFields = {{
 
 LatencyAnalyzer::LatencyAnalyzer(uint16_t queue_num)
     : m_queue_num(queue_num),
-      m_completed_records(queue_num) 
+      m_completed_records(queue_num),
+      m_total_received(queue_num, 0U)
 {
     if (queue_num == 0) {
         throw std::invalid_argument("LatencyAnalyzer queue_num must be non-zero");
-        for (uint16_t que_idx = 0; que_idx < m_queue_num; ++que_idx) {
-            m_completed_records[que_idx].reserve(40000);
-        }
+    }
+    for (uint16_t que_idx = 0; que_idx < m_queue_num; ++que_idx) {
+        m_completed_records[que_idx].reserve(40000);
     }
 }
 
@@ -69,8 +70,15 @@ void LatencyAnalyzer::pushCompletedRecord(const LatencyLogRecord& record) {
     if (record.que_idx >= m_completed_records.size()) {
         return;
     }
-    ++record_count;
     m_completed_records[record.que_idx].push_back(record);
+}
+
+void LatencyAnalyzer::setTotalReceived(uint16_t que_idx,
+                                       uint64_t total_received) noexcept {
+    if (que_idx >= m_total_received.size()) {
+        return;
+    }
+    m_total_received[que_idx] = total_received;
 }
 
 void LatencyAnalyzer::setWarmupRecords(uint64_t warmup_records) noexcept {
@@ -90,10 +98,12 @@ void LatencyAnalyzer::_printQueueSummary(uint16_t que_idx) const {
     const std::size_t warmup_count =
         std::min<std::size_t>(traced_count, static_cast<std::size_t>(m_warmup_records));
     const std::size_t analyzed_count = traced_count - warmup_count;
+    const uint64_t total_received =
+        (que_idx < m_total_received.size()) ? m_total_received[que_idx] : 0U;
 
     std::printf("Latency Summary queue=%u\n", static_cast<unsigned int>(que_idx));
-    std::printf("record_count=%zu traced records=%zu warmup=%zu analyzed=%zu\n\n",
-                record_count,
+    std::printf("total_received=%llu traced=%zu warmup=%zu analyzed=%zu\n\n",
+                static_cast<unsigned long long>(total_received),
                 traced_count,
                 warmup_count,
                 analyzed_count);

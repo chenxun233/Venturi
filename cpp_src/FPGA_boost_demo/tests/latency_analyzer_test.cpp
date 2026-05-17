@@ -7,6 +7,7 @@
 TEST(LatencyAnalyzerTest, warmupDropsLeadingRecordsPerQueue) {
     LatencyAnalyzer analyzer(1);
     analyzer.setWarmupRecords(1);
+    analyzer.setTotalReceived(0, 5);
 
     analyzer.pushCompletedRecord(LatencyLogRecord {
         .que_idx = 0,
@@ -33,11 +34,13 @@ TEST(LatencyAnalyzerTest, warmupDropsLeadingRecordsPerQueue) {
     analyzer.printSummary();
     const std::string output = testing::internal::GetCapturedStdout();
 
-    EXPECT_NE(output.find("completed_records=2"), std::string::npos);
+    EXPECT_NE(output.find("total_received=5"), std::string::npos);
+    EXPECT_NE(output.find("traced=2"), std::string::npos);
     EXPECT_NE(output.find("warmup=1"), std::string::npos);
     EXPECT_NE(output.find("analyzed=1"), std::string::npos);
     EXPECT_NE(output.find("FRAME_START_to_DMA_EMIT"), std::string::npos);
     EXPECT_NE(output.find("TX_SEND_ACCEPTED_to_TX_SEND_SYSCALL_ENTER"), std::string::npos);
     EXPECT_EQ(output.find("TX_SEND_ACCEPTED_to_TX_SEND_ENQUEUE"), std::string::npos);
     EXPECT_EQ(output.find("TX_SEND_ENQUEUE_to_TX_SEND_SYSCALL_ENTER"), std::string::npos);
+    EXPECT_EQ(output.find("record_count="), std::string::npos);
 }
