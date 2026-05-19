@@ -74,6 +74,18 @@ target_include_directories(test_fpga_hello_v2 PRIVATE
     ${FPGA_ADAPTER_DIR}
 )
 
+add_executable(bar_latency_probe
+    ${COMMON_SOURCES}
+    ${FPGA_SOURCES}
+    ${FPGA_COMMON_DIR}/thread_affinity.cpp
+    ${FPGA_APP_DIR}/bar_latency_probe.cpp
+)
+target_include_directories(bar_latency_probe PRIVATE
+    ${COMMON_INCLUDES}
+    ${FPGA_DRIVER_DIR}
+    ${FPGA_ADAPTER_DIR}
+)
+
 add_executable(venturi
     ${COMMON_SOURCES}
     ${FPGA_DRIVER_DIR}/fpga_dev.cpp

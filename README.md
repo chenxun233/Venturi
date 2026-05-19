@@ -4,6 +4,10 @@ Venturi is an FPGA-plus-host framework for building and measuring a low-latency 
 
 It is not a perfect project. The aim is to scaffolding the project and pile up gradually, to see how far I can get.
 
+## To do:
+1. Check the latency jitter both in userspace code and in the kernel path.
+2. Considering add DPDK front-end for data receiving, parallel with FPGA.
+
 The system receives Nasdaq ITCH 5.0 market data on the FPGA, builds top-of-book state in hardware, exports event records to host memory through PCIe DMA, and runs a host-side demo pipeline that can send orders to a simulated exchange. Latency is tracked across the software and hardware stages of this flow, except for PCIe transmission latency.
 
 When `venturi` is stopped with `Ctrl+C`, it prints summary statistics for each tracked stage, including `min`, `p50`, `p99`, and `max`.
