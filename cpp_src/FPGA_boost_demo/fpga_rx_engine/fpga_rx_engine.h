@@ -7,7 +7,7 @@
 
 class LatencyTracker;
 
-class FPGARxEngine {
+class alignas(64) FPGARxEngine {
 
 public:
     FPGARxEngine(FPGADev& source, uint16_t que_idx);

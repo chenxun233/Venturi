@@ -299,10 +299,12 @@ bool DummyServer::_handleTimerEvent() {
 
     // handle timeout
     const auto now = std::chrono::steady_clock::now();
+#ifndef VENTURI_STABLE_LINK
     m_protocol.markTimedOutSlots(now, std::chrono::seconds(15));
     while (m_protocol.hasTimedOutSlot()) {
         _closeSlot(m_protocol.readTimedOutSlot());
     }
+#endif
 
     m_protocol.queueHeartbeatFrames(now);
     m_protocol.queueDueFillFrames(now);
@@ -312,12 +314,18 @@ bool DummyServer::_handleTimerEvent() {
             continue;
         }
         if (!_flushRuntimeOutbound(static_cast<int>(server_slot.slot_idx))) {
+#ifdef VENTURI_STABLE_LINK
+            continue;
+#else
             _closeSlot(static_cast<int>(server_slot.slot_idx));
             continue;
+#endif
         }
+#ifndef VENTURI_STABLE_LINK
         if (m_protocol.shouldClose(static_cast<int>(server_slot.slot_idx))) {
             _closeSlot(static_cast<int>(server_slot.slot_idx));
         }
+#endif
     }
     return true;
 }
@@ -328,10 +336,12 @@ void DummyServer::_handleConnectedEvent(const epoll_event& event,
     if (p_server_slot == nullptr) {
         return;
     }
+#ifndef VENTURI_STABLE_LINK
     if ((event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) != 0U) {
         _closeSlot(static_cast<int>(p_server_slot->slot_idx));
         return;
     }
+#endif
 
     std::vector<uint8_t> buffer(1024, 0);
     std::size_t bytes_received = 0;
@@ -342,8 +352,12 @@ void DummyServer::_handleConnectedEvent(const epoll_event& event,
                                     buffer.data(),
                                     bytes_received,
                                     now)) {
+#ifdef VENTURI_STABLE_LINK
+            return;
+#else
             _closeSlot(static_cast<int>(p_server_slot->slot_idx));
             return;
+#endif
         }
 
         while (true) {
@@ -353,22 +367,36 @@ void DummyServer::_handleConnectedEvent(const epoll_event& event,
                 break;
             }
             if (!m_protocol.handleInboundMessage(static_cast<int>(p_server_slot->slot_idx), *message, now)) {
+#ifdef VENTURI_STABLE_LINK
+                return;
+#else
                 _closeSlot(static_cast<int>(p_server_slot->slot_idx));
                 return;
+#endif
             }
         }
     }
     if (!receive_ok) {
+#ifdef VENTURI_STABLE_LINK
+        return;
+#else
         _closeSlot(static_cast<int>(p_server_slot->slot_idx));
         return;
+#endif
     }
     if (!_flushRuntimeOutbound(static_cast<int>(p_server_slot->slot_idx))) {
+#ifdef VENTURI_STABLE_LINK
+        return;
+#else
         _closeSlot(static_cast<int>(p_server_slot->slot_idx));
         return;
+#endif
     }
+#ifndef VENTURI_STABLE_LINK
     if (m_protocol.shouldClose(static_cast<int>(p_server_slot->slot_idx))) {
         _closeSlot(static_cast<int>(p_server_slot->slot_idx));
     }
+#endif
 }
 
 void DummyServer::_shutdownLiveSlots() {

@@ -112,6 +112,8 @@ int main() {
     }
     FPGARxEngine rx_engine0(device, 0);
     FPGARxEngine rx_engine1(device, 1);
+    static_assert(sizeof(FPGARxEngine)==64,"alignas(64) did not function properly");
+    static_assert(alignof(FPGARxEngine) == 64);
     DummyStrategy strategy0;
     DummyStrategy strategy1;
     Executor executor0(RuntimeConfig::executor_queue_capacity);
@@ -127,7 +129,7 @@ int main() {
     LatencyAnalyzer latency_analyzer(RuntimeConfig::queue_num);
     LogPrinter log_printer(RuntimeConfig::queue_num, RuntimeConfig::latency_log_capacity);
     std::signal(SIGINT, handleStopSignal);
-    latency_analyzer.setWarmupRecords(1000);
+    latency_analyzer.setWarmupRecords(2000);
 
     rx_engine0.attachLatencyTracker(latency_tracker.get());
     rx_engine1.attachLatencyTracker(latency_tracker.get());

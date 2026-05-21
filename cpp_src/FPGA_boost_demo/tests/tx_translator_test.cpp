@@ -5,6 +5,7 @@
 #include <chrono>
 #include <fcntl.h>
 #include <stdexcept>
+#include <sys/syscall.h>
 #include <sys/socket.h>
 #include <type_traits>
 #include <unistd.h>
@@ -29,6 +30,47 @@ static_assert(std::is_member_function_pointer_v<decltype(&TxSender::queueHeartbe
 static_assert(std::is_member_function_pointer_v<decltype(&TxSender::_popReadyOutbound)>);
 
 namespace {
+
+struct SendHookState {
+    bool active {false};
+    std::vector<ssize_t> scripted_results {};
+    std::vector<std::size_t> requested_lengths {};
+    std::size_t call_idx {0};
+};
+
+SendHookState g_send_hook {};
+
+struct ScopedSendHook {
+    explicit ScopedSendHook(std::vector<ssize_t> results) {
+        g_send_hook.active = true;
+        g_send_hook.scripted_results = std::move(results);
+        g_send_hook.requested_lengths.clear();
+        g_send_hook.call_idx = 0;
+    }
+
+    ~ScopedSendHook() {
+        g_send_hook.active = false;
+        g_send_hook.scripted_results.clear();
+        g_send_hook.requested_lengths.clear();
+        g_send_hook.call_idx = 0;
+    }
+};
+
+extern "C" ssize_t send(int sockfd, const void* buf, size_t len, int flags) {
+    if (g_send_hook.active) {
+        g_send_hook.requested_lengths.push_back(len);
+        if (g_send_hook.call_idx < g_send_hook.scripted_results.size()) {
+            const ssize_t scripted = g_send_hook.scripted_results[g_send_hook.call_idx++];
+            if (scripted >= 0) {
+                return scripted;
+            }
+            errno = static_cast<int>(-scripted);
+            return -1;
+        }
+    }
+
+    return static_cast<ssize_t>(::syscall(SYS_sendto, sockfd, buf, len, flags, nullptr, 0));
+}
 
 OrderExecution makeExecution(uint16_t stock_locate,
                              OrderIntentAction action,
@@ -681,6 +723,49 @@ TEST(TxTranslatorTest, successfulTrackedSendQueuesFinalizeWithoutPublishingInlin
 
     std::array<uint8_t, 64> received {};
     ASSERT_GT(::recv(sockets[1], received.data(), received.size(), 0), 0);
+
+    ::close(sockets[1]);
+}
+
+TEST(TxTranslatorTest, partialWriteThenEagainResumesWithoutDisconnect) {
+    int sockets[2] {-1, -1};
+    ASSERT_EQ(::socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), 0);
+
+    TxSender sender(TxSenderConfig {
+        .pending_capacity = 8,
+    });
+    connectSender(sender, 88, sockets[0]);
+    sender.m_logged_in = true;
+    sender.m_login_pending = false;
+    sender.m_ready_outbound.clear();
+
+    ASSERT_TRUE(sender.acceptExecution(
+        makeExecution(0x000d, OrderIntentAction::Buy, 100000, 10, 0, 1ULL)));
+    ASSERT_TRUE(sender.buildOutboundFrames());
+    ASSERT_EQ(sender.m_pending_orders.live_count, 1U);
+    ASSERT_FALSE(sender.m_ready_outbound.isEmpty());
+
+    ScopedSendHook hook({
+        5,
+        -EAGAIN,
+        14,
+    });
+
+    EXPECT_TRUE(sender.runOnce());
+    EXPECT_EQ(sender.readSendFd(), sockets[0]);
+    ASSERT_FALSE(sender.m_ready_outbound.isEmpty());
+    EXPECT_EQ(sender.m_ready_outbound.readFront().send_offset, 5U);
+    ASSERT_EQ(g_send_hook.requested_lengths.size(), 2U);
+    EXPECT_EQ(g_send_hook.requested_lengths[0], 19U);
+    EXPECT_EQ(g_send_hook.requested_lengths[1], 14U);
+    EXPECT_EQ(sender.m_pending_orders.live_count, 1U);
+
+    EXPECT_TRUE(sender.runOnce());
+    EXPECT_TRUE(sender.m_ready_outbound.isEmpty());
+    EXPECT_EQ(sender.readSendFd(), sockets[0]);
+    EXPECT_EQ(sender.m_pending_orders.live_count, 0U);
+    ASSERT_EQ(g_send_hook.requested_lengths.size(), 3U);
+    EXPECT_EQ(g_send_hook.requested_lengths[2], 14U);
 
     ::close(sockets[1]);
 }

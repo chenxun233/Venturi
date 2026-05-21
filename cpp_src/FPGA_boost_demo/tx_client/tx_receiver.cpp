@@ -61,12 +61,17 @@ void TxReceiver::updateConnectionInfo(const TxConnectionInfo& info) {
         return;
     }
 
+#ifdef VENTURI_STABLE_LINK
+    (void)info;
+    return;
+#else
     if (info.generation != m_generation) {
         return;
     }
     m_generation = 0;
     m_frame_buffer.clear();
     ++m_stats.disconnected;
+#endif
 }
 
 bool TxReceiver::pollOnce(int recv_fd) {
@@ -132,16 +137,24 @@ bool TxReceiver::_appendSocketBytes(int recv_fd) {
     }
 
     if (rc == 0) {
+#ifdef VENTURI_STABLE_LINK
+        return false;
+#else
         _markDisconnected();
         return false;
+#endif
     }
 
     if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
         return false;
     }
 
+#ifdef VENTURI_STABLE_LINK
+    return false;
+#else
     _markDisconnected();
     return false;
+#endif
 }
 
 bool TxReceiver::_parseBufferedFrames() {

@@ -262,11 +262,13 @@ bool TxConnector::_drainDisconNotices() {
     TxDisconnectNotice notice {};
     while (m_sender_disconnect_notices.pop(notice)) {
         did_work = true;
+#ifndef VENTURI_STABLE_LINK
         if (notice.generation != m_socket_generation) {
             continue;
         }
         _logConnectionLost();
         _handleDisconnect();
+#endif
     }
     return did_work;
 }

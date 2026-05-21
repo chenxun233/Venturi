@@ -9,6 +9,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(CTest)
 enable_testing()
 
+option(VENTURI_STABLE_LINK "Relax TX/demo link teardown behavior for single-machine lab use" OFF)
+
 add_compile_options(-g -O2 -march=native -fomit-frame-pointer
     -D_XOPEN_SOURCE=700
     -D_DEFAULT_SOURCE
@@ -104,6 +106,9 @@ add_executable(venturi
     ${FPGA_APP_DIR}/venturi.cpp
 )
 # target_compile_definitions(venturi PRIVATE ISO=1)
+if(VENTURI_STABLE_LINK)
+    target_compile_definitions(venturi PRIVATE VENTURI_STABLE_LINK=1)
+endif()
 target_include_directories(venturi PRIVATE
     ${COMMON_INCLUDES}
     ${FPGA_DRIVER_DIR}
@@ -121,6 +126,9 @@ add_executable(dummy_server
     ${FPGA_EXCHANGE_DIR}/exchange_transport.cpp
     ${FPGA_APP_DIR}/dummy_server.cpp
 )
+if(VENTURI_STABLE_LINK)
+    target_compile_definitions(dummy_server PRIVATE VENTURI_STABLE_LINK=1)
+endif()
 target_include_directories(dummy_server PRIVATE
     ${FPGA_EXCHANGE_DIR}
     ${FPGA_ROOT}/common
@@ -177,6 +185,9 @@ if(TARGET GTest::gtest_main)
         ${FPGA_ROOT}/common
         ${FPGA_TEST_DIR}
     )
+    if(VENTURI_STABLE_LINK)
+        target_compile_definitions(tx_translator_test PRIVATE VENTURI_STABLE_LINK=1)
+    endif()
     target_link_libraries(tx_translator_test PRIVATE
         GTest::gtest_main
     )
@@ -229,6 +240,9 @@ if(TARGET GTest::gtest_main)
         ${FPGA_ROOT}/common
         ${FPGA_TEST_DIR}
     )
+    if(VENTURI_STABLE_LINK)
+        target_compile_definitions(dummy_exchange_server_test PRIVATE VENTURI_STABLE_LINK=1)
+    endif()
     target_link_libraries(dummy_exchange_server_test PRIVATE
         GTest::gtest_main
     )
@@ -291,6 +305,9 @@ if(TARGET GTest::gtest_main)
         ${FPGA_ROOT}/common
         ${FPGA_TEST_DIR}
     )
+    if(VENTURI_STABLE_LINK)
+        target_compile_definitions(tx_receiver_feedback_test PRIVATE VENTURI_STABLE_LINK=1)
+    endif()
     target_link_libraries(tx_receiver_feedback_test PRIVATE
         GTest::gtest_main
     )
@@ -406,4 +423,5 @@ message(STATUS "Build targets:")
 message(STATUS "  - test_fpga_hello_v2   (FPGA infrastructure test)")
 message(STATUS "  - venturi              (FPGA host runtime)")
 message(STATUS "  - dummy_server         (dummy exchange simulator)")
+message(STATUS "  - VENTURI_STABLE_LINK=${VENTURI_STABLE_LINK}")
 message(STATUS "")

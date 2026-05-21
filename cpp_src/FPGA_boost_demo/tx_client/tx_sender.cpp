@@ -218,14 +218,26 @@ bool TxSender::runOnce() {
         return false;
     }
 #endif
-    TxOutboundRecord record {};
-    while (_popReadyOutbound(record)) {
+    while (!m_ready_outbound.isEmpty()) {
+        TxOutboundRecord& record = m_ready_outbound.readFront();
+        const bool is_heartbeat =
+            record.payload_length >= 3 &&
+            record.payload[2] == static_cast<uint8_t>('R');
+        if (is_heartbeat && record.send_offset == 0U && m_heartbeat_ready_count > 0) {
+            m_heartbeat_ready_count -= 1;
+        }
         if (!_sendPayload(record)) {
-            if (record.payload_length >= 3 && record.payload[2] == static_cast<uint8_t>('R')) {
+            if (is_heartbeat && record.send_offset == 0U) {
                 m_heartbeat_ready_count += 1;
             }
             const bool transport_dropped =
                 (m_transport_generation != 0) && (m_send_fd < 0);
+#ifdef VENTURI_STABLE_LINK
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR || transport_dropped) {
+                break;
+            }
+            break;
+#else
             if ((errno == EAGAIN || errno == EWOULDBLOCK) && !transport_dropped) {
                 break;
             }
@@ -237,6 +249,7 @@ bool TxSender::runOnce() {
                 });
             }
             break;
+#endif
         }
         m_ready_outbound.eraseFront();
         m_last_successful_send = std::chrono::steady_clock::now();
@@ -295,7 +308,7 @@ void TxSender::_retireGeneration(uint64_t generation) {
     _closeSendFd();
 }
 
-bool TxSender::_sendPayload(const TxOutboundRecord& record) {
+bool TxSender::_sendPayload(TxOutboundRecord& record) {
     const bool should_track_latency =
         (p_latency_tracker != nullptr && record.trace_id != 0U);
 #ifndef ISO
@@ -304,9 +317,11 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
         m_send_fd < 0) {
         return false;
     }
-    std::size_t offset = 0;
+    std::size_t offset = record.send_offset;
     while (offset < static_cast<std::size_t>(record.payload_length)) {
-        if (offset == 0 && should_track_latency) {
+        if (offset == static_cast<std::size_t>(record.send_offset) &&
+            record.send_offset == 0U &&
+            should_track_latency) {
 
             try {
                 p_latency_tracker->pushRecord(TimeRecord {
@@ -334,16 +349,21 @@ bool TxSender::_sendPayload(const TxOutboundRecord& record) {
             continue;
         }
         if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
-            if (offset == 0) {
-                return false;
-            }
-            _closeSendFd(false);
+            record.send_offset = static_cast<uint8_t>(offset);
             return false;
         }
+#ifdef VENTURI_STABLE_LINK
+        if (offset > 0U) {
+            record.send_offset = static_cast<uint8_t>(offset);
+        }
+        return false;
+#else
         _closeSendFd(false);
         return false;
+#endif
     }
 #endif
+    record.send_offset = 0U;
     if (should_track_latency) {
 
         try {

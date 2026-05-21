@@ -130,6 +130,7 @@ struct TxOutboundRecord {
     uint32_t                price           {0};
     uint32_t                shares          {0};
     uint8_t                 payload_length  {0};
+    uint8_t                 send_offset     {0};
     std::array<uint8_t, 64> payload         {};
 
 };
@@ -180,6 +181,5 @@ struct TxDisconnectNotice {
     uint64_t generation {0};
     uint16_t reason {0};
 };
-
 
 

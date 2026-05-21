@@ -64,7 +64,7 @@ private:
 
     void _updateConnectionInfo(const TxConnectionInfo& info);
     void _retireGeneration(uint64_t generation);
-    bool _sendPayload(const TxOutboundRecord& record);
+    bool _sendPayload(TxOutboundRecord& record);
     void _closeSendFd(bool clear_generation = true);
     bool _buildOrderFrame(const OrderExecution& execution, TxOutboundRecord& record);
     void _queueReadyRecord(const TxOutboundRecord& record);
