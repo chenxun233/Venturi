@@ -28,6 +28,8 @@ The schematic above shows the end-to-end purpose of Venturi: receive market data
 
 ### FPGA side
 
+The FPGA board is Exanic x10 from Cisco. But the schematic cannot be found on the internet. I referred to the project `Corundum` for the constraint. Need to mind that the polarity of rx is reversed (So in the PCS/PMA IP core, it should be tied to 1). 
+
 On the FPGA side, Venturi focuses on the hot path from packet ingress to DMA emission. Market data enters through the Ethernet MAC path, is parsed into order-book updates, and is reduced into event records that are useful to the host. Along the way, the design also captures timestamps and debug counters so the hardware stages can be inspected and correlated with host-side measurements.
 
 ![FPGA hierarchy](figures/FPGAoverview.png)
