@@ -9,7 +9,7 @@ It is not a perfect project. The aim is to scaffolding the project and pile up g
 2. Considering add DPDK front-end for data receiving, parallel with FPGA.
 
 ## Introduction
-The system receives Nasdaq ITCH 5.0 market data on the FPGA, builds top-of-book state in hardware, exports event records to host memory through PCIe DMA, and runs a host-side demo pipeline that can send orders to a simulated exchange. Latency is tracked across the software and hardware stages of this flow, except for PCIe transmission latency.
+The system receives Nasdaq ITCH 5.0 market data on the FPGA (10GBASE-R), builds top-of-book state in hardware, exports event records to host memory through PCIe DMA, and runs a host-side demo pipeline that can send orders to a simulated exchange. Latency is tracked across the software and hardware stages of this flow, except for PCIe transmission latency.
 
 When `venturi` is stopped with `Ctrl+C`, it prints summary statistics for each tracked stage, including `min`, `p50`, `p99`, and `max`.
 
@@ -46,8 +46,8 @@ Build the host runtime:
 
 ```bash
 cd Venturi
-cmake -S cpp_src -B cpp_src/build
-cmake --build cpp_src/build
+cmake -S host_src -B host_src/build
+cmake --build host_src/build
 ```
 
 Before running, the usual host preparation is:
@@ -68,13 +68,13 @@ Run the demo with three terminals.
 Terminal 1: start the dummy exchange:
 
 ```bash
-sudo ip netns exec <dummy_server_namespace> ./cpp_src/build/dummy_server
+sudo ip netns exec <dummy_server_namespace> ./host_src/build/dummy_server
 ```
 
 Terminal 2: run the host runtime:
 
 ```bash
-sudo ip netns exec <venturi_namespace> ./cpp_src/build/venturi
+sudo ip netns exec <venturi_namespace> ./host_src/build/venturi
 ```
 
 Terminal 3: feed market data into the FPGA path, for example with `tcpreplay`:
@@ -122,12 +122,12 @@ If both queues are configured correctly, the per-queue receive totals should be 
 When `tcpreplay` finished, you can press `ctrl+c` in `venturi` terminal, below will be printed:
 
 ```bash
-[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:30 initHardware(): Initializing FPGA RX hardware...
-[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:195 _getIOMMUGroupID(): IOMMU Group ID: 14
-[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:351 _getBARAddr(): BAR0 mapped at 0x7a8356ff4000 (size: 0x4000)
-[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:136 _readSymbolNum(): Device reports 2 symbols
-[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:90 setRxRingBuffers(): Configured RX queue 0: IOVA=0x0000000000200000 slots_num=1024 slot_bytes=32
-[INFO   ] Venturi/cpp_src/FPGA_boost_demo/fpga_dev/fpga_dev.cpp:90 setRxRingBuffers(): Configured RX queue 1: IOVA=0x0000000000400000 slots_num=1024 slot_bytes=32
+[INFO   ] Venturi/host_src/src/fpga_dev/fpga_dev.cpp:30 initHardware(): Initializing FPGA RX hardware...
+[INFO   ] Venturi/host_src/src/fpga_dev/fpga_dev.cpp:195 _getIOMMUGroupID(): IOMMU Group ID: 14
+[INFO   ] Venturi/host_src/src/fpga_dev/fpga_dev.cpp:351 _getBARAddr(): BAR0 mapped at 0x7a8356ff4000 (size: 0x4000)
+[INFO   ] Venturi/host_src/src/fpga_dev/fpga_dev.cpp:136 _readSymbolNum(): Device reports 2 symbols
+[INFO   ] Venturi/host_src/src/fpga_dev/fpga_dev.cpp:90 setRxRingBuffers(): Configured RX queue 0: IOVA=0x0000000000200000 slots_num=1024 slot_bytes=32
+[INFO   ] Venturi/host_src/src/fpga_dev/fpga_dev.cpp:90 setRxRingBuffers(): Configured RX queue 1: IOVA=0x0000000000400000 slots_num=1024 slot_bytes=32
 TxEvent queue=1 event=ConnectionEstablished
 TxEvent queue=0 event=ConnectionEstablished
 ^CLatency Summary queue=0

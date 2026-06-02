@@ -47,7 +47,7 @@ set(COMMON_INCLUDES ${COMMON_DIR})
 ###############################################################################
 # FPGA Driver and Applications
 ###############################################################################
-set(FPGA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/FPGA_boost_demo)
+set(FPGA_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(FPGA_DRIVER_DIR ${FPGA_ROOT}/fpga_dev)
 set(FPGA_ADAPTER_DIR ${FPGA_ROOT}/decoder)
 set(FPGA_ENGINE_DIR ${FPGA_ROOT}/fpga_rx_engine)

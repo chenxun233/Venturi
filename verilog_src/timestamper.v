@@ -7,7 +7,7 @@ module timestamper #(
     input  wire                         i_rst,      // active high
     input  wire                         i_event,    // one-cycle pulse at frame boundary
     output reg  [COUNTER_WIDTH-1:0]     o_mac_timestamp,
-    output reg  [COUNTER_WIDTH-1:0]      o_dma_timestamp_gray
+    output reg  [COUNTER_WIDTH-1:0]     o_dma_timestamp_gray
 );
     reg [COUNTER_WIDTH-1:0] tick_counter;
 

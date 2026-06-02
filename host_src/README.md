@@ -23,10 +23,10 @@ The main executables are:
 ## Directory Layout
 
 ```text
-cpp_src/
+host_src/
 ├── CMakeLists.txt
 ├── common/
-├── FPGA_boost_demo/
+├── src/
 │   ├── app/
 │   ├── common/
 │   ├── decoder/
@@ -50,7 +50,7 @@ Shared host infrastructure used by the runtime:
 - `dma_memory_allocator.*`: DMA-capable memory allocation
 - `memory_pool.*`: packet and buffer pool support
 
-### `FPGA_boost_demo`
+### `src`
 
 The FPGA demo runtime is organized by runtime ownership rather than only by folder shape:
 
@@ -70,7 +70,7 @@ The FPGA demo runtime is organized by runtime ownership rather than only by fold
 
 ### `venturi`
 
-`venturi` is the top-level host process for the FPGA demo. Its main orchestration lives in `FPGA_boost_demo/app/venturi.cpp` and wires together:
+`venturi` is the top-level host process for the FPGA demo. Its main orchestration lives in `src/app/venturi.cpp` and wires together:
 
 - `FPGARxEngine` for DMA polling and decode
 - `DummyStrategy` for event evaluation
@@ -88,7 +88,7 @@ The current runtime creates two RX/strategy/execution/TX lanes, pins worker thre
 
 `dummy_server` is a standalone exchange simulator. It accepts client connections, validates login and session state, generates exchange responses, and can delay fills to make latency behavior visible.
 
-The executable entry point is `FPGA_boost_demo/app/dummy_server.cpp`. The runtime implementation lives under `FPGA_boost_demo/exchange/`.
+The executable entry point is `src/app/dummy_server.cpp`. The runtime implementation lives under `src/exchange/`.
 
 ## Building
 
@@ -96,20 +96,20 @@ The executable entry point is `FPGA_boost_demo/app/dummy_server.cpp`. The runtim
 
 ```bash
 cd /home/chenxun/Documents/Project/Venturi
-cmake -S cpp_src -B cpp_src/build
+cmake -S host_src -B host_src/build
 ```
 
 ### Build Everything
 
 ```bash
-cmake --build cpp_src/build -j"$(nproc)"
+cmake --build host_src/build -j"$(nproc)"
 ```
 
 ### Build Selected Targets
 
 ```bash
-cmake --build cpp_src/build --target venturi dummy_server
-cmake --build cpp_src/build --target test_fpga_hello_v2
+cmake --build host_src/build --target venturi dummy_server
+cmake --build host_src/build --target test_fpga_hello_v2
 ```
 
 ## Running
@@ -119,7 +119,7 @@ cmake --build cpp_src/build --target test_fpga_hello_v2
 `test_fpga_hello_v2` expects a PCI address and a test number:
 
 ```bash
-sudo ./cpp_src/build/test_fpga_hello_v2 0000:05:00.0 1
+sudo ./host_src/build/test_fpga_hello_v2 0000:05:00.0 1
 ```
 
 ### Dummy Exchange Demo
@@ -127,13 +127,13 @@ sudo ./cpp_src/build/test_fpga_hello_v2 0000:05:00.0 1
 Build and run the host runtime together with the dummy exchange:
 
 ```bash
-cmake --build cpp_src/build --target dummy_server venturi
+cmake --build host_src/build --target dummy_server venturi
 ```
 
 Terminal 1:
 
 ```bash
-./cpp_src/build/dummy_server \
+./host_src/build/dummy_server \
   --listen-ip 192.168.51.2 \
   --port 9000 \
   --fill-delay-ms 20
@@ -142,7 +142,7 @@ Terminal 1:
 Terminal 2:
 
 ```bash
-sudo ./cpp_src/build/venturi
+sudo ./host_src/build/venturi
 ```
 
 ## Testing
@@ -150,7 +150,7 @@ sudo ./cpp_src/build/venturi
 Run the CTest-discovered suite from the build directory:
 
 ```bash
-cd /home/chenxun/Documents/Project/Venturi/cpp_src/build
+cd /home/chenxun/Documents/Project/Venturi/host_src/build
 ctest --output-on-failure
 ```
 

@@ -1,9 +1,9 @@
-# FPGA_boost_demo Hierarchy
+# src Hierarchy
 
 ## Source Tree
 
 ```text
-cpp_src/FPGA_boost_demo/
+host_src/src/
 ├── app
 ├── common
 ├── driver

@@ -7,7 +7,7 @@ SERVER_IP_CIDR="${SERVER_IP_CIDR:-192.168.51.2/30}"
 SERVER_IP="${SERVER_IP:-192.168.51.2}"
 SERVER_PORT="${SERVER_PORT:-9000}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DUMMY_SERVER_BIN="${DUMMY_SERVER_BIN:-$REPO_ROOT/cpp_src/build/dummy_server}"
+DUMMY_SERVER_BIN="${DUMMY_SERVER_BIN:-$REPO_ROOT/host_src/build/dummy_server}"
 
 need_root() {
   if [[ "${EUID}" -ne 0 ]]; then

@@ -1,5 +1,5 @@
 Vivado/
-cpp_src/build/
+host_src/build/
 .vscode/
 .claude/
 .cache/
@@ -20,7 +20,7 @@ corundum_exanic_x10/
 mkdocs/
 docs/
 build/
-cpp_src/FPGA_boost_demo/tests/
+host_src/src/tests/
 progress/
 xsim.dir/
 perf.data*
