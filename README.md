@@ -79,6 +79,12 @@ sudo ip netns exec <venturi_namespace> ./host_src/build/venturi
 
 Terminal 3: feed market data into the FPGA path, for example with `tcpreplay`:
 
+Before replay, isolate the port used by `tcpreplay`; otherwise noise packets can enter the replay device path and cause packet loss:
+
+```bash
+scripts/port_isolation.sh <replay-interface>
+```
+
 ```bash
 sudo tcpreplay -i <replay-interface> market_data/ONE_MSG_ONE_FRAME.pcap
 ```
@@ -220,4 +226,3 @@ Some host preparation is required for correctness, and some is primarily for cle
 Correctness debugging should be done on the simplest stable setup you can control. Latency benchmarking should use the more isolated setup.
 
 The only missing latency is the PCIe transmission latency. Because we do not have a hardware synced clock source.
-

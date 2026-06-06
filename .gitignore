@@ -25,3 +25,4 @@ progress/
 xsim.dir/
 perf.data*
 *.perf.data
+verilog_test/

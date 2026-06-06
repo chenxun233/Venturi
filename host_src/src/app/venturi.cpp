@@ -16,7 +16,6 @@
 #include <cstdint>
 #include <ctime>
 #include <exception>
-#include <cstdio>
 #include <memory>
 #include <string_view>
 #include <thread>

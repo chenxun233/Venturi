@@ -54,66 +54,63 @@ reg  [PTR_W-1:0] rd_ptr_bin;
 
 
 
-wire             wr_do;
-wire             rd_do;
+wire  wr_do;
+wire  rd_do;
 
 
 assign wr_do = i_wr_en && ! o_wr_full;
 assign rd_do = i_rd_en && ! o_rd_empty;
 
-wire [PTR_W-1:0] wr_ptr_bin_next    = wr_ptr_bin + {{(PTR_W-1){1'b0}}, wr_do};
-wire [PTR_W-1:0] wr_ptr_gray_next   = bin_2_gray(wr_ptr_bin_next);
-wire [PTR_W-1:0] rd_ptr_bin_next    = rd_ptr_bin + {{(PTR_W-1){1'b0}}, rd_do};
-wire [PTR_W-1:0] rd_ptr_gray_next   = bin_2_gray(rd_ptr_bin_next);
+
 // the follow two are used because they are the first stage crossing time, they should be stable.
-reg  [PTR_W-1:0] wr_ptr_gray_next_stable;
-reg  [PTR_W-1:0] rd_ptr_gray_next_stable;
-
+reg  [PTR_W-1:0] wr_ptr_gray;
+reg  [PTR_W-1:0] rd_ptr_gray;
 // When above have crossed the time domain, they become these:
-wire [PTR_W-1:0] wr_ptr_gray_rd_side;
-wire [PTR_W-1:0] rd_ptr_gray_wr_side;
+wire [PTR_W-1:0] wr_ptr_gray_rd;
+wire [PTR_W-1:0] rd_ptr_gray_wr;
 
-assign o_wr_full  = is_full(rd_ptr_gray_wr_side, wr_ptr_gray_next_stable);
-assign o_rd_empty = (wr_ptr_gray_rd_side == rd_ptr_gray_next_stable);
+assign o_wr_full  = is_full(rd_ptr_gray_wr, wr_ptr_gray);
+assign o_rd_empty = (wr_ptr_gray_rd == rd_ptr_gray);
 
 
 
 always @(posedge i_wr_clk or posedge i_wr_rst) begin
     if (i_wr_rst) begin
-        wr_ptr_bin                  <= {PTR_W{1'b0}};
-        wr_ptr_gray_next_stable    <=0;   
+        wr_ptr_bin                          <= 0;
+        wr_ptr_gray                         <= 0;
     end else begin
         if (wr_do) begin
-            mem[wr_ptr_bin[ADDR_W-1:0]] <= i_wr_data;
+            mem[wr_ptr_bin[ADDR_W-1:0]]     <= i_wr_data;
+            wr_ptr_bin                      <= wr_ptr_bin+1;
+            wr_ptr_gray                     <= bin_2_gray(wr_ptr_bin+1);
         end
-        wr_ptr_bin                  <= wr_ptr_bin_next;
-        wr_ptr_gray_next_stable    <= wr_ptr_gray_next;
     end
 end
 
 always @(posedge i_rd_clk or posedge i_rd_rst) begin
     if (i_rd_rst) begin
-        rd_ptr_gray_next_stable <=0;
-        o_rd_valid              <= 0;
-        rd_ptr_bin              <= {PTR_W{1'b0}};
-        o_rd_data               <= {DATA_W{1'b0}};
+        o_rd_valid      <= 0;
+        rd_ptr_bin      <= 0;
+        rd_ptr_gray     <= 0;
+        o_rd_data       <= 0;
     end else begin
+        o_rd_valid <= rd_do;               // Bug 1 fix: deasserts when no read
         if (rd_do) begin
-            o_rd_data           <= mem[rd_ptr_bin[ADDR_W-1:0]];
+            o_rd_data   <= mem[rd_ptr_bin[ADDR_W-1:0]];
+            rd_ptr_bin  <= rd_ptr_bin + 1;
+            rd_ptr_gray <= bin_2_gray(rd_ptr_bin + 1);
         end
-        o_rd_valid              <= rd_do;
-        rd_ptr_bin              <= rd_ptr_bin_next;
-        rd_ptr_gray_next_stable <=rd_ptr_gray_next;
     end
 end
+
 
 ff_sync #(
     .PTR_W (PTR_W)
 ) wr_2_rd (
     .i_clk (i_rd_clk),
     .i_rst (i_rd_rst),
-    .i_ptr (wr_ptr_gray_next_stable),
-    .o_ptr (wr_ptr_gray_rd_side)
+    .i_ptr (wr_ptr_gray),
+    .o_ptr (wr_ptr_gray_rd)
 );
 
 ff_sync #(
@@ -121,8 +118,8 @@ ff_sync #(
 ) rd_2_wr (
     .i_clk (i_wr_clk),
     .i_rst (i_wr_rst),
-    .i_ptr (rd_ptr_gray_next_stable),
-    .o_ptr (rd_ptr_gray_wr_side)
+    .i_ptr (rd_ptr_gray),
+    .o_ptr (rd_ptr_gray_wr)
 );
 
 
